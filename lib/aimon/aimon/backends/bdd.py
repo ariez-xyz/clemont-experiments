@@ -27,12 +27,12 @@ class BDD(BaseBackend):
         self.bdd.configure(reordering=False) # must be done after fairness bdd or it'll be very slow
 
         self._meta = {
-            "is_exact": True,
-            "is_sound": False,
-            "is_complete": True,
             "metric": "Linf",
             "epsilon": 1/n_bins,
             "decision_col": decision_col,
+            "is_exact": True,
+            "is_sound": False,
+            "is_complete": True,
             "n_vars": len(self.discretization.bdd_vars),
         }
 
