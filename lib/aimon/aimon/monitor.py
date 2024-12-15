@@ -1,12 +1,13 @@
 import sys
 import json
 from collections import defaultdict
+from .discretization import Discretization
 from dd.cudd import BDD
 
 class Monitor:
-    def __init__(self, discretization, collect_cex="none", print_stats=False):
+    def __init__(self, df, n_bins, decision_col, onehot_cols=[], categorical_cols=[], collect_cex="none", print_stats=False):
         self.collect_cex = collect_cex
-        self.discretization = discretization
+        self.discretization = Discretization(df, n_bins, decision_col, onehot_cols, categorical_cols)
         self.id_map = defaultdict(list)
 
         self.bdd = BDD()
@@ -19,10 +20,10 @@ class Monitor:
         
         self.fairness_bdd = self.Linf_bdd(
                 self.bdd, 
-                discretization.cols, 
-                discretization.decision, 
+                self.discretization.cols, 
+                self.discretization.decision, 
                 self.discretization.vars_map,
-                distances={cat: 0 for cat in discretization.categorical_cols} # Categories must be exact match, others count as similar if they are in neighboring bins
+                distances={cat: 0 for cat in self.discretization.categorical_cols} # Categories must be exact match, others count as similar if they are in neighboring bins
             )
 
         self.bdd.configure(reordering=False) # must be done after fairness bdd or it'll be very slow
@@ -47,7 +48,7 @@ class Monitor:
         E = E & self.history_bdd
         is_fair = (E == self.bdd.false)
 
-        # Counterexample is provided by Cudd in the form of a valuation.
+        # Counterexample is provided by Cudd in the form of a valuation. First, get all these valuations
         # First store all violating valuations
         cex_valuations = []
         if not is_fair:

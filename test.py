@@ -33,13 +33,12 @@ if __name__ == "__main__":
     df = pd.DataFrame(data, columns=column_names)
     df['pred'] = (df['pred'] > 0.5).astype(int)
 
-    discretization = Discretization(
-            df,
-            NBINS,
-            'pred',
-        )
-
-    monitor = Monitor(discretization, "all")
+    monitor = Monitor(
+        df,
+        NBINS,
+        'pred',
+        collect_cex="all"
+    )
 
     all_cexs = []
     for index, row in df.iterrows():
