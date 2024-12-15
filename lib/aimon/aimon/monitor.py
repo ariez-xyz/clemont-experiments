@@ -8,7 +8,6 @@ class Monitor:
         self.collect_cex = collect_cex
         self.discretization = discretization
         self.id_map = defaultdict(list)
-        self.unfair_list = []
 
         self.bdd = BDD()
         self.bdd.declare(*self.discretization.bdd_vars)
@@ -48,30 +47,26 @@ class Monitor:
         E = E & self.history_bdd
         is_fair = (E == self.bdd.false)
 
-        cex_vals = []
+        # Counterexample is provided by Cudd in the form of a valuation.
+        # First store all violating valuations
+        cex_valuations = []
         if not is_fair:
-            if self.collect_cex == "one":
-                cex_vals = [self.bdd.pick(E)]
+            if self.collect_cex == "one": # Faster
+                cex_valuations = [self.bdd.pick(E)]
             elif self.collect_cex == "all":
-                cex_vals += [cex for cex in self.bdd.pick_iter(E, care_vars=self.discretization.bdd_vars)]
-                # Counterexample is provided by Cudd in the form of a valuation.
-                # Remember pairs of row id and unfair valuation
-                for cex in cex_vals: 
-                    self.unfair_list.append((row_id, self.hash_dict(cex)))
+                cex_valuations += [cex for cex in self.bdd.pick_iter(E, care_vars=self.discretization.bdd_vars)]
 
-        return is_fair, self.to_indices(cex_vals)
+        # Then map to indices
+        cex_indices = self.to_indices(cex_valuations)
 
+        return is_fair, cex_indices
+
+    # to_indices maps list of valuations to the indices of the points situated within the discrete cells represented by the valuations
     def to_indices(self, valuations):
         ids = set()
         for v in valuations:
             ids |= set(self.id_map[self.hash_dict(v)])
         return ids
-
-    def unfair_pairs(self):
-        for yindex, valuation in self.unfair_list:
-            for xindex in self.id_map[valuation]:
-                if xindex >= yindex: break
-                yield xindex, yindex
                 
     def make_valuations(self, row):
         ret = []

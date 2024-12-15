@@ -41,15 +41,16 @@ if __name__ == "__main__":
 
     monitor = Monitor(discretization, "all")
 
+    all_cexs = []
     for index, row in df.iterrows():
-        fair, cexs = monitor.observe(row, row_id=index)
-        #print(fair, monitor.to_indices(cexs))
+        fair, iter_cexs = monitor.observe(row, row_id=index)
+        all_cexs.extend([(cex, index) for cex in iter_cexs])
 
     true_positives = naive(df, 1/NBINS)
 
-    monitor_positives = sorted([p for p in monitor.unfair_pairs()])
+    monitor_positives = sorted(all_cexs)
 
-    assert monitor_positives == EXPECTED, f"deviated from expected solution {EXPECTED}"
+    assert monitor_positives == EXPECTED, f"deviated from expected solution\ngot:{monitor_positives}\nexpected:{EXPECTED}"
     print("monitor solution is as expected")
 
     for true_positive in true_positives:
