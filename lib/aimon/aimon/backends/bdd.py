@@ -2,19 +2,17 @@ import sys
 import json
 from collections import defaultdict
 from .discretization import Discretization
-from dd.cudd import BDD
+from .base import BaseBackend
+from dd.cudd import BDD as cuddBDD
 
-class Monitor:
-    def __init__(self, df, n_bins, decision_col, onehot_cols=[], categorical_cols=[], collect_cex="none", print_stats=False):
+class BDD(BaseBackend):
+    def __init__(self, data_sample, n_bins, decision_col, onehot_cols=[], categorical_cols=[], collect_cex=False):
         self.collect_cex = collect_cex
-        self.discretization = Discretization(df, n_bins, decision_col, onehot_cols, categorical_cols)
+        self.discretization = Discretization(data_sample, n_bins, decision_col, onehot_cols, categorical_cols)
         self.id_map = defaultdict(list)
 
-        self.bdd = BDD()
+        self.bdd = cuddBDD()
         self.bdd.declare(*self.discretization.bdd_vars)
-    
-        if print_stats:
-            print(f"monitor running {len(self.discretization.bdd_vars)} variables", file=sys.stderr)
 
         self.history_bdd = self.bdd.false
         
@@ -28,18 +26,28 @@ class Monitor:
 
         self.bdd.configure(reordering=False) # must be done after fairness bdd or it'll be very slow
 
+        self._meta = {
+            "is_exact": True,
+            "is_sound": False,
+            "is_complete": True,
+            "metric": "Linf",
+            "epsilon": 1/n_bins,
+            "decision_col": decision_col,
+            "n_vars": len(self.discretization.bdd_vars),
+        }
+
     def hash_dict(self, d): # There may be better options but this is not as bad as it seems
         return json.dumps({k:v for k,v in d.items() if k.startswith('x_')}, sort_keys=True)
 
     def observe(self, row, row_id=None):
-        if self.collect_cex == "all" and row_id == None:
-            self.collect_cex = "none"
+        if self.collect_cex and row_id == None:
+            self.collect_cex = False
             print("warn: need a row_id to collect multiple counterexamples. disabling counterexample collection", file=sys.stderr)
 
         binned_row = self.discretization.bin_row(row)
         x_val, y_val = self.make_valuations(binned_row)
         
-        if self.collect_cex == "all":
+        if self.collect_cex:
             self.id_map[self.hash_dict(x_val)].append(row_id)
         
         self.history_bdd = self.history_bdd | self.bdd.cube(x_val) # add current sample to history
@@ -52,15 +60,15 @@ class Monitor:
         # First store all violating valuations
         cex_valuations = []
         if not is_fair:
-            if self.collect_cex == "one": # Faster
-                cex_valuations = [self.bdd.pick(E)]
-            elif self.collect_cex == "all":
+            #if self.collect_cex == "one": # Faster
+            #    cex_valuations = [self.bdd.pick(E)]
+            if self.collect_cex:
                 cex_valuations += [cex for cex in self.bdd.pick_iter(E, care_vars=self.discretization.bdd_vars)]
 
         # Then map to indices
         cex_indices = self.to_indices(cex_valuations)
 
-        return is_fair, cex_indices
+        return cex_indices
 
     # to_indices maps list of valuations to the indices of the points situated within the discrete cells represented by the valuations
     def to_indices(self, valuations):
