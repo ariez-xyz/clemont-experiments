@@ -3,7 +3,7 @@ import json
 from collections import defaultdict
 from .discretization import Discretization
 from .base import BaseBackend
-from dd.cudd import BDD as cuddBDD
+from dd.cudd import BDD as cuddMgr
 
 class BDD(BaseBackend):
     def __init__(self, data_sample, n_bins, decision_col, onehot_cols=[], categorical_cols=[], collect_cex=False):
@@ -11,7 +11,7 @@ class BDD(BaseBackend):
         self.discretization = Discretization(data_sample, n_bins, decision_col, onehot_cols, categorical_cols)
         self.id_map = defaultdict(list)
 
-        self.bdd = cuddBDD()
+        self.bdd = cuddMgr()
         self.bdd.declare(*self.discretization.bdd_vars)
 
         self.history_bdd = self.bdd.false

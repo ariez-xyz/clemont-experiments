@@ -1,5 +1,6 @@
 from abc import ABC, abstractmethod
-from typing import List, Tuple
+from typing import Callable, List, Tuple, cast
+import pandas as pd
 
 class BaseBackend(ABC):
     """Abstract base class for monitoring backends.
@@ -21,6 +22,7 @@ class BaseBackend(ABC):
     """
 
     def __init__(self, decision_col, epsilon):
+        self.radius_query_ks = []
         self._meta = {
             "epsilon": epsilon,
             "decision_col": decision_col,
@@ -50,3 +52,35 @@ class BaseBackend(ABC):
             by concrete backend classes.
         """
         pass
+
+    def emulate_range_query(
+        self,
+        query_fn: Callable[[int], Tuple[List[List[float]], List[List[int]]]],
+        epsilon: float,
+    ) -> Tuple[List[float], List[int]]:
+        distances = [[]]
+        indices = [[]]
+        k = 4
+        max_k = 128  # Limit to avoid excessive iterations and also random errors for hnswlib
+
+        # Iteratively run kNN queries, doubling k until results outside epsilon range are returned
+        while k <= max_k:
+            distances, indices = query_fn(k)
+
+            if len(distances[0]) == 0:
+                self.radius_query_ks += [0]
+                return [], []
+            elif all(d < epsilon for d in distances[0]):
+                k *= 2
+            else:
+                break
+
+        self.radius_query_ks += [k]
+
+        # Toss out results outside epsilon range
+        valid_points = [i for i, d in enumerate(distances[0]) if d < epsilon]
+        filtered_distances = [distances[0][i] for i in valid_points]
+        filtered_indices = [indices[0][i] for i in valid_points]
+
+        return filtered_distances, filtered_indices
+

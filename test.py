@@ -2,6 +2,7 @@ import pandas as pd
 import numpy as np
 
 from aimon.backends.bdd import BDD
+from aimon.backends.faiss import BruteForce
 from aimon.runner import Runner
 
 np.set_printoptions(suppress=True)
@@ -19,6 +20,15 @@ def naive(df, epsilon):
     
     return unfair_pairs
 
+def pprint_pair(df, i, j, eps):
+    print(f'\nrow {i}\trow {j}\tdiff\t<{eps}?')
+    for col in range(len(df.columns)):
+        val_i = df.iloc[i, col] # Format these to strings with 2 decimals
+        val_j = df.iloc[j, col]
+        diff = abs(val_i - val_j)
+        is_close = diff < eps
+        print(f"{val_i:.2f}\t{val_j:.2f}\t{diff:.2f}\t{is_close}")
+
 
 if __name__ == "__main__":
     num_rows = 200
@@ -31,19 +41,34 @@ if __name__ == "__main__":
     df = pd.DataFrame(data, columns=column_names)
     df['pred'] = (df['pred'] > 0.5).astype(int) # Make decision binary coinflip
 
-    backend = BDD(
+    bdd = BDD(
         data_sample=df,
         n_bins=NBINS,
         decision_col='pred',
         collect_cex=True
     )
 
-    runner = Runner(backend)
+    bf = BruteForce(df, 'pred', 1/NBINS)
+
+    #runner = Runner(bdd)
+    runner = Runner(bf)
 
     monitor_positives = sorted(runner.run(df))
     naive_positives   = sorted(naive(df, 1/NBINS))
 
-    assert monitor_positives == naive_positives, f"monitor returned different result from naive solution\nmonitor:{monitor_positives}\nnaive:{naive_positives}"
+    if monitor_positives != naive_positives:
+        print("monitor returned different result from naive solution")
+        print("naive solution:")
+        print(naive_positives)
+        print("monitor solution:")
+        print(monitor_positives)
+        print("-------------\nmonitor pairs:")
+        for pair in monitor_positives:
+            pprint_pair(df, pair[0], pair[1], 1/NBINS)
+        print("-------------\nnaive pairs:")
+        for pair in naive_positives:
+            pprint_pair(df, pair[0], pair[1], 1/NBINS)
+        exit(1)
 
     print(f'correct solution {monitor_positives} obtained from both implementations')
     print(f'monitor gave {runner.n_true_positives} true positives out of {runner.n_positives}')
