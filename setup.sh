@@ -14,7 +14,7 @@ conda install -y python=3.11
 conda install -y pytorch::faiss-cpu
 pip install --upgrade pybind11
 pip install --verbose 'nmslib @ git+https://github.com/nmslib/nmslib.git#egg=nmslib&subdirectory=python_bindings'
-pip install pandas matplotlib
+pip install pandas matplotlib xgboost
 
 pushd lib/
 ###################################################
