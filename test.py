@@ -7,7 +7,7 @@ from aimon.runner import Runner
 
 np.set_printoptions(suppress=True)
 
-def naive(df, epsilon):
+def naive(df, epsilon, num_columns):
     unfair_pairs = []
     
     for i in range(len(df)):
@@ -54,7 +54,7 @@ if __name__ == "__main__":
     runner = Runner(bf)
 
     monitor_positives = sorted(runner.run(df))
-    naive_positives   = sorted(naive(df, 1/NBINS))
+    naive_positives   = sorted(naive(df, 1/NBINS, num_columns))
 
     if monitor_positives != naive_positives:
         print("monitor returned different result from naive solution")

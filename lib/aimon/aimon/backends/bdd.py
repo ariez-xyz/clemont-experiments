@@ -56,11 +56,11 @@ class BDD(BaseBackend):
         E = E & self.history_bdd
         is_fair = (E == self.bdd.false)
 
-        # Counterexample is provided by Cudd in the form of a valuation. First, get all these valuations
-        # First store all violating valuations
+        # Counterexample is provided by Cudd in the form of a valuation.
+        # First collect all violating valuations
         cex_valuations = []
         if not is_fair:
-            #if self.collect_cex == "one": # Faster
+            #if self.collect_cex == "one": # Faster. TODO: What to do about no-cex monitoring support? Since we have so many false positives.
             #    cex_valuations = [self.bdd.pick(E)]
             if self.collect_cex:
                 cex_valuations += [cex for cex in self.bdd.pick_iter(E, care_vars=self.discretization.bdd_vars)]
@@ -152,6 +152,9 @@ class BDD(BaseBackend):
 
             
             # the similarity BDD wants every col to be close
+            # An error here is likely because the column is assigned 0 variables.
+            # Uncomment the below and check vars_map
+            # print(vars_map, col, col_flas, col_nbits)
             D = D & bdd.add_expr(col_matches)
 
         return D
