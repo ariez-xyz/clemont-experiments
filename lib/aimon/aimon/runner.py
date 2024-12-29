@@ -9,13 +9,20 @@ class Runner:
         self.timings = []
         self.total_time = 0
 
-    def run(self, df):
+    def get_backend_name(self):
+        return self.backend.__class__.__name__
+
+    def run(self, df, max_n=-1):
         all_cexs = []
         printed_progress = False
 
         for index, row in df.iterrows():
+            if index == max_n:
+                break
             start_iter_time = time.time()
+
             iter_cexs = self.backend.observe(row, row_id=index)
+
             self.n_positives += len(iter_cexs)
 
             # For unsound backends (BDD) filter false positives.
