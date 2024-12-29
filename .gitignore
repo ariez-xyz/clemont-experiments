@@ -2,4 +2,4 @@ miniconda3/
 lib/dd-*
 *.egg-info/
 *__pycache__/
-results/
+results/*/results/

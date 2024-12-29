@@ -23,11 +23,12 @@ def pprint_pair(df, i, j, eps):
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='run monitor on csv format predictions')
     parser.add_argument('csvpath', type=str, help='Path to the CSV file')
-    parser.add_argument('--out_path', type=str, help='Path to save output JSON')
     parser.add_argument('--eps', type=float, help='epsilon')
     parser.add_argument('--n_bins', type=int, help='Number of bins')
     parser.add_argument('--max_n', type=int, help='Cap the number of samples to process', default=-1)
+    parser.add_argument('--out_path', type=str, help='Path to save output JSON')
     parser.add_argument('--full_output', action='store_true', help='Flag to print full output')
+    parser.add_argument('--randomize_order', action='store_true', help='Randomize CSV order')
     
     args = parser.parse_args()
     csvpath = args.csvpath
@@ -46,7 +47,9 @@ if __name__ == "__main__":
     else:
         args.n_bins = int(1/args.eps)
 
-    df = pd.read_csv(csvpath)
+    df = pd.read_csv(csvpath) 
+    if args.randomize_order:
+        df = df.sample(frac=1).reset_index(drop=True)  # Randomize the dataframe rows
     low_cardinality_cols = [col for col in df.columns if df[col].nunique() < args.n_bins]
     print(f"assuming {low_cardinality_cols} for categorical attributes (must be exact match)")
     num_columns = df.shape[1]
@@ -68,11 +71,6 @@ if __name__ == "__main__":
 
     print(f'found {runner.n_true_positives} unfair pairs')
 
-    if args.full_output:
-        print(monitor_positives)
-        for pair in monitor_positives:
-            pprint_pair(df, pair[0], pair[1], args.eps)
-
     if args.out_path:
         out = {
             'n_true_positives': runner.n_true_positives,
@@ -83,9 +81,17 @@ if __name__ == "__main__":
             'n_bins': args.n_bins,
             'eps': args.eps,
             'args': vars(args),
-            'positives': [(int(x), int(y)) for x, y in monitor_positives],
-            'timings': runner.timings,
         } 
+
+        if args.full_output:
+            out['positives'] = [(int(x), int(y)) for x, y in monitor_positives]
+            out['timings'] = runner.timings
+
         with open(args.out_path, 'w') as f:
             json.dump(out, f, indent=2)
+
+    elif args.full_output:
+        print(monitor_positives)
+        for pair in monitor_positives:
+            pprint_pair(df, pair[0], pair[1], args.eps)
 
