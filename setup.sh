@@ -1,17 +1,22 @@
 #!/bin/bash
 trap 'exit' SIGINT
 
-if [ ! -d "./miniconda3" ]; then # Setup miniconda in cwd
-    mkdir -p ./miniconda3
-    wget https://repo.anaconda.com/miniconda/Miniconda3-latest-Linux-x86_64.sh -O ./miniconda3/miniconda.sh
-    bash ./miniconda3/miniconda.sh -b -s -u -p ./miniconda3
-    rm ./miniconda3/miniconda.sh
+if [ ! -d "./micromamba" ]; then
+    mkdir -p ./micromamba
+    wget -qO- https://micro.mamba.pm/api/micromamba/linux-64/latest | tar -xvj bin/micromamba
+    mv bin micromamba
 fi
 
 source activate.sh
 
-conda install -y python=3.11
-conda install -y pytorch::faiss-cpu
+if [ ! -f "activate.fish" ]; then
+    echo "set -gx MAMBA_ROOT_PREFIX ./micromamba/" > activate.fish
+    ./micromamba/bin/micromamba shell hook -s fish >> activate.fish
+    echo "micromamba activate" >> activate.fish
+fi
+
+micromamba install -y python=3.11
+micromamba install -y pytorch::faiss-cpu
 pip install --upgrade pybind11
 pip install --verbose 'nmslib @ git+https://github.com/nmslib/nmslib.git#egg=nmslib&subdirectory=python_bindings'
 pip install pandas matplotlib xgboost
@@ -51,4 +56,8 @@ popd
 popd
 
 
+# Install monitor as library.
+pushd lib
+pip install -e aimon
+popd
 

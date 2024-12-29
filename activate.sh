@@ -1,3 +1,4 @@
-source miniconda3/bin/activate               # Bash etc.
-conda activate base
+export MAMBA_ROOT_PREFIX=./micromamba/
+eval "$(./micromamba/bin/micromamba shell hook -s posix)"
+micromamba activate
 

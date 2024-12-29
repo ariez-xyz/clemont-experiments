@@ -1,5 +1,6 @@
-miniconda3/
+micromamba/
 lib/dd-*
 *.egg-info/
 *__pycache__/
 results/*/results/
+activate.fish
