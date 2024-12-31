@@ -33,7 +33,7 @@ plt.plot(eps_values, unrob_tp, label='Standard model')
 plt.yscale('log')
 plt.xlabel('Neighborhood Size (ε)')
 plt.ylabel('Unfair pairs')
-plt.title('Number of unfair pairs in epsilon')
+plt.title('Number of unfair pairs in epsilon, ijcnn train set')
 plt.legend()
 # Logscale grid
 plt.grid(True, which="both", ls="-")
