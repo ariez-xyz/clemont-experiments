@@ -19,5 +19,5 @@ source activate.sh
 popd
 
 # Submit to queue
-sbatch --array=$array --job-name=$work_script --output=$logs_dir/%A-%a.log -c 1 --time=0:00:30 --mem=1G --no-requeue --export=ALL $work_script
+sbatch --array=$array --job-name=$work_script --output=$logs_dir/%A-%a.log -c 1 --time=0:05:00 --mem=1G --no-requeue --export=ALL $work_script
 
