@@ -19,7 +19,7 @@ micromamba install -y python=3.11
 micromamba install -y pytorch::faiss-cpu
 pip install --upgrade pybind11
 pip install --verbose 'nmslib @ git+https://github.com/nmslib/nmslib.git#egg=nmslib&subdirectory=python_bindings'
-pip install pandas matplotlib xgboost
+pip install pandas matplotlib xgboost scikit-learn
 
 pushd lib/
 ###################################################
