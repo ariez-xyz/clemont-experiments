@@ -3,4 +3,5 @@ lib/dd-*
 *.egg-info/
 *__pycache__/
 results/*/results/
+results/*/logs/
 activate.fish
