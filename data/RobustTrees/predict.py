@@ -26,7 +26,7 @@ def main():
     
     # Load test data
     X_test, y_test = load_svmlight_file(args.data)
-    df = pd.DataFrame(X_test.toarray())
+    df = pd.DataFrame(X_test.toarray(), copy=False)  # avoid copying the array to reduce fragmentation
     feature_cols = [col for col in df.columns]
     dtest = xgb.DMatrix(df[feature_cols])
 
@@ -39,8 +39,7 @@ def main():
         output_df = pd.DataFrame({'pred': predictions})
     
     # Add original columns
-    for col in feature_cols:
-        output_df[col] = df[col]
+    output_df = pd.concat([output_df, df[feature_cols]], axis=1)  # use concat to avoid fragmentation
     
     # Save predictions
     output_df.to_csv(args.output_path, index=False)
