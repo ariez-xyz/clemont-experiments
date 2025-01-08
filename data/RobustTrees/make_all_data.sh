@@ -27,6 +27,7 @@ else
     echo "Skipping ijcnn.unrob as predictions already exist."
 fi
 
+## TODO: Very large, will do later.
 ## HIGGS
 #if [ ! -f predictions/higgs/test_pred.csv ]; then
 #    mkdir predictions/higgs
@@ -52,80 +53,81 @@ fi
 #    echo "Skipping higgs.unrob as predictions already exist."
 #fi
 
-# Binary MNIST
-if [ ! -f predictions/binary_mnist/test_pred.csv ]; then
-    mkdir predictions/binary_mnist
+## TODO: Throws an error?
+## Binary MNIST
+#if [ ! -f predictions/binary_mnist/test_pred.csv ]; then
+#    mkdir predictions/binary_mnist
+#    pushd repo
+#    ./xgboost data/binary_mnist.conf
+#    mv "$(ls -t | head -n1)" ../predictions/binary_mnist/binary_mnist.model
+#    popd
+#    python predict.py --model_path predictions/binary_mnist/binary_mnist.model --data repo/data/binary_mnist0 --output_path predictions/binary_mnist/train_pred.csv --binary
+#    python predict.py --model_path predictions/binary_mnist/binary_mnist.model --data repo/data/binary_mnist0.t --output_path predictions/binary_mnist/test_pred.csv --binary
+#else
+#    echo "Skipping binary_mnist as predictions already exist."
+#fi
+#
+#if [ ! -f predictions/binary_mnist.unrob/test_pred.csv ]; then
+#    mkdir predictions/binary_mnist.unrob
+#    pushd repo
+#    ./xgboost data/binary_mnist.unrob.conf
+#    mv "$(ls -t | head -n1)" ../predictions/binary_mnist.unrob/binary_mnist.unrob.model
+#    popd
+#    python predict.py --model_path predictions/binary_mnist.unrob/binary_mnist.unrob.model --data repo/data/binary_mnist0 --output_path predictions/binary_mnist.unrob/train_pred.csv --binary
+#    python predict.py --model_path predictions/binary_mnist.unrob/binary_mnist.unrob.model --data repo/data/binary_mnist0.t --output_path predictions/binary_mnist.unrob/test_pred.csv --binary
+#else
+#    echo "Skipping binary_mnist.unrob as predictions already exist."
+#fi
+
+# Original MNIST (multiclass)
+if [ ! -f predictions/ori_mnist/test_pred.csv ]; then
+    mkdir predictions/ori_mnist
     pushd repo
-    ./xgboost data/binary_mnist.conf
-    mv "$(ls -t | head -n1)" ../predictions/binary_mnist/binary_mnist.model
+    ./xgboost data/ori_mnist.conf
+    mv "$(ls -t | head -n1)" ../predictions/ori_mnist/ori_mnist.model
     popd
-    python predict.py --model_path predictions/binary_mnist/binary_mnist.model --data repo/data/binary_mnist0 --output_path predictions/binary_mnist/train_pred.csv --binary
-    python predict.py --model_path predictions/binary_mnist/binary_mnist.model --data repo/data/binary_mnist0.t --output_path predictions/binary_mnist/test_pred.csv --binary
+    python predict.py --model_path predictions/ori_mnist/ori_mnist.model --data repo/data/ori_mnist.train0 --output_path predictions/ori_mnist/train_pred.csv
+    python predict.py --model_path predictions/ori_mnist/ori_mnist.model --data repo/data/ori_mnist.test0 --output_path predictions/ori_mnist/test_pred.csv
 else
-    echo "Skipping binary_mnist as predictions already exist."
+    echo "Skipping ori_mnist as predictions already exist."
 fi
 
-if [ ! -f predictions/binary_mnist.unrob/test_pred.csv ]; then
-    mkdir predictions/binary_mnist.unrob
+if [ ! -f predictions/ori_mnist.unrob/test_pred.csv ]; then
+    mkdir predictions/ori_mnist.unrob
     pushd repo
-    ./xgboost data/binary_mnist.unrob.conf
-    mv "$(ls -t | head -n1)" ../predictions/binary_mnist.unrob/binary_mnist.unrob.model
+    ./xgboost data/ori_mnist.unrob.conf
+    mv "$(ls -t | head -n1)" ../predictions/ori_mnist.unrob/ori_mnist.unrob.model
     popd
-    python predict.py --model_path predictions/binary_mnist.unrob/binary_mnist.unrob.model --data repo/data/binary_mnist0 --output_path predictions/binary_mnist.unrob/train_pred.csv --binary
-    python predict.py --model_path predictions/binary_mnist.unrob/binary_mnist.unrob.model --data repo/data/binary_mnist0.t --output_path predictions/binary_mnist.unrob/test_pred.csv --binary
+    python predict.py --model_path predictions/ori_mnist.unrob/ori_mnist.unrob.model --data repo/data/ori_mnist.train0 --output_path predictions/ori_mnist.unrob/train_pred.csv
+    python predict.py --model_path predictions/ori_mnist.unrob/ori_mnist.unrob.model --data repo/data/ori_mnist.test0 --output_path predictions/ori_mnist.unrob/test_pred.csv
 else
-    echo "Skipping binary_mnist.unrob as predictions already exist."
+    echo "Skipping ori_mnist.unrob as predictions already exist."
 fi
 
-## Original MNIST (multiclass)
-#if [ ! -f predictions/ori_mnist/test_pred.csv ]; then
-#    mkdir predictions/ori_mnist
-#    pushd repo
-#    ./xgboost data/ori_mnist.conf
-#    mv "$(ls -t | head -n1)" ../predictions/ori_mnist/ori_mnist.model
-#    popd
-#    python predict.py --model_path predictions/ori_mnist/ori_mnist.model --data repo/data/ori_mnist.train0 --output_path predictions/ori_mnist/train_pred.csv
-#    python predict.py --model_path predictions/ori_mnist/ori_mnist.model --data repo/data/ori_mnist.test0 --output_path predictions/ori_mnist/test_pred.csv
-#else
-#    echo "Skipping ori_mnist as predictions already exist."
-#fi
-#
-#if [ ! -f predictions/ori_mnist.unrob/test_pred.csv ]; then
-#    mkdir predictions/ori_mnist.unrob
-#    pushd repo
-#    ./xgboost data/ori_mnist.unrob.conf
-#    mv "$(ls -t | head -n1)" ../predictions/ori_mnist.unrob/ori_mnist.unrob.model
-#    popd
-#    python predict.py --model_path predictions/ori_mnist.unrob/ori_mnist.unrob.model --data repo/data/ori_mnist.train0 --output_path predictions/ori_mnist.unrob/train_pred.csv
-#    python predict.py --model_path predictions/ori_mnist.unrob/ori_mnist.unrob.model --data repo/data/ori_mnist.test0 --output_path predictions/ori_mnist.unrob/test_pred.csv
-#else
-#    echo "Skipping ori_mnist.unrob as predictions already exist."
-#fi
-#
-## Fashion MNIST (multiclass)
-#if [ ! -f predictions/fashion/test_pred.csv ]; then
-#    mkdir predictions/fashion
-#    pushd repo
-#    ./xgboost data/fashion.conf
-#    mv "$(ls -t | head -n1)" ../predictions/fashion/fashion.model
-#    popd
-#    python predict.py --model_path predictions/fashion/fashion.model --data repo/data/fashion.train0 --output_path predictions/fashion/train_pred.csv
-#    python predict.py --model_path predictions/fashion/fashion.model --data repo/data/fashion.test0 --output_path predictions/fashion/test_pred.csv
-#else
-#    echo "Skipping fashion as predictions already exist."
-#fi
-#
-#if [ ! -f predictions/fashion.unrob/test_pred.csv ]; then
-#    mkdir predictions/fashion.unrob
-#    pushd repo
-#    ./xgboost data/fashion.unrob.conf
-#    mv "$(ls -t | head -n1)" ../predictions/fashion.unrob/fashion.unrob.model
-#    popd
-#    python predict.py --model_path predictions/fashion.unrob/fashion.unrob.model --data repo/data/fashion.train0 --output_path predictions/fashion.unrob/train_pred.csv
-#    python predict.py --model_path predictions/fashion.unrob/fashion.unrob.model --data repo/data/fashion.test0 --output_path predictions/fashion.unrob/test_pred.csv
-#else
-#    echo "Skipping fashion.unrob as predictions already exist."
-#fi
+# Fashion MNIST (multiclass)
+if [ ! -f predictions/fashion/test_pred.csv ]; then
+    mkdir predictions/fashion
+    pushd repo
+    ./xgboost data/fashion.conf
+    mv "$(ls -t | head -n1)" ../predictions/fashion/fashion.model
+    popd
+    python predict.py --model_path predictions/fashion/fashion.model --data repo/data/fashion.train0 --output_path predictions/fashion/train_pred.csv
+    python predict.py --model_path predictions/fashion/fashion.model --data repo/data/fashion.test0 --output_path predictions/fashion/test_pred.csv
+else
+    echo "Skipping fashion as predictions already exist."
+fi
+
+if [ ! -f predictions/fashion.unrob/test_pred.csv ]; then
+    mkdir predictions/fashion.unrob
+    pushd repo
+    ./xgboost data/fashion.unrob.conf
+    mv "$(ls -t | head -n1)" ../predictions/fashion.unrob/fashion.unrob.model
+    popd
+    python predict.py --model_path predictions/fashion.unrob/fashion.unrob.model --data repo/data/fashion.train0 --output_path predictions/fashion.unrob/train_pred.csv
+    python predict.py --model_path predictions/fashion.unrob/fashion.unrob.model --data repo/data/fashion.test0 --output_path predictions/fashion.unrob/test_pred.csv
+else
+    echo "Skipping fashion.unrob as predictions already exist."
+fi
 
 # Covtype (multiclass)
 if [ ! -f predictions/covtype/test_pred.csv ]; then
