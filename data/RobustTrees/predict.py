@@ -13,7 +13,7 @@ def parse_args():
                         help='Path to test data CSV file')
     parser.add_argument('--output_path', type=str, required=True,
                         help='Path to save predictions CSV')
-    parser.add_argument('--binary', action='store_true',
+    parser.add_argument('--binary', action='store_true', default=False,
                         help='Binary classification task? False for multi-class')
     return parser.parse_args()
 
