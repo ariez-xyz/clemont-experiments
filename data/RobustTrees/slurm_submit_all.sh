@@ -23,7 +23,7 @@
 # Use 8 cores
 #SBATCH -c 8
 
-# ?? export OMP_NUM_THREADS=$SLURM_CPUS_PER_TASK # Not sure if needed?
+export OMP_NUM_THREADS=$SLURM_CPUS_PER_TASK # Not sure if needed?
 
 #Pick whether you prefer requeue or not. If you use the --requeue
 #option, the requeued job script will start from the beginning, 
@@ -46,15 +46,15 @@ pushd ../..
 source activate.sh
 popd
 
-srun ./infer_binary_mnist.sh # Broken? Won't train past checkpoint 0009
-srun ./infer_breast_cancer.sh
-srun ./infer_cod_rna.sh
-srun ./infer_covtype.sh
-srun ./infer_diabetes.sh
-srun ./infer_fashion_mnist.sh
-srun ./infer_ijcnn.sh
-srun ./infer_sensorless.sh
-srun ./infer_webspam.sh
-srun ./infer_mnist.sh 
-srun ./infer_higgs.sh # Takes longest
+./infer_binary_mnist.sh # Broken? Won't train past checkpoint 0009
+./infer_breast_cancer.sh
+./infer_cod_rna.sh
+./infer_covtype.sh
+./infer_diabetes.sh
+./infer_fashion_mnist.sh
+./infer_ijcnn.sh
+./infer_sensorless.sh
+./infer_webspam.sh
+./infer_mnist.sh 
+./infer_higgs.sh # Takes longest
 
