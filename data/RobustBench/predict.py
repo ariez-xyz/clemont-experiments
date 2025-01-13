@@ -33,6 +33,8 @@ def main(model, dataset, threat_model, n_examples, output):
     # See https://github.com/RobustBench/robustbench?tab=readme-ov-file#model-zoo
     if dataset == 'cifar10':
         x_test, y_test = load_cifar10(n_examples=n_examples)
+    elif dataset == 'cifar100':
+        x_test, y_test = load_cifar100(n_examples=n_examples)
     else:
         log(f"unsupported dataset {dataset}")
         return
