@@ -2,4 +2,4 @@ data/
 models/
 predictions/
 predictions.csv
-
+*log
