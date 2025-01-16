@@ -30,4 +30,4 @@ popd
 
 srun /usr/bin/nvidia-smi
 
-srun ./infer.sh Standard cifar10 10000
+srun ./infer.sh Standard cifar10 10000 Linf

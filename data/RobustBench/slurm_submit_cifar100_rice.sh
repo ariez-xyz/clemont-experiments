@@ -30,4 +30,4 @@ popd
 
 srun /usr/bin/nvidia-smi
 
-srun ./infer.sh Rice2020Overfitting cifar100 10000
+srun ./infer.sh Rice2020Overfitting cifar100 10000 Linf

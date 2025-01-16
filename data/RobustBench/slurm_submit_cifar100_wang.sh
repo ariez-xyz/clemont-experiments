@@ -30,4 +30,4 @@ popd
 
 srun /usr/bin/nvidia-smi
 
-srun ./infer.sh Wang2023Better_WRN-70-16 cifar100 10000
+srun ./infer.sh Wang2023Better_WRN-70-16 cifar100 10000 Linf

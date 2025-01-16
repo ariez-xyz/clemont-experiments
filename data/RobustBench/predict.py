@@ -99,19 +99,19 @@ def process_img(img, force_resize, device):
     return transform(img).to(device)
 
 def embed(model, data):
-    predictions = []
+    embeddings = []
     last_update = time.time()
 
     with torch.no_grad():
         for i, x in enumerate(data):
-            x = x.unsqueeze(0)  # Add batch dimension (x.shape 3,32,32 -> 1,3,32,32)
-            predictions.append(model(x))
+            x = x.unsqueeze(0)
+            embeddings.append(model(x))
 
             if time.time() - last_update > 1:
                 log(f"dino: {i}")
                 last_update = time.time()
 
-    return predictions
+    return embeddings
 
 def classify(model, data):
     predictions = []
@@ -125,7 +125,7 @@ def classify(model, data):
             predictions.append(pred)
 
             if time.time() - last_update > 1:
-                log(i)
+                log(f"classifier: {i}")
                 last_update = time.time()
 
     return predictions
