@@ -6,5 +6,5 @@ N=${3:-100}
 
 mkdir -p predictions
 
-python predict.py --model "$MODEL" --dataset "$DATASET" --output "predictions/$DATASET-$MODEL.csv" --n-examples "$N"
+python predict.py --model "$MODEL" --dataset "$DATASET" --output "predictions/$DATASET-$MODEL.csv" --n-examples "$N" --threat-model Linf --emb-model small --force-resize
 
