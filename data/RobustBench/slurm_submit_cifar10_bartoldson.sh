@@ -24,10 +24,17 @@
 #SBATCH --export=ALL
 #
 
+MODEL=Bartoldson2024Adversarial_WRN-94-16
+DATASET=cifar10
+N=10000
+THREATMODEL=Linf
+
 pushd ../..
 source activate.sh
 popd
 
 srun /usr/bin/nvidia-smi
 
-srun ./infer.sh Bartoldson2024Adversarial_WRN-94-16 cifar10 10000 Linf
+mkdir -p predictions
+
+python predict.py --model "$MODEL" --dataset "$DATASET" --output "predictions/$DATASET-$MODEL.csv" --n-examples "$N" --threat-model "$THREATMODEL" 
