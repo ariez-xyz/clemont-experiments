@@ -5,7 +5,7 @@ import pandas as pd
 import numpy as np
 import time
 from datetime import datetime
-from robustbench.data import load_cifar10, load_cifar100, load_cifar10c, load_cifar100c, load_imagenet
+from robustbench.data import load_cifar10, load_cifar100, load_cifar10c, load_cifar100c, load_imagenet, load_imagenet3dcc
 from robustbench.utils import load_model
 
 def log(s):
@@ -20,7 +20,7 @@ def make_argparser():
                         choices=['cifar10', 'cifar10c', 'cifar100', 'cifar100c', 'imagenet', 'imagenet3dcc'],
                         help='Dataset to use')
     parser.add_argument('--threat-model', '--threat_model', type=str, default='Linf',
-                        choices=['Linf', 'L2', 'corruptions'],
+                        choices=['Linf', 'L2', 'corruptions', 'corruptions_3d'],
                         help='Threat model for robust training')
     parser.add_argument('--n-examples', '--n_examples', type=int, default=10000,
                         help='Number of examples to process')
@@ -31,19 +31,30 @@ def make_argparser():
                         help='Name of the embedding model to use')
     parser.add_argument('--force-resize', '--force_resize', action='store_true',
                         help='always resize images to have smaller dimension of 224px for the embedding model')
+    parser.add_argument('--corruption', type=str, default=None,
+                        choices=["shot_noise", "motion_blur", "snow", "pixelate", "gaussian_noise", "defocus_blur", 
+                                 "brightness", "fog", "zoom_blur", "frost", "glass_blur", "impulse_noise", "contrast", 
+                                 "jpeg_compression", "elastic_transform"],
+                        help='which corruption (cifar10c, cifar100c only)')
+    parser.add_argument('--corruption3d', type=str, default=None,
+                        choices=['near_focus', 'far_focus', 'fog_3d', 'flash', 'color_quant', 'low_light', 
+                                 'xy_motion_blur', 'z_motion_blur', 'iso_noise', 'bit_error', 'h265_abr', 'h265_crf'],
+                        help='which 3d corruption (imagenet3dcc only)')
+    parser.add_argument('--severity', type=int, default=5,
+                        help='severity of corruption (corruption datasets only)')
     return parser
 
-def basename(name):
-    if 'cifar100' in name:
+def basename(dataset_name):
+    if 'cifar100' in dataset_name:
         return 'cifar100'
-    elif 'cifar10' in name:
+    elif 'cifar10' in dataset_name:
         return 'cifar10'
-    elif 'imagenet' in name:
+    elif 'imagenet' in dataset_name:
         return 'imagenet'
     else:
         raise ValueError(f"unknown base dataset for {name}")
 
-def load_dataset(name, n_examples):
+def load_dataset(name, n_examples, corruption=None, corruption3d=None, severity=5):
     """Notes on datasets: ImageNet must be downloaded manually. 
     Download and untar the validation set in ./data/val (create if needed)
     In that directory, run the following script:
@@ -53,14 +64,25 @@ def load_dataset(name, n_examples):
 
     if name == 'cifar10':
         x_test, y_test = load_cifar10(n_examples=n_examples)
-    elif name == 'cifar10c':
-        x_test, y_test = load_cifar10c(n_examples=n_examples)
     elif name == 'cifar100':
         x_test, y_test = load_cifar100(n_examples=n_examples)
-    elif name == 'cifar100c':
-        x_test, y_test = load_cifar100c(n_examples=n_examples)
     elif name == 'imagenet':
         x_test, y_test = load_imagenet(n_examples=n_examples)
+    elif name == 'cifar10c':
+        if not corruption:
+            log("cifar10c requires specifying a corruption")
+            exit(1)
+        x_test, y_test = load_cifar10c(n_examples=n_examples, corruptions=[corruption], severity=severity)
+    elif name == 'cifar100c':
+        if not corruption:
+            log("cifar10c requires specifying a corruption")
+            exit(1)
+        x_test, y_test = load_cifar100c(n_examples=n_examples, corruptions=[corruption], severity=severity)
+    elif name == 'imagenet3dcc':
+        if not corruption3d:
+            log("cifar10c requires specifying a 3d corruption")
+            exit(1)
+        x_test, y_test = load_imagenet3dcc(n_examples=n_examples, corruptions=[corruption3d], severity=severity)
     else:
         raise ValueError(f"unsupported dataset {name}")
     return x_test, y_test
@@ -158,7 +180,7 @@ if __name__ == '__main__':
     model.to(device)
     model.eval() # no grad descent
 
-    x_test, _ = load_dataset(args.dataset, args.n_examples)
+    x_test, _ = load_dataset(args.dataset, args.n_examples, args.corruption, args.corruption3d, args.severity)
     x_test = x_test.to(device)
     log(f"{args.model} model and {len(x_test)} samples from {args.dataset} loaded on device {device}")
 
