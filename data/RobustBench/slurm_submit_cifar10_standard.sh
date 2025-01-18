@@ -24,10 +24,17 @@
 #SBATCH --export=ALL
 #
 
+MODEL=Standard
+DATASET=cifar10
+N=10000
+THREATMODEL=Linf
+
 pushd ../..
 source activate.sh
 popd
 
 srun /usr/bin/nvidia-smi
 
-srun ./infer.sh Standard cifar10 10000 Linf
+mkdir -p predictions
+
+python predict.py --model "$MODEL" --dataset "$DATASET" --output "predictions/$DATASET-$MODEL.csv" --n-examples "$N" --threat-model "$THREATMODEL" 

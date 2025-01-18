@@ -45,7 +45,10 @@ def basename(name):
 
 def load_dataset(name, n_examples):
     """Notes on datasets: ImageNet must be downloaded manually. 
-    See https://github.com/RobustBench/robustbench?tab=readme-ov-file#model-zoo
+    Download and untar the validation set in ./data/val (create if needed)
+    In that directory, run the following script:
+    https://raw.githubusercontent.com/soumith/imagenetloader.torch/master/valprep.sh
+    (See https://github.com/RobustBench/robustbench?tab=readme-ov-file#model-zoo)
     """
 
     if name == 'cifar10':

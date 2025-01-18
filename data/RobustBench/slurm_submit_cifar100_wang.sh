@@ -24,10 +24,17 @@
 #SBATCH --export=ALL
 #
 
+MODEL=Wang2023Better_WRN-70-16
+DATASET=cifar100
+N=10000
+THREATMODEL=Linf
+
 pushd ../..
 source activate.sh
 popd
 
 srun /usr/bin/nvidia-smi
 
-srun ./infer.sh Wang2023Better_WRN-70-16 cifar100 10000 Linf
+mkdir -p predictions
+
+python predict.py --model "$MODEL" --dataset "$DATASET" --output "predictions/$DATASET-$MODEL.csv" --n-examples "$N" --threat-model "$THREATMODEL" 
