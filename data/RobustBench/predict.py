@@ -56,10 +56,15 @@ def basename(dataset_name):
 
 def load_dataset(name, n_examples, corruption=None, corruption3d=None, severity=5):
     """Notes on datasets: ImageNet must be downloaded manually. 
+    ImageNet instructions: (from https://github.com/RobustBench/robustbench?tab=readme-ov-file#model-zoo)
     Download and untar the validation set in ./data/val (create if needed)
     In that directory, run the following script:
     https://raw.githubusercontent.com/soumith/imagenetloader.torch/master/valprep.sh
-    (See https://github.com/RobustBench/robustbench?tab=readme-ov-file#model-zoo)
+
+    ImageNet-3DCC instructions:
+    Download the dataset using the provided script:
+    https://github.com/EPFL-VILAB/3DCommonCorruptions/blob/main/tools/download_imagenet_3dcc.sh
+    Place the ImageNet-3DCC folder in ./data/
     """
 
     if name == 'cifar10':
