@@ -12,6 +12,10 @@ def log(s):
     timestamp = datetime.utcfromtimestamp(time.time()).strftime('%Y-%m-%d %H:%M:%S')
     print(f"[{timestamp}] {s}", flush=True)
 
+def fatal(s):
+    log(s)
+    exit(1)
+
 def make_argparser():
     parser = argparse.ArgumentParser(description='Run inference with RobustBench models')
     parser.add_argument('--model', type=str, default='Standard',
@@ -74,19 +78,13 @@ def load_dataset(name, n_examples, corruption=None, corruption3d=None, severity=
     elif name == 'imagenet':
         x_test, y_test = load_imagenet(n_examples=n_examples)
     elif name == 'cifar10c':
-        if not corruption:
-            log("cifar10c requires specifying a corruption")
-            exit(1)
+        if not corruption: fatal("cifar10c requires specifying a corruption")
         x_test, y_test = load_cifar10c(n_examples=n_examples, corruptions=[corruption], severity=severity)
     elif name == 'cifar100c':
-        if not corruption:
-            log("cifar10c requires specifying a corruption")
-            exit(1)
+        if not corruption: fatal("cifar100c requires specifying a corruption")
         x_test, y_test = load_cifar100c(n_examples=n_examples, corruptions=[corruption], severity=severity)
     elif name == 'imagenet3dcc':
-        if not corruption3d:
-            log("cifar10c requires specifying a 3d corruption")
-            exit(1)
+        if not corruption3d: fatal("cifar10c requires specifying a 3d corruption")
         x_test, y_test = load_imagenet3dcc(n_examples=n_examples, corruptions=[corruption3d], severity=severity)
     else:
         raise ValueError(f"unsupported dataset {name}")
@@ -165,7 +163,7 @@ def format(predictions, embeddings, x_test):
         embeddings_array = torch.cat(embeddings, dim=0).cpu().numpy()
         return pd.DataFrame(
             np.column_stack([predictions, embeddings_array]),
-            columns=['pred'] + [f'f{i}' for i in range(embeddings_array.shape[1])]
+            columns=['pred'] + [f'e{i}' for i in range(embeddings_array.shape[1])]
         )
 
     else:
