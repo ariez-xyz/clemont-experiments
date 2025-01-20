@@ -10,8 +10,8 @@
 #SBATCH --constraint=L40S
 # -------------------------------------------------------
 #
-#SBATCH --job-name=standard-cifar10c
-#SBATCH --output=standard-cifar10c-%j.log
+#SBATCH --job-name=gowal-cifar100c
+#SBATCH --output=gowal-cifar100c-%j.log
 #
 # 8 cores
 #SBATCH -c 8
@@ -24,8 +24,8 @@
 #SBATCH --export=ALL
 #
 
-MODEL=Standard
-DATASET=cifar10c
+MODEL=Gowal2020Uncovering_Linf
+DATASET=cifar100c
 N=10000
 THREATMODEL=corruptions
 

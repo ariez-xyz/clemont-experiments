@@ -10,8 +10,8 @@
 #SBATCH --constraint=L40S
 # -------------------------------------------------------
 #
-#SBATCH --job-name=standard-cifar10c
-#SBATCH --output=standard-cifar10c-%j.log
+#SBATCH --job-name=alexnet-3dcc
+#SBATCH --output=alexnet-3dcc-%j.log
 #
 # 8 cores
 #SBATCH -c 8
@@ -24,10 +24,10 @@
 #SBATCH --export=ALL
 #
 
-MODEL=Standard
-DATASET=cifar10c
-N=10000
-THREATMODEL=corruptions
+MODEL=AlexNet
+DATASET=imagenet3dcc
+N=5000
+THREATMODEL=corruptions_3d
 
 pushd ../..
 source activate.sh
@@ -38,14 +38,14 @@ srun /usr/bin/nvidia-smi
 mkdir -p predictions
 
 for SEVERITY in 1 2 3 4 5; do
-    for CORRUPTION in shot_noise motion_blur snow pixelate gaussian_noise defocus_blur brightness fog zoom_blur frost glass_blur impulse_noise contrast jpeg_compression elastic_transform; do
+    for CORRUPTION in near_focus far_focus fog_3d flash color_quant low_light xy_motion_blur z_motion_blur iso_noise bit_error h265_abr h265_crf; do
         python predict.py --model "$MODEL" \
                          --emb-model base \
                          --dataset "$DATASET" \
                          --output "predictions/$DATASET-$MODEL-$CORRUPTION-$SEVERITY.csv" \
                          --n-examples "$N" \
                          --threat-model "$THREATMODEL" \
-                         --corruption "$CORRUPTION" \
+                         --corruption3d "$CORRUPTION" \
                          --severity "$SEVERITY"
     done
 done

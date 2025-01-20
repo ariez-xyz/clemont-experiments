@@ -10,8 +10,8 @@
 #SBATCH --constraint=L40S
 # -------------------------------------------------------
 #
-#SBATCH --job-name=standard-cifar10c
-#SBATCH --output=standard-cifar10c-%j.log
+#SBATCH --job-name=diffenderfer-cifar10c
+#SBATCH --output=diffenderfer-cifar10c-%j.log
 #
 # 8 cores
 #SBATCH -c 8
@@ -24,7 +24,7 @@
 #SBATCH --export=ALL
 #
 
-MODEL=Standard
+MODEL=Diffenderfer2021Winning_LRR_CARD_Deck
 DATASET=cifar10c
 N=10000
 THREATMODEL=corruptions
