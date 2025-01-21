@@ -1,17 +1,15 @@
 #!/bin/bash
 
-# epsilon=8/255
-export eps=$(python3 -c "import sys; print('{:.8f}'.format(8/255))")
-
 # output dirs
-export results_base="../results/all/"
-export work_script="slurm_all_work.sh"
+export results_base="../results/robustbench/"
+export work_script="slurm_robustbench_work.sh"
 
 ## find and count all prediction csv's in data directory
 #export data_files=$(for dir in $(find ../data/ -maxdepth 1 -mindepth 1 -type d); do find $dir/predictions/ -name *csv; done)
 
 # RobustBench only
-export data_files=$(find ../data/RobustBench/predictions/ -name *csv; done)
+export data_files=$(find ../data/RobustBench/predictions_dinobase/ -name *csv)
+#                  Count data files
 export array="1-$(echo "$data_files" | wc -w)"
 
 # setup dirs, venv, etc
@@ -26,5 +24,5 @@ source activate.sh
 popd
 
 # Submit to queue
-sbatch --array=$array --job-name=$work_script --output=$logs_dir/%A-%a.log -c 1 --time=0:30:00 --mem=16G --no-requeue --export=ALL $work_script
+sbatch --array=$array --job-name=$work_script --output=$logs_dir/%A-%a.log -c 4 --time=0:30:00 --mem=16G --no-requeue --export=ALL $work_script
 

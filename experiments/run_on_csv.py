@@ -10,6 +10,9 @@ from aimon.runner import Runner
 
 np.set_printoptions(suppress=True)
 
+def log(s):
+    print(s, flush=True)
+
 def pprint_pair(df, i, j, eps):
     print(f'\nrow {i}\trow {j}\tdiff\t<{eps}?')
     for col in range(len(df.columns)):
@@ -18,7 +21,6 @@ def pprint_pair(df, i, j, eps):
         diff = abs(val_i - val_j)
         is_close = diff < eps
         print(f"{val_i:.4f}\t{val_j:.4f}\t{diff:.4f}\t{is_close}")
-
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='run monitor on csv format predictions')
@@ -47,29 +49,33 @@ if __name__ == "__main__":
     else:
         args.n_bins = int(1/args.eps)
 
+    log(f"loading {csvpath}...")
     df = pd.read_csv(csvpath) 
+    log(f"loaded {df.shape} df")
     if args.randomize_order:
         df = df.sample(frac=1).reset_index(drop=True)  # Randomize the dataframe rows
     low_cardinality_cols = [col for col in df.columns if df[col].nunique() < args.n_bins]
-    print(f"assuming {low_cardinality_cols} for categorical attributes (must be exact match)")
+    log(f"assuming {low_cardinality_cols} for categorical attributes (must be exact match)")
     num_columns = df.shape[1]
 
-    bdd = BDD(
-        data_sample=df,
-        n_bins=args.n_bins,
-        decision_col='pred',
-        categorical_cols=low_cardinality_cols,
-        collect_cex=True
-    )
+    #bdd = BDD(
+    #    data_sample=df,
+    #    n_bins=args.n_bins,
+    #    decision_col='pred',
+    #    categorical_cols=low_cardinality_cols,
+    #    collect_cex=True
+    #)
 
     bf = BruteForce(df, 'pred', args.eps)
 
     #runner = Runner(bdd)
     runner = Runner(bf)
 
+    log(f"starting...")
+
     monitor_positives = sorted(runner.run(df, args.max_n))
 
-    print(f'found {runner.n_true_positives} unfair pairs')
+    log(f'found {runner.n_true_positives} unfair pairs')
 
     if args.out_path:
         out = {
