@@ -40,7 +40,7 @@ mkdir -p predictions
 for SEVERITY in 1 2 3 4 5; do
     for CORRUPTION in shot_noise motion_blur snow pixelate gaussian_noise defocus_blur brightness fog zoom_blur frost glass_blur impulse_noise contrast jpeg_compression elastic_transform; do
         python predict.py --model "$MODEL" \
-                         --emb-model base \
+                         --emb-model small \
                          --dataset "$DATASET" \
                          --output "predictions/$DATASET-$MODEL-$CORRUPTION-$SEVERITY.csv" \
                          --n-examples "$N" \
