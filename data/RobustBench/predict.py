@@ -158,18 +158,19 @@ def classify(model, data):
 
     return predictions
 
-def format(predictions, embeddings, x_test):
+def format(predictions, embeddings, x_test, y_test):
     if embeddings:
         embeddings_array = torch.cat(embeddings, dim=0).cpu().numpy()
         return pd.DataFrame(
-            np.column_stack([predictions, embeddings_array]),
-            columns=['pred'] + [f'e{i}' for i in range(embeddings_array.shape[1])]
+            np.column_stack([predictions, y_test, embeddings_array]),
+            columns=['pred', 'label'] + [f'e{i}' for i in range(embeddings_array.shape[1])]
         )
 
     else:
         x_test = x_test.reshape(len(x_test), -1)
         return pd.DataFrame({
             'pred': predictions,
+            'label': y_test,
             **{f'f{i}': x_test[:, i].cpu().numpy() for i in range(x_test.shape[1])}
         })
 
@@ -183,7 +184,7 @@ if __name__ == '__main__':
     model.to(device)
     model.eval() # no grad descent
 
-    x_test, _ = load_dataset(args.dataset, args.n_examples, args.corruption, args.corruption3d, args.severity)
+    x_test, y_test = load_dataset(args.dataset, args.n_examples, args.corruption, args.corruption3d, args.severity)
     x_test = x_test.to(device)
     log(f"{args.model} model and {len(x_test)} samples from {args.dataset} loaded on device {device}")
 
@@ -206,7 +207,7 @@ if __name__ == '__main__':
         log(f"finished computing embeddings")
 
     log("saving csv...")
-    format(predictions, embeddings, x_test).to_csv(args.output, index=False)
+    format(predictions, embeddings, x_test, y_test).to_csv(args.output, index=False)
 
     log("completed")
 
