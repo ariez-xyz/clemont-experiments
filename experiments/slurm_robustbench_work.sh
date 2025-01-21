@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # get input file for this array job
-data_files=$(find ../data/RobustBench/predictions_dinobase/ -name "*csv")
+data_files=$(find ../data/RobustBench/predictions/ -name "*csv")
 input=$(echo "$data_files" | sed -n "${SLURM_ARRAY_TASK_ID}p")
 basename="${input##*/}"
 name="${basename%.*}"
