@@ -5,13 +5,13 @@ from aimon.backends.base import BaseBackend
 from typing import List
 
 class BruteForce(BaseBackend):
-    def __init__(self, df, decision_col, epsilon):
+    def __init__(self, df, decision_col, epsilon, metric=faiss.METRIC_Linf):
         self.dim = df.shape[1] - 1 # kNN algo is blind to the decision column
 
         # Create separate indices for each unique class
         self.indices = {}
         for class_val in df[decision_col].unique():
-            flat_index = faiss.IndexFlat(self.dim, faiss.METRIC_Linf)
+            flat_index = faiss.IndexFlat(self.dim, metric)
             with_custom_ids = faiss.IndexIDMap(flat_index) # This decorator adds support for add_with_ids()
             self.indices[class_val] = with_custom_ids
         print(f"initialized {len(self.indices)} indices. eps={epsilon}")
@@ -25,7 +25,7 @@ class BruteForce(BaseBackend):
             "metric": "Linf",
             "is_exact": True,
             "is_sound": True,
-            "is_complete": False,
+            "is_complete": True,
         }
 
     def observe(self, row, row_id=None) -> List[int]:
