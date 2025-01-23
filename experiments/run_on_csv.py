@@ -9,6 +9,7 @@ from datetime import datetime
 from aimon.backends.bdd import BDD
 from aimon.backends.faiss import BruteForce
 from aimon.backends.kdtree import KdTree
+from aimon.backends.snn import Snn
 from aimon.runner import Runner
 
 np.set_printoptions(suppress=True)
@@ -62,7 +63,7 @@ def make_argparser():
     parser.add_argument('--out_path', '--out-path', type=str, help='Path to save output JSON')
     parser.add_argument('--full_output', '--full-output', action='store_true', help='verbose output (timings, concrete counterexample pairs)')
     parser.add_argument('--randomize_order', '--randomize-order', action='store_true', help='Randomize CSV order')
-    parser.add_argument('--backend', type=str, default='bf', choices=['bf', 'bdd', 'kdtree'], help='which implementation to use as backend')
+    parser.add_argument('--backend', type=str, default='bf', choices=['bf', 'bdd', 'kdtree', 'snn'], help='which implementation to use as backend')
     parser.add_argument('--blind_cols', '--blind-cols', type=str, help='comma-separated list of sensitive columns, e.g. "race,sex". allows wildcards like "race=*"')
     parser.add_argument('--pred', type=str, default='pred', help='name of the column holding model predictions')
     parser.add_argument('--metric', type=str, default='Linf', help='metric to use. available choices depend on backend')
@@ -135,6 +136,9 @@ if __name__ == "__main__":
     elif args.backend == 'kdtree':
         log(f"initializing kd-tree backend...")
         backend = KdTree(df, args.pred, args.eps, args.metric)
+    elif args.backend == 'snn':
+        log(f"initializing snn backend...")
+        backend = Snn(df, args.pred, args.eps)
 
     runner = Runner(backend)
 

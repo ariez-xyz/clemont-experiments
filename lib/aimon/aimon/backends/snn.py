@@ -1,31 +1,32 @@
 import time
 
-from sklearn.neighbors import KDTree
+import snnpy
+import numpy as np
 
 from aimon.backends.base import BaseBackend
 from aimon.backends.faiss import BruteForce
 
-class KdTree(BaseBackend):
-    def __init__(self, df, decision_col, epsilon, metric='infinity', batchsize=100):
-        if metric not in KDTree([[0]]).valid_metrics:
-            raise NotImplementedError(f"invalid metric {metric}. valid metrics: {KDTree([[0]]).valid_metrics}")
+class Snn(BaseBackend):
+    def __init__(self, df, decision_col, epsilon, metric='l2', batchsize=5000):
+        if metric != 'l2':
+            raise NotImplementedError(f"invalid metric {metric}. snnpy only supports l2")
 
         self.classes = df[decision_col].unique()
         self.df = df
         self.batchsize = batchsize
 
         self.current_batch = 0
-        self.bf = BruteForce(df, decision_col, epsilon, metric)
+        self.bf = BruteForce(df, decision_col, epsilon, 'l2')
         self.history = []
         self.histories = {c: [] for c in self.classes}
 
         self._meta = {
-            "kdt_time": 0,
+            "snn_time": 0,
             "bf_time": 0,
             "index_time": 0,
             "epsilon": epsilon,
             "decision_col": decision_col,
-            "metric": metric,
+            "metric": "l2",
             "batchsize": batchsize,
             "is_exact": True,
             "is_sound": True,
@@ -42,9 +43,10 @@ class KdTree(BaseBackend):
 
         if self.current_batch >= self.batchsize: # Rebuild
             print(f"rebuilding at {len(self.history)}...")
+            X = np.array([series.values for series in self.history])
             st = time.time()
-            self.kdt = KDTree(self.history, metric=self.meta["metric"])
-            self.bf = BruteForce(self.df, self.meta["decision_col"], self.meta["epsilon"], self.meta["metric"])
+            self.snn = snnpy.build_snn_model(X)
+            self.bf = BruteForce(self.df, self.meta["decision_col"], self.meta["epsilon"], "l2")
             self.meta["index_time"] += time.time() - st
             self.current_batch = 0
 
@@ -61,9 +63,9 @@ class KdTree(BaseBackend):
                 continue # skip search for points with same decision
             row[self.meta["decision_col"]] = c
             st = time.time()
-            kdt_res = self.kdt.query_radius([row], self.meta["epsilon"])
-            self.meta["kdt_time"] += time.time() - st
-            cexs.extend(list(kdt_res[0]))
+            snn_res = self.snn.query_radius(row, self.meta["epsilon"], return_distance=False)
+            self.meta["snn_time"] += time.time() - st
+            cexs.extend(snn_res)
 
         row[self.meta["decision_col"]] = decision # Restore point to correct decision.
 
