@@ -27,6 +27,12 @@ class BruteForce(BaseBackend):
         print(f"initialized {len(self.indices)} indices. eps={epsilon}")
 
         self.epsilon = epsilon
+        if metric == 'l2': 
+            # https://github.com/facebookresearch/faiss/wiki/MetricType-and-distances#metric_l2
+            # "Faiss reports squared Euclidean (L2) distance"
+            # Don't ask how long this took to debug
+            self.epsilon = epsilon ** 2
+
         self.decision_col = decision_col
         self.radius_query_ks = []
         self._meta = {
