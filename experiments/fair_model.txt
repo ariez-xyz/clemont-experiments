@@ -1,0 +1,76 @@
+
+Pair 206 - 14939:
+                         column            Row 206          Row 14939
+Model prediction (income >50k?)                0.0                1.0
+                            age                 34                 35
+                      workclass            Private            Private
+                         fnlwgt             242361             257042
+                      education       Some-college       Some-college
+                  education_num                 10                 10
+                 marital_status Married-civ-spouse Married-civ-spouse
+                     occupation     Prof-specialty     Prof-specialty
+                   relationship            Husband            Husband
+                           race              Black              White
+                            sex               Male               Male
+                   capital_gain                  0                  0
+                   capital_loss                  0                  0
+                 hours_per_week                 50                 50
+                 native_country      United-States      United-States
+--------------------------------------------------------------------------------
+
+Pair 5330 - 11911:
+                         column           Row 5330          Row 11911
+Model prediction (income >50k?)                0.0                1.0
+                            age                 31                 33
+                      workclass            Private            Private
+                         fnlwgt             100997             112383
+                      education       Some-college       Some-college
+                  education_num                 10                 10
+                 marital_status Married-civ-spouse Married-civ-spouse
+                     occupation     Prof-specialty     Prof-specialty
+                   relationship            Husband            Husband
+                           race Amer-Indian-Eskimo              White
+                            sex               Male               Male
+                   capital_gain                  0                  0
+                   capital_loss                  0                  0
+                 hours_per_week                 40                 40
+                 native_country      United-States      United-States
+--------------------------------------------------------------------------------
+
+Pair 5330 - 17903:
+                         column           Row 5330          Row 17903
+Model prediction (income >50k?)                0.0                1.0
+                            age                 31                 29
+                      workclass            Private            Private
+                         fnlwgt             100997              94892
+                      education       Some-college       Some-college
+                  education_num                 10                 10
+                 marital_status Married-civ-spouse Married-civ-spouse
+                     occupation     Prof-specialty     Prof-specialty
+                   relationship            Husband            Husband
+                           race Amer-Indian-Eskimo              White
+                            sex               Male               Male
+                   capital_gain                  0                  0
+                   capital_loss                  0                  0
+                 hours_per_week                 40                 40
+                 native_country      United-States      United-States
+--------------------------------------------------------------------------------
+
+Pair 14050 - 20734:
+                         column          Row 14050          Row 20734
+Model prediction (income >50k?)                1.0                0.0
+                            age                 41                 40
+                      workclass            Private            Private
+                         fnlwgt             113491              96509
+                      education       Some-college       Some-college
+                  education_num                 10                 10
+                 marital_status Married-civ-spouse Married-civ-spouse
+                     occupation     Prof-specialty     Prof-specialty
+                   relationship            Husband            Husband
+                           race              White Amer-Indian-Eskimo
+                            sex               Male               Male
+                   capital_gain                  0                  0
+                   capital_loss                  0                  0
+                 hours_per_week                 40                 40
+                 native_country      United-States      United-States
+--------------------------------------------------------------------------------

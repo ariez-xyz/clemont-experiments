@@ -1,0 +1,532 @@
+
+Pair 729 - 12217:
+                         column            Row 729          Row 12217
+Model prediction (income >50k?)                1.0                0.0
+                            age                 43                 41
+                      workclass            Private            Private
+                         fnlwgt             159549             168730
+                      education       Some-college       Some-college
+                  education_num                 10                 10
+                 marital_status Married-civ-spouse Married-civ-spouse
+                     occupation              Sales              Sales
+                   relationship            Husband            Husband
+                           race              White              White
+                            sex               Male               Male
+                   capital_gain                  0                  0
+                   capital_loss                  0                  0
+                 hours_per_week                 50                 50
+                 native_country      United-States      United-States
+--------------------------------------------------------------------------------
+
+Pair 2124 - 13005:
+                         column           Row 2124          Row 13005
+Model prediction (income >50k?)                0.0                1.0
+                            age                 43                 44
+                      workclass            Private            Private
+                         fnlwgt             193494             193524
+                      education       Some-college       Some-college
+                  education_num                 10                 10
+                 marital_status Married-civ-spouse Married-civ-spouse
+                     occupation     Prof-specialty     Prof-specialty
+                   relationship            Husband            Husband
+                           race              White              White
+                            sex               Male               Male
+                   capital_gain                  0                  0
+                   capital_loss                  0                  0
+                 hours_per_week                 40                 40
+                 native_country      United-States      United-States
+--------------------------------------------------------------------------------
+
+Pair 2869 - 23692:
+                         column           Row 2869          Row 23692
+Model prediction (income >50k?)                0.0                1.0
+                            age                 40                 42
+                      workclass            Private            Private
+                         fnlwgt             205706             185602
+                      education            HS-grad            HS-grad
+                  education_num                  9                  9
+                 marital_status Married-civ-spouse Married-civ-spouse
+                     occupation    Exec-managerial    Exec-managerial
+                   relationship               Wife               Wife
+                           race              White              White
+                            sex             Female             Female
+                   capital_gain                  0                  0
+                   capital_loss                  0                  0
+                 hours_per_week                 40                 40
+                 native_country      United-States      United-States
+--------------------------------------------------------------------------------
+
+Pair 3647 - 25178:
+                         column           Row 3647          Row 25178
+Model prediction (income >50k?)                1.0                0.0
+                            age                 45                 43
+                      workclass            Private            Private
+                         fnlwgt             178319             161226
+                      education          Bachelors          Bachelors
+                  education_num                 13                 13
+                 marital_status Married-civ-spouse Married-civ-spouse
+                     occupation  Machine-op-inspct  Machine-op-inspct
+                   relationship            Husband            Husband
+                           race              White Amer-Indian-Eskimo
+                            sex               Male               Male
+                   capital_gain                  0                  0
+                   capital_loss                  0                  0
+                 hours_per_week                 40                 40
+                 native_country      United-States      United-States
+--------------------------------------------------------------------------------
+
+Pair 5108 - 5510:
+                         column           Row 5108           Row 5510
+Model prediction (income >50k?)                0.0                1.0
+                            age                 35                 37
+                      workclass            Private            Private
+                         fnlwgt             183800             188774
+                      education          Bachelors          Bachelors
+                  education_num                 13                 13
+                 marital_status Married-civ-spouse Married-civ-spouse
+                     occupation       Adm-clerical       Adm-clerical
+                   relationship            Husband            Husband
+                           race              White              White
+                            sex               Male               Male
+                   capital_gain                  0                  0
+                   capital_loss                  0                  0
+                 hours_per_week                 40                 40
+                 native_country      United-States      United-States
+--------------------------------------------------------------------------------
+
+Pair 5913 - 14001:
+                         column           Row 5913          Row 14001
+Model prediction (income >50k?)                1.0                0.0
+                            age                 32                 30
+                      workclass            Private            Private
+                         fnlwgt             364657             361742
+                      education       Some-college       Some-college
+                  education_num                 10                 10
+                 marital_status Married-civ-spouse Married-civ-spouse
+                     occupation    Exec-managerial    Exec-managerial
+                   relationship            Husband            Husband
+                           race              White              White
+                            sex               Male               Male
+                   capital_gain                  0                  0
+                   capital_loss                  0                  0
+                 hours_per_week                 50                 50
+                 native_country      United-States      United-States
+--------------------------------------------------------------------------------
+
+Pair 6194 - 22451:
+                         column           Row 6194          Row 22451
+Model prediction (income >50k?)                1.0                0.0
+                            age                 56                 57
+                      workclass            Private            Private
+                         fnlwgt             170070             163047
+                      education            HS-grad            HS-grad
+                  education_num                  9                  9
+                 marital_status Married-civ-spouse Married-civ-spouse
+                     occupation    Exec-managerial    Exec-managerial
+                   relationship               Wife               Wife
+                           race              White              White
+                            sex             Female             Female
+                   capital_gain                  0                  0
+                   capital_loss                  0                  0
+                 hours_per_week                 40                 38
+                 native_country      United-States      United-States
+--------------------------------------------------------------------------------
+
+Pair 8120 - 15474:
+                         column           Row 8120          Row 15474
+Model prediction (income >50k?)                0.0                1.0
+                            age                 31                 32
+                      workclass            Private            Private
+                         fnlwgt             284395             296282
+                      education          Bachelors          Bachelors
+                  education_num                 13                 13
+                 marital_status Married-civ-spouse Married-civ-spouse
+                     occupation              Sales              Sales
+                   relationship            Husband            Husband
+                           race              White              White
+                            sex               Male               Male
+                   capital_gain                  0                  0
+                   capital_loss                  0                  0
+                 hours_per_week                 40                 40
+                 native_country      United-States      United-States
+--------------------------------------------------------------------------------
+
+Pair 8626 - 19084:
+                         column           Row 8626          Row 19084
+Model prediction (income >50k?)                0.0                1.0
+                            age                 43                 45
+                      workclass            Private            Private
+                         fnlwgt             168071             151518
+                      education            HS-grad            HS-grad
+                  education_num                  9                  9
+                 marital_status Married-civ-spouse Married-civ-spouse
+                     occupation    Exec-managerial    Exec-managerial
+                   relationship            Husband            Husband
+                           race              White              White
+                            sex               Male               Male
+                   capital_gain                  0                  0
+                   capital_loss                  0                  0
+                 hours_per_week                 44                 45
+                 native_country      United-States      United-States
+--------------------------------------------------------------------------------
+
+Pair 8784 - 24266:
+                         column           Row 8784          Row 24266
+Model prediction (income >50k?)                0.0                1.0
+                            age                 35                 37
+                      workclass            Private            Private
+                         fnlwgt             174597             192939
+                      education          Bachelors          Bachelors
+                  education_num                 13                 13
+                 marital_status Married-civ-spouse Married-civ-spouse
+                     occupation       Craft-repair       Craft-repair
+                   relationship            Husband            Husband
+                           race              White              White
+                            sex               Male               Male
+                   capital_gain                  0                  0
+                   capital_loss                  0                  0
+                 hours_per_week                 40                 40
+                 native_country      United-States      United-States
+--------------------------------------------------------------------------------
+
+Pair 9140 - 22898:
+                         column           Row 9140          Row 22898
+Model prediction (income >50k?)                1.0                0.0
+                            age                 30                 28
+                      workclass            Private            Private
+                         fnlwgt             108247             114967
+                      education          Bachelors          Bachelors
+                  education_num                 13                 13
+                 marital_status Married-civ-spouse Married-civ-spouse
+                     occupation     Prof-specialty     Prof-specialty
+                   relationship            Husband            Husband
+                           race              White              White
+                            sex               Male               Male
+                   capital_gain                  0                  0
+                   capital_loss                  0                  0
+                 hours_per_week                 40                 40
+                 native_country      United-States      United-States
+--------------------------------------------------------------------------------
+
+Pair 9140 - 25801:
+                         column           Row 9140          Row 25801
+Model prediction (income >50k?)                1.0                0.0
+                            age                 30                 29
+                      workclass            Private            Private
+                         fnlwgt             108247             114224
+                      education          Bachelors          Bachelors
+                  education_num                 13                 13
+                 marital_status Married-civ-spouse Married-civ-spouse
+                     occupation     Prof-specialty     Prof-specialty
+                   relationship            Husband            Husband
+                           race              White              White
+                            sex               Male               Male
+                   capital_gain                  0                  0
+                   capital_loss                  0                  0
+                 hours_per_week                 40                 40
+                 native_country      United-States      United-States
+--------------------------------------------------------------------------------
+
+Pair 10833 - 24712:
+                         column          Row 10833          Row 24712
+Model prediction (income >50k?)                0.0                1.0
+                            age                 30                 32
+                      workclass            Private            Private
+                         fnlwgt             227146             209691
+                      education          Bachelors          Bachelors
+                  education_num                 13                 13
+                 marital_status Married-civ-spouse Married-civ-spouse
+                     occupation              Sales              Sales
+                   relationship            Husband            Husband
+                           race              White              White
+                            sex               Male               Male
+                   capital_gain                  0                  0
+                   capital_loss                  0                  0
+                 hours_per_week                 40                 42
+                 native_country      United-States      United-States
+--------------------------------------------------------------------------------
+
+Pair 11117 - 14757:
+                         column          Row 11117          Row 14757
+Model prediction (income >50k?)                0.0                1.0
+                            age                 24                 26
+                      workclass            Private            Private
+                         fnlwgt             172987             152452
+                      education          Bachelors          Bachelors
+                  education_num                 13                 13
+                 marital_status Married-civ-spouse Married-civ-spouse
+                     occupation       Tech-support       Tech-support
+                   relationship            Husband            Husband
+                           race              White              White
+                            sex               Male               Male
+                   capital_gain                  0                  0
+                   capital_loss                  0                  0
+                 hours_per_week                 50                 50
+                 native_country      United-States      United-States
+--------------------------------------------------------------------------------
+
+Pair 12217 - 22566:
+                         column          Row 12217          Row 22566
+Model prediction (income >50k?)                0.0                1.0
+                            age                 41                 41
+                      workclass            Private            Private
+                         fnlwgt             168730             182303
+                      education       Some-college       Some-college
+                  education_num                 10                 10
+                 marital_status Married-civ-spouse Married-civ-spouse
+                     occupation              Sales              Sales
+                   relationship            Husband            Husband
+                           race              White              White
+                            sex               Male               Male
+                   capital_gain                  0                  0
+                   capital_loss                  0                  0
+                 hours_per_week                 50                 50
+                 native_country      United-States      United-States
+--------------------------------------------------------------------------------
+
+Pair 12311 - 13005:
+                         column          Row 12311          Row 13005
+Model prediction (income >50k?)                0.0                1.0
+                            age                 42                 44
+                      workclass            Private            Private
+                         fnlwgt             193882             193524
+                      education       Some-college       Some-college
+                  education_num                 10                 10
+                 marital_status Married-civ-spouse Married-civ-spouse
+                     occupation     Prof-specialty     Prof-specialty
+                   relationship            Husband            Husband
+                           race              White              White
+                            sex               Male               Male
+                   capital_gain                  0                  0
+                   capital_loss                  0                  0
+                 hours_per_week                 40                 40
+                 native_country      United-States      United-States
+--------------------------------------------------------------------------------
+
+Pair 12373 - 29089:
+                         column          Row 12373          Row 29089
+Model prediction (income >50k?)                1.0                0.0
+                            age                 31                 30
+                      workclass            Private            Private
+                         fnlwgt             173279             186269
+                      education          Bachelors          Bachelors
+                  education_num                 13                 13
+                 marital_status Married-civ-spouse Married-civ-spouse
+                     occupation       Tech-support       Tech-support
+                   relationship            Husband            Husband
+                           race Asian-Pac-Islander              White
+                            sex               Male               Male
+                   capital_gain                  0                  0
+                   capital_loss                  0                  0
+                 hours_per_week                 40                 40
+                 native_country      United-States      United-States
+--------------------------------------------------------------------------------
+
+Pair 13005 - 21464:
+                         column          Row 13005          Row 21464
+Model prediction (income >50k?)                1.0                0.0
+                            age                 44                 42
+                      workclass            Private            Private
+                         fnlwgt             193524             204235
+                      education       Some-college       Some-college
+                  education_num                 10                 10
+                 marital_status Married-civ-spouse Married-civ-spouse
+                     occupation     Prof-specialty     Prof-specialty
+                   relationship            Husband            Husband
+                           race              White              White
+                            sex               Male               Male
+                   capital_gain                  0                  0
+                   capital_loss                  0                  0
+                 hours_per_week                 40                 40
+                 native_country      United-States      United-States
+--------------------------------------------------------------------------------
+
+Pair 13005 - 25854:
+                         column          Row 13005          Row 25854
+Model prediction (income >50k?)                1.0                0.0
+                            age                 44                 42
+                      workclass            Private            Private
+                         fnlwgt             193524             204235
+                      education       Some-college       Some-college
+                  education_num                 10                 10
+                 marital_status Married-civ-spouse Married-civ-spouse
+                     occupation     Prof-specialty     Prof-specialty
+                   relationship            Husband            Husband
+                           race              White              White
+                            sex               Male               Male
+                   capital_gain                  0                  0
+                   capital_loss                  0                  0
+                 hours_per_week                 40                 40
+                 native_country      United-States      United-States
+--------------------------------------------------------------------------------
+
+Pair 13199 - 21056:
+                         column          Row 13199          Row 21056
+Model prediction (income >50k?)                0.0                1.0
+                            age                 27                 29
+                      workclass            Private            Private
+                         fnlwgt              66473              53271
+                      education          Bachelors          Bachelors
+                  education_num                 13                 13
+                 marital_status Married-civ-spouse Married-civ-spouse
+                     occupation    Exec-managerial    Exec-managerial
+                   relationship            Husband            Husband
+                           race              White              White
+                            sex               Male               Male
+                   capital_gain                  0                  0
+                   capital_loss                  0                  0
+                 hours_per_week                 40                 40
+                 native_country      United-States      United-States
+--------------------------------------------------------------------------------
+
+Pair 15916 - 26989:
+                         column          Row 15916          Row 26989
+Model prediction (income >50k?)                1.0                0.0
+                            age                 38                 36
+                      workclass            Private            Private
+                         fnlwgt             180342             167482
+                      education          Bachelors          Bachelors
+                  education_num                 13                 13
+                 marital_status Married-civ-spouse Married-civ-spouse
+                     occupation       Adm-clerical       Adm-clerical
+                   relationship            Husband            Husband
+                           race              White              White
+                            sex               Male               Male
+                   capital_gain                  0                  0
+                   capital_loss                  0                  0
+                 hours_per_week                 40                 40
+                 native_country      United-States      United-States
+--------------------------------------------------------------------------------
+
+Pair 16244 - 24712:
+                         column          Row 16244          Row 24712
+Model prediction (income >50k?)                0.0                1.0
+                            age                 31                 32
+                      workclass            Private            Private
+                         fnlwgt             211880             209691
+                      education          Bachelors          Bachelors
+                  education_num                 13                 13
+                 marital_status Married-civ-spouse Married-civ-spouse
+                     occupation              Sales              Sales
+                   relationship            Husband            Husband
+                           race              White              White
+                            sex               Male               Male
+                   capital_gain                  0                  0
+                   capital_loss                  0                  0
+                 hours_per_week                 40                 42
+                 native_country      United-States      United-States
+--------------------------------------------------------------------------------
+
+Pair 17159 - 24970:
+                         column          Row 17159          Row 24970
+Model prediction (income >50k?)                0.0                1.0
+                            age                 40                 42
+                      workclass            Private            Private
+                         fnlwgt             119225             121264
+                      education          Assoc-voc          Assoc-voc
+                  education_num                 11                 11
+                 marital_status Married-civ-spouse Married-civ-spouse
+                     occupation     Prof-specialty     Prof-specialty
+                   relationship            Husband            Husband
+                           race              White              White
+                            sex               Male               Male
+                   capital_gain                  0                  0
+                   capital_loss                  0                  0
+                 hours_per_week                 40                 40
+                 native_country      United-States      United-States
+--------------------------------------------------------------------------------
+
+Pair 19297 - 25801:
+                         column          Row 19297          Row 25801
+Model prediction (income >50k?)                1.0                0.0
+                            age                 31                 29
+                      workclass            Private            Private
+                         fnlwgt             110643             114224
+                      education          Bachelors          Bachelors
+                  education_num                 13                 13
+                 marital_status Married-civ-spouse Married-civ-spouse
+                     occupation     Prof-specialty     Prof-specialty
+                   relationship            Husband            Husband
+                           race              White              White
+                            sex               Male               Male
+                   capital_gain                  0                  0
+                   capital_loss                  0                  0
+                 hours_per_week                 40                 40
+                 native_country      United-States      United-States
+--------------------------------------------------------------------------------
+
+Pair 20092 - 23476:
+                         column          Row 20092          Row 23476
+Model prediction (income >50k?)                0.0                1.0
+                            age                 33                 35
+                      workclass            Private            Private
+                         fnlwgt             150570             140564
+                      education          Bachelors          Bachelors
+                  education_num                 13                 13
+                 marital_status Married-civ-spouse Married-civ-spouse
+                     occupation              Sales              Sales
+                   relationship            Husband            Husband
+                           race              White              White
+                            sex               Male               Male
+                   capital_gain                  0                  0
+                   capital_loss                  0                  0
+                 hours_per_week                 40                 40
+                 native_country      United-States      United-States
+--------------------------------------------------------------------------------
+
+Pair 21197 - 21882:
+                         column          Row 21197          Row 21882
+Model prediction (income >50k?)                1.0                0.0
+                            age                 31                 29
+                      workclass            Private            Private
+                         fnlwgt             144949             133937
+                      education          Bachelors          Bachelors
+                  education_num                 13                 13
+                 marital_status Married-civ-spouse Married-civ-spouse
+                     occupation     Prof-specialty     Prof-specialty
+                   relationship            Husband            Husband
+                           race              White              White
+                            sex               Male               Male
+                   capital_gain                  0                  0
+                   capital_loss                  0                  0
+                 hours_per_week                 40                 40
+                 native_country      United-States      United-States
+--------------------------------------------------------------------------------
+
+Pair 22252 - 24970:
+                         column          Row 22252          Row 24970
+Model prediction (income >50k?)                0.0                1.0
+                            age                 40                 42
+                      workclass            Private            Private
+                         fnlwgt             123306             121264
+                      education          Assoc-voc          Assoc-voc
+                  education_num                 11                 11
+                 marital_status Married-civ-spouse Married-civ-spouse
+                     occupation     Prof-specialty     Prof-specialty
+                   relationship            Husband            Husband
+                           race              White              White
+                            sex               Male               Male
+                   capital_gain                  0                  0
+                   capital_loss                  0                  0
+                 hours_per_week                 40                 40
+                 native_country      United-States      United-States
+--------------------------------------------------------------------------------
+
+Pair 26561 - 26914:
+                         column          Row 26561          Row 26914
+Model prediction (income >50k?)                1.0                0.0
+                            age                 34                 32
+                      workclass            Private            Private
+                         fnlwgt             163110             164197
+                      education          Bachelors          Bachelors
+                  education_num                 13                 13
+                 marital_status Married-civ-spouse Married-civ-spouse
+                     occupation       Craft-repair       Craft-repair
+                   relationship            Husband            Husband
+                           race              White              White
+                            sex               Male               Male
+                   capital_gain                  0                  0
+                   capital_loss                  0                  0
+                 hours_per_week                 45                 44
+                 native_country      United-States      United-States
+--------------------------------------------------------------------------------
