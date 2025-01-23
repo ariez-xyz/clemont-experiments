@@ -13,7 +13,6 @@ class BruteForce(BaseBackend):
     }
 
     def __init__(self, df, decision_col, epsilon, metric='infinity'):
-
         if metric not in self.METRICS.keys():
             raise NotImplementedError(f"invalid metric {metric}. valid metrics: {list(self.METRICS.keys())}")
 
@@ -54,3 +53,4 @@ class BruteForce(BaseBackend):
             cexs.extend(indices)
 
         return cexs
+

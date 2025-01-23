@@ -55,7 +55,7 @@ def pretty_print(df, i, j, eps, header=True, diff_only=False, marker=" "):
 
 def make_argparser():
     parser = argparse.ArgumentParser(description='run monitor on csv format predictions')
-    parser.add_argument('csvpath', type=str, help='Path to the CSV file')
+    parser.add_argument('csvpath', type=str, nargs='+', help='Path to one or more CSV files')
     parser.add_argument('--eps', type=float, help='epsilon')
     parser.add_argument('--n_bins', '--n-bins', type=int, help='Number of bins')
     parser.add_argument('--n_examples', '--n-examples', type=int, help='Cap the number of samples to process', default=-1)
@@ -70,7 +70,8 @@ def make_argparser():
     
 if __name__ == "__main__":
     args = make_argparser().parse_args()
-    csvpath = args.csvpath
+    csvpaths = args.csvpath
+    print(csvpaths)
 
     # user must provide exactly 1 of eps or n_bins
     if args.eps and args.n_bins:
@@ -84,7 +85,15 @@ if __name__ == "__main__":
     else:
         args.n_bins = int(1/args.eps)
 
-    df = pd.read_csv(csvpath) 
+    # Read csv's, concat into one df
+    dfs = []
+    for csvpath in csvpaths:
+        df = pd.read_csv(csvpath)
+        # Ensure consistent column structure across dataframes
+        if dfs and df.shape[1] != dfs[0].shape[1]:
+            raise ValueError(f"CSV at {csvpath} has incompatible column structure")
+        dfs.append(df)
+    df = pd.concat(dfs, axis=0, ignore_index=True)
     log(f"loaded data of shape {df.shape}.")
 
     blind_df = None
