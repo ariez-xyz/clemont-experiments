@@ -84,7 +84,7 @@ def load_dataset(name, n_examples, corruption=None, corruption3d=None, severity=
         if not corruption: fatal("cifar100c requires specifying a corruption")
         x_test, y_test = load_cifar100c(n_examples=n_examples, corruptions=[corruption], severity=severity)
     elif name == 'imagenet3dcc':
-        if not corruption3d: fatal("cifar10c requires specifying a 3d corruption")
+        if not corruption3d: fatal("imagenet3dcc requires specifying a 3d corruption")
         x_test, y_test = load_imagenet3dcc(n_examples=n_examples, corruptions=[corruption3d], severity=severity)
     else:
         raise ValueError(f"unsupported dataset {name}")
@@ -183,10 +183,11 @@ if __name__ == '__main__':
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     model.to(device)
     model.eval() # no grad descent
+    log(f"{args.model} model loaded on device {device}")
 
     x_test, y_test = load_dataset(args.dataset, args.n_examples, args.corruption, args.corruption3d, args.severity)
     x_test = x_test.to(device)
-    log(f"{args.model} model and {len(x_test)} samples from {args.dataset} loaded on device {device}")
+    log(f"{len(x_test)} samples from {args.dataset} loaded on device {device}")
 
     predictions = [i.item() for i in classify(model, x_test)]
     log(f"finished computing classifier predictions")

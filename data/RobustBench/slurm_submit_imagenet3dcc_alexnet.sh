@@ -36,13 +36,21 @@ popd
 srun /usr/bin/nvidia-smi
 
 mkdir -p predictions
+mkdir -p "predictions/$DATASET-$MODEL"
+
+python predict.py --model "$MODEL" \
+		 --emb-model small \
+		 --dataset "imagenet" \
+		 --output "predictions/$DATASET-$MODEL/vanilla.csv" \
+		 --n-examples "$N" \
+		 --threat-model "$THREATMODEL" \
 
 for SEVERITY in 1 2 3 4 5; do
     for CORRUPTION in near_focus far_focus fog_3d flash color_quant low_light xy_motion_blur z_motion_blur iso_noise bit_error h265_abr h265_crf; do
         python predict.py --model "$MODEL" \
                          --emb-model small \
                          --dataset "$DATASET" \
-                         --output "predictions/$DATASET-$MODEL-$CORRUPTION-$SEVERITY.csv" \
+                         --output "predictions/$DATASET-$MODEL/$CORRUPTION-$SEVERITY.csv" \
                          --n-examples "$N" \
                          --threat-model "$THREATMODEL" \
                          --corruption3d "$CORRUPTION" \
