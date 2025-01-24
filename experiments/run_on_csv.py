@@ -18,10 +18,6 @@ def log(s):
     timestamp = datetime.utcfromtimestamp(time.time()).strftime('%Y-%m-%d %H:%M:%S')
     print(f"[{timestamp}] {s}", flush=True)
 
-def fatal(s):
-    log("fatal: " + s)
-    exit(1)
-
 def pretty_print(df, i, j, eps, header=True, diff_only=False, marker=" "):
     if header:
         print(f'\n {"column".rjust(30)}\trow {i}\trow {j}\tdelta')
@@ -76,9 +72,9 @@ if __name__ == "__main__":
 
     # user must provide exactly 1 of eps or n_bins
     if args.eps and args.n_bins:
-        fatal("need one of --eps or --n_bins, not both")
+        raise ValueError("need one of --eps or --n_bins, not both")
     elif not args.n_bins and not args.eps:
-        fatal("need one of --eps or --n_bins")
+        raise ValueError("need one of --eps or --n_bins")
 
     # infer the respective missing arg
     if args.n_bins:
@@ -98,7 +94,7 @@ if __name__ == "__main__":
     log(f"loaded data of shape {df.shape}.")
 
     blind_df = None
-    if args.blind_cols:
+    if args.blind_cols: # Remove blind columns
         cols_to_drop = []
         for expr in args.blind_cols.split(","):
             if expr[-1] == "*": # wildcard
