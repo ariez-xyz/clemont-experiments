@@ -5,16 +5,14 @@ import pandas as pd
 import numpy as np
 import time
 from datetime import datetime
+
 from robustbench.data import load_cifar10, load_cifar100, load_cifar10c, load_cifar100c, load_imagenet, load_imagenet3dcc
 from robustbench.utils import load_model
+from autoattack import AutoAttack
 
 def log(s):
     timestamp = datetime.utcfromtimestamp(time.time()).strftime('%Y-%m-%d %H:%M:%S')
     print(f"[{timestamp}] {s}", flush=True)
-
-def fatal(s):
-    log(s)
-    exit(1)
 
 def make_argparser():
     parser = argparse.ArgumentParser(description='Run inference with RobustBench models')
@@ -27,7 +25,9 @@ def make_argparser():
                         choices=['Linf', 'L2', 'corruptions', 'corruptions_3d'],
                         help='Threat model for robust training')
     parser.add_argument('--n-examples', '--n_examples', type=int, default=10000,
-                        help='Number of examples to process')
+                            help='Number of examples to process')
+    parser.add_argument('--adversarials', action='store_true',
+                        help='Run an adversarial attack on the dataset')
     parser.add_argument('--output', type=str, default='predictions.csv',
                         help='Output CSV file path')
     parser.add_argument('--emb-model', '--emb_model', type=str, default='none',
@@ -36,13 +36,10 @@ def make_argparser():
     parser.add_argument('--force-resize', '--force_resize', action='store_true',
                         help='always resize images to have smaller dimension of 224px for the embedding model')
     parser.add_argument('--corruption', type=str, default=None,
-                        choices=["shot_noise", "motion_blur", "snow", "pixelate", "gaussian_noise", "defocus_blur", 
-                                 "brightness", "fog", "zoom_blur", "frost", "glass_blur", "impulse_noise", "contrast", 
-                                 "jpeg_compression", "elastic_transform"],
+                        choices=["shot_noise", "motion_blur", "snow", "pixelate", "gaussian_noise", "defocus_blur", "brightness", "fog", "zoom_blur", "frost", "glass_blur", "impulse_noise", "contrast", "jpeg_compression", "elastic_transform"],
                         help='which corruption (cifar10c, cifar100c only)')
     parser.add_argument('--corruption3d', type=str, default=None,
-                        choices=['near_focus', 'far_focus', 'fog_3d', 'flash', 'color_quant', 'low_light', 
-                                 'xy_motion_blur', 'z_motion_blur', 'iso_noise', 'bit_error', 'h265_abr', 'h265_crf'],
+                        choices=['near_focus', 'far_focus', 'fog_3d', 'flash', 'color_quant', 'low_light', 'xy_motion_blur', 'z_motion_blur', 'iso_noise', 'bit_error', 'h265_abr', 'h265_crf'],
                         help='which 3d corruption (imagenet3dcc only)')
     parser.add_argument('--severity', type=int, default=5,
                         help='severity of corruption (corruption datasets only)')
@@ -56,7 +53,21 @@ def basename(dataset_name):
     elif 'imagenet' in dataset_name:
         return 'imagenet'
     else:
-        raise ValueError(f"unknown base dataset for {name}")
+        raise ValueError(f"unknown base dataset for {dataset_name}")
+
+def get_eps(threat_model, dataset):
+    """
+    Get adversarial attack epsilon according to the standard RobustBench employs.
+    """
+    if threat_model == 'L2':
+        return 0.5
+    elif threat_model == 'Linf':
+        if dataset == 'imagenet':
+            return 4/255
+        else:
+            return 8/255
+    else:
+        raise ValueError(f"threat model {threat_model} is incompatible to epsilon-baseed adversarial attacks")
 
 def load_dataset(name, n_examples, corruption=None, corruption3d=None, severity=5):
     """Notes on datasets: ImageNet must be downloaded manually. 
@@ -78,13 +89,17 @@ def load_dataset(name, n_examples, corruption=None, corruption3d=None, severity=
     elif name == 'imagenet':
         x_test, y_test = load_imagenet(n_examples=n_examples)
     elif name == 'cifar10c':
-        if not corruption: fatal("cifar10c requires specifying a corruption")
+        if not corruption: raise ValueError("cifar10c requires specifying a corruption")
         x_test, y_test = load_cifar10c(n_examples=n_examples, corruptions=[corruption], severity=severity)
     elif name == 'cifar100c':
-        if not corruption: fatal("cifar100c requires specifying a corruption")
+        if not corruption: raise ValueError("cifar100c requires specifying a corruption")
         x_test, y_test = load_cifar100c(n_examples=n_examples, corruptions=[corruption], severity=severity)
     elif name == 'imagenet3dcc':
+<<<<<<< HEAD
         if not corruption3d: fatal("imagenet3dcc requires specifying a 3d corruption")
+=======
+        if not corruption3d: raise ValueError("cifar10c requires specifying a 3d corruption")
+>>>>>>> 3dddfec (robustbench: add switch to run adversarial attack (and polish))
         x_test, y_test = load_imagenet3dcc(n_examples=n_examples, corruptions=[corruption3d], severity=severity)
     else:
         raise ValueError(f"unsupported dataset {name}")
@@ -162,7 +177,7 @@ def format(predictions, embeddings, x_test, y_test):
     if embeddings:
         embeddings_array = torch.cat(embeddings, dim=0).cpu().numpy()
         return pd.DataFrame(
-            np.column_stack([predictions, y_test, embeddings_array]),
+            np.column_stack([predictions, y_test.cpu(), embeddings_array]),
             columns=['pred', 'label'] + [f'e{i}' for i in range(embeddings_array.shape[1])]
         )
 
@@ -170,10 +185,9 @@ def format(predictions, embeddings, x_test, y_test):
         x_test = x_test.reshape(len(x_test), -1)
         return pd.DataFrame({
             'pred': predictions,
-            'label': y_test,
+            'label': y_test.cpu(),
             **{f'f{i}': x_test[:, i].cpu().numpy() for i in range(x_test.shape[1])}
         })
-
 
 if __name__ == '__main__':
     args = make_argparser().parse_args()
@@ -187,7 +201,19 @@ if __name__ == '__main__':
 
     x_test, y_test = load_dataset(args.dataset, args.n_examples, args.corruption, args.corruption3d, args.severity)
     x_test = x_test.to(device)
+    y_test = y_test.to(device)
     log(f"{len(x_test)} samples from {args.dataset} loaded on device {device}")
+
+    if args.adversarials:
+        adversary = AutoAttack(model, 
+                               norm=args.threat_model, 
+                               eps=get_eps(args.threat_model, args.dataset),
+                               version='custom', 
+                               attacks_to_run=['apgd-ce', 'apgd-dlr']
+                           )
+        adversary.apgd.n_restarts = 1
+        x_test = adversary.run_standard_evaluation(x_test, y_test)
+        log("adversarial attack complete")
 
     predictions = [i.item() for i in classify(model, x_test)]
     log(f"finished computing classifier predictions")
