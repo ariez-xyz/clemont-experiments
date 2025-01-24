@@ -69,6 +69,31 @@ def get_eps(threat_model, dataset):
     else:
         raise ValueError(f"threat model {threat_model} is incompatible to epsilon-baseed adversarial attacks")
 
+def adversarial_attack(model, threat_model, eps, X, y, batchsize=500):
+    adversary = AutoAttack(model, 
+                         norm=threat_model, 
+                         eps=eps,
+                         version='custom', 
+                         attacks_to_run=['apgd-ce', 'apgd-dlr']
+                       )
+
+    adversary.apgd.n_restarts = 1
+    
+    num_samples = len(X)
+    x_adv_list = []
+    
+    for i in range(0, num_samples, batchsize):
+        batch_end = min(i + batchsize, num_samples)
+        log(f"adversarial attack: batch {i}-{batch_end}")
+        x_batch = X[i:batch_end]
+        y_batch = y[i:batch_end]
+        
+        x_adv_batch = adversary.run_standard_evaluation(x_batch, y_batch)
+        x_adv_list.append(x_adv_batch)
+        
+    log("adversarial attack complete")
+    return torch.cat(x_adv_list, dim=0)
+
 def load_dataset(name, n_examples, corruption=None, corruption3d=None, severity=5):
     """Notes on datasets: ImageNet must be downloaded manually. 
     ImageNet instructions: (from https://github.com/RobustBench/robustbench?tab=readme-ov-file#model-zoo)
@@ -201,16 +226,8 @@ if __name__ == '__main__':
     log(f"{len(x_test)} samples from {args.dataset} loaded on device {device}")
 
     if args.adversarials:
-        adversary = AutoAttack(model, 
-                               norm=args.threat_model, 
-                               eps=get_eps(args.threat_model, args.dataset),
-                               version='custom', 
-                               attacks_to_run=['apgd-ce', 'apgd-dlr']
-                           )
-        adversary.apgd.n_restarts = 1
-        x_test = adversary.run_standard_evaluation(x_test, y_test)
-        log("adversarial attack complete")
-
+        x_test = adversarial_attack(model, args.threat_model, get_eps(args.threat_model, args.dataset), x_test, y_test)
+        
     predictions = [i.item() for i in classify(model, x_test)]
     log(f"finished computing classifier predictions")
     
