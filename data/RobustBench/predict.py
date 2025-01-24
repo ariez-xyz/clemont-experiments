@@ -95,11 +95,7 @@ def load_dataset(name, n_examples, corruption=None, corruption3d=None, severity=
         if not corruption: raise ValueError("cifar100c requires specifying a corruption")
         x_test, y_test = load_cifar100c(n_examples=n_examples, corruptions=[corruption], severity=severity)
     elif name == 'imagenet3dcc':
-<<<<<<< HEAD
-        if not corruption3d: fatal("imagenet3dcc requires specifying a 3d corruption")
-=======
-        if not corruption3d: raise ValueError("cifar10c requires specifying a 3d corruption")
->>>>>>> 3dddfec (robustbench: add switch to run adversarial attack (and polish))
+        if not corruption3d: raise ValueError("imagenet3dcc requires specifying a 3d corruption")
         x_test, y_test = load_imagenet3dcc(n_examples=n_examples, corruptions=[corruption3d], severity=severity)
     else:
         raise ValueError(f"unsupported dataset {name}")
