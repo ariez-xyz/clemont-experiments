@@ -15,7 +15,7 @@
 #
 # 8 cores
 #SBATCH -c 8
-#SBATCH --time=01:00:00
+#SBATCH --time=05:00:00
 #SBATCH --mem=64GB
 #
 # Do not requeue the job in the case it fails.
@@ -39,4 +39,4 @@ mkdir -p predictions
 
 python predict.py --model "$MODEL" --dataset "$DATASET" --output "predictions/$DATASET-$MODEL.csv" --n-examples "$N" --threat-model "$THREATMODEL" 
 
-python predict.py --model "$MODEL" --dataset "$DATASET" --output "predictions/$DATASET-$MODEL-adv.csv" --n-examples "$N" --threat-model "$THREATMODEL" --adversarials
+python predict.py --model "$MODEL" --dataset "$DATASET" --output "predictions/$DATASET-$MODEL-adv.csv" --n-examples "$N" --threat-model "$THREATMODEL" --adversarials --adversarial-batchsize 250

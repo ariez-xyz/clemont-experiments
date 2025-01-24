@@ -28,6 +28,8 @@ def make_argparser():
                             help='Number of examples to process')
     parser.add_argument('--adversarials', action='store_true',
                         help='Run an adversarial attack on the dataset')
+    parser.add_argument('--adversarial-batchsize', '--adversarial_batchsize', type=int, default=500,
+                        help='batchsize for adversarials')
     parser.add_argument('--output', type=str, default='predictions.csv',
                         help='Output CSV file path')
     parser.add_argument('--emb-model', '--emb_model', type=str, default='none',
@@ -226,7 +228,7 @@ if __name__ == '__main__':
     log(f"{len(x_test)} samples from {args.dataset} loaded on device {device}")
 
     if args.adversarials:
-        x_test = adversarial_attack(model, args.threat_model, get_eps(args.threat_model, args.dataset), x_test, y_test)
+        x_test = adversarial_attack(model, args.threat_model, get_eps(args.threat_model, args.dataset), x_test, y_test, batchsize=args.adversarial_batchsize)
         
     predictions = [i.item() for i in classify(model, x_test)]
     log(f"finished computing classifier predictions")
