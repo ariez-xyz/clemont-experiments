@@ -38,3 +38,5 @@ srun /usr/bin/nvidia-smi
 mkdir -p predictions
 
 python predict.py --model "$MODEL" --dataset "$DATASET" --output "predictions/$DATASET-$MODEL.csv" --n-examples "$N" --threat-model "$THREATMODEL" 
+
+python predict.py --model "$MODEL" --dataset "$DATASET" --output "predictions/$DATASET-$MODEL-adv.csv" --n-examples "$N" --threat-model "$THREATMODEL" --adversarials
