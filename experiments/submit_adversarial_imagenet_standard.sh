@@ -26,7 +26,7 @@ sbatch \
 	--output="$logs_dir/$name-%A-%a.log" \
 	-c 4 \
 	--time=05:00:00 \
-	--mem=16G \
+	--mem=64G \
 	--no-requeue \
 	--export=ALL \
 	$work_script 
