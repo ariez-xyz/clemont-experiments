@@ -57,12 +57,13 @@ def make_argparser():
     parser.add_argument('--n_bins', '--n-bins', type=int, help='Number of bins')
     parser.add_argument('--n_examples', '--n-examples', type=int, help='Cap the number of samples to process', default=-1)
     parser.add_argument('--out_path', '--out-path', type=str, help='Path to save output JSON')
-    parser.add_argument('--full_output', '--full-output', action='store_true', help='verbose output (timings, concrete counterexample pairs)')
+    parser.add_argument('--full_output', '--full-output', action='store_true', help='complete json output (timings, concrete counterexample pairs)')
+    parser.add_argument('--verbose', action='store_true', help='verbose output (print differences)')
     parser.add_argument('--randomize_order', '--randomize-order', action='store_true', help='Randomize CSV order')
     parser.add_argument('--backend', type=str, default='bf', choices=['bf', 'bdd', 'kdtree', 'snn'], help='which implementation to use as backend')
     parser.add_argument('--blind_cols', '--blind-cols', type=str, help='comma-separated list of sensitive columns, e.g. "race,sex". allows wildcards like "race=*"')
     parser.add_argument('--pred', type=str, default='pred', help='name of the column holding model predictions')
-    parser.add_argument('--metric', type=str, default='Linf', help='metric to use. available choices depend on backend')
+    parser.add_argument('--metric', type=str, default='infinity', help='metric to use. available choices depend on backend')
     return parser
     
 if __name__ == "__main__":
@@ -141,7 +142,7 @@ if __name__ == "__main__":
     log(f"starting...")
     monitor_positives = sorted(runner.run(df, args.n_examples))
 
-    if args.full_output:
+    if args.verbose:
         for pair in monitor_positives:
             if blind_df is not None:
                 pretty_print(blind_df, pair[0], pair[1], args.eps, marker="*")
@@ -170,5 +171,4 @@ if __name__ == "__main__":
 
         with open(args.out_path, 'w') as f:
             json.dump(out, f, indent=2)
-
 
