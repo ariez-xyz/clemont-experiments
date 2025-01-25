@@ -2,6 +2,11 @@ import numpy as np
 import time
 
 class Runner:
+    """Class to run the aimon monitoring tool on a pandas dataframe as input data and take performance measurements.
+
+    This class manages execution metrics such as timing and accuracy by tracking positives,
+    true positives, and timing information during monitoring runs.
+    """
     def __init__(self, backend):
         self.backend = backend
         self.n_positives = 0
