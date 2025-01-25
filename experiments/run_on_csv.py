@@ -83,14 +83,19 @@ if __name__ == "__main__":
     else:
         args.n_bins = int(1/args.eps)
 
-    # Read csv's, concat into one df
     dfs = []
-    for csvpath in csvpaths:
-        df = pd.read_csv(csvpath)
-        # Ensure consistent column structure across dataframes
-        if dfs and df.shape[1] != dfs[0].shape[1]:
-            raise ValueError(f"CSV at {csvpath} has incompatible column structure")
-        dfs.append(df)
+    for arg in csvpaths:
+        # Handle potential newline-separated paths
+        paths = arg.split('\n')
+        for path in paths:
+            path = path.strip()
+            if not path:
+                continue
+            df = pd.read_csv(path)
+            # Ensure consistent column structure across dataframes
+            if dfs and df.shape[1] != dfs[0].shape[1]:
+                raise ValueError(f"CSV at {path} has incompatible column structure")
+            dfs.append(df)
     df = pd.concat(dfs, axis=0, ignore_index=True)
     log(f"loaded data of shape {df.shape}.")
 
