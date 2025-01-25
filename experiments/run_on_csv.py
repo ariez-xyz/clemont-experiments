@@ -122,6 +122,8 @@ if __name__ == "__main__":
     low_cardinality_cols = [col for col in df.columns if df[col].nunique() < args.n_bins]
     log(f"low-cardinality columns: {low_cardinality_cols}. assuming categorical (i.e, must be exact match)")
 
+    log(f"metric is {args.metric}...")
+
     if args.backend == 'bdd':
         log(f"initializing BDD backend...")
         assert args.metric == "infinity", f"BDD: unimplemented metric {args.metric}"
@@ -134,7 +136,7 @@ if __name__ == "__main__":
         )
     elif args.backend == 'bf':
         log(f"initializing brute force backend...")
-        backend = BruteForce(df, args.pred, args.eps, args.metric)
+        backend = BruteForce(df, args.pred, args.eps, args.metric.lower())
     elif args.backend == 'kdtree':
         log(f"initializing kd-tree backend...")
         backend = KdTree(df, args.pred, args.eps, args.metric)
