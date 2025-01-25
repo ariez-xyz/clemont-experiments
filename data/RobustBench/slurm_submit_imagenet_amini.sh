@@ -39,4 +39,4 @@ mkdir -p predictions
 
 python predict.py --model "$MODEL" --dataset "$DATASET" --output "predictions/$DATASET-$MODEL.csv" --n-examples "$N" --threat-model "$THREATMODEL" 
 
-python predict.py --model "$MODEL" --dataset "$DATASET" --output "predictions/$DATASET-$MODEL-adv.csv" --n-examples "$N" --threat-model "$THREATMODEL" --adversarials --adversarial-batchsize 250
+python predict.py --model "$MODEL" --dataset "$DATASET" --output "predictions/$DATASET-$MODEL-adv.csv" --n-examples "$N" --threat-model "$THREATMODEL" --adversarials --adversarial-batchsize 100
