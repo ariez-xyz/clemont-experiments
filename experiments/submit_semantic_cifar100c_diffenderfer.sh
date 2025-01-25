@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # parameters
-export name="cifar10c-Standard"
+export name="cifar100c-Diffenderfer2021Winning_LRR_CARD_Deck"
 export eps=7.5
 export metric="L2"
 export pred="pred"

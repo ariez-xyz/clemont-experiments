@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # parameters
-export name="cifar10c-Standard"
+export name="cifar100c-Gowal2020Uncovering_Linf"
 export eps=7.5
 export metric="L2"
 export pred="pred"

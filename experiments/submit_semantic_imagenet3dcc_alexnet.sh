@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # parameters
-export name="cifar10c-Standard"
+export name="imagenet3dcc-AlexNet"
 export eps=7.5
 export metric="L2"
 export pred="pred"
@@ -29,9 +29,9 @@ sbatch \
 	--job-name=$work_script \
 	--output="$logs_dir/$name-%A-%a.log" \
 	--array=$array \
-	-c 1 \
-	--time=0:15:00 \
-	--mem=8G \
+	-c 8 \
+	--time=05:00:00 \
+	--mem=64G \
 	--no-requeue \
 	--export=ALL \
 	$work_script 
