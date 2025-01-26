@@ -19,8 +19,8 @@ class DataframeRunner:
 
     def run(self, df, max_n=None, max_time=None):
         all_cexs = []
-        printed_progress = False
         start_time = time.time()
+        last_update = time.time()
 
         for index, row in df.iterrows():
             start_iter_time = time.time()
@@ -50,12 +50,9 @@ class DataframeRunner:
             iter_time = time.time() - start_iter_time
             self.timings.append(iter_time)
             self.total_time += iter_time
-            if self.total_time % 1 < 0.1:
-                if not printed_progress:
-                    printed_progress = True
-                    print(f"{self.total_time:.2f}s: {index} items", end='\r')
-            else:
-                printed_progress = False
+            if time.time() - last_update > 1:
+                print(f"{self.total_time:.2f}s: {index} items", end='\r')
+                last_update = time.time()
 
         print(f"Total time: {self.total_time:.2f} seconds")
         return all_cexs
