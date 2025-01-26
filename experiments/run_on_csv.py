@@ -149,6 +149,7 @@ if __name__ == "__main__":
 
     elif args.backend == 'snn':
         log(f"initializing snn backend...")
+        assert args.metric.lower() == "l2", f"SNN: unimplemented metric {args.metric}"
         if args.batchsize:
             backend = Snn(df, args.pred, args.eps, batchsize=args.batchsize)
         else:
