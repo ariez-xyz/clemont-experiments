@@ -20,14 +20,16 @@ mkdir -p "$logs_dir"
 pushd ..
 source activate.sh
 popd
-export params=()
+
+declare -a param_pairs
 for eps in "${epss[@]}"; do
     for batchsize in "${batchsizes[@]}"; do
-        params+=("$eps $batchsize")
+        param_pairs+=("$eps,$batchsize")
     done
 done
-export array="1-${#params[@]}"
-echo number of param combinations: $array
+export PARAM_PAIRS="${param_pairs[*]}"
+export NUM_TASKS=${#param_pairs[@]}
+export array="1-$NUM_TASKS"
 
 # Submit to queue
 sbatch \
