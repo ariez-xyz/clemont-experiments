@@ -1,13 +1,13 @@
 #!/bin/bash
 
 # parameters
-export backend="kdtree"
+export backend="bdd"
 export metric="infinity"
 export input_file="../data/RobustTrees/predictions/higgs/train_pred.csv"
 export results_base="../results/performance"
 export pred="pred"
 export epss=(0.005 0.01 0.025 0.05)
-export batchsizes=(1000 5000 10000 50000 100000)
+export batchsizes=(0)
 export maxtime=$((60*60*12))
 
 # setup dirs, venv, etc

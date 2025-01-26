@@ -1,8 +1,8 @@
 #!/bin/bash
 
 # parameters
-export backend="kdtree"
-export metric="infinity"
+export backend="snn"
+export metric="l2"
 export input_file="../data/RobustTrees/predictions/higgs/train_pred.csv"
 export results_base="../results/performance"
 export pred="pred"
