@@ -185,8 +185,7 @@ if __name__ == "__main__":
         } 
 
         if args.full_output:
-            out['timings'] = runner.timings
+            out['timings'] = [round(t, 6) for t in runner.timings]
 
         with open(args.out_path, 'w') as f:
             json.dump(out, f, indent=2)
-
