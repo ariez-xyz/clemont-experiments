@@ -55,7 +55,7 @@ def make_argparser():
     parser.add_argument('csvpath', type=str, nargs='+', help='Path to one or more CSV files')
     parser.add_argument('--eps', type=float, help='epsilon')
     parser.add_argument('--n_bins', '--n-bins', type=int, help='Number of bins')
-    parser.add_argument('--n_examples', '--n-examples', type=int, help='Cap the number of samples to process', default=-1)
+    parser.add_argument('--n_examples', '--n-examples', type=int, default=None, help='Cap the number of samples to process')
     parser.add_argument('--out_path', '--out-path', type=str, help='Path to save output JSON')
     parser.add_argument('--full_output', '--full-output', action='store_true', help='complete json output (timings, concrete counterexample pairs)')
     parser.add_argument('--verbose', action='store_true', help='verbose output (print differences)')
