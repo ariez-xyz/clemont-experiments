@@ -10,7 +10,7 @@ from aimon.backends.bdd import BDD
 from aimon.backends.faiss import BruteForce
 from aimon.backends.kdtree import KdTree
 from aimon.backends.snn import Snn
-from aimon.runner import Runner
+from aimon.runner import DataframeRunner
 
 np.set_printoptions(suppress=True)
 
@@ -64,6 +64,7 @@ def make_argparser():
     parser.add_argument('--blind_cols', '--blind-cols', type=str, help='comma-separated list of sensitive columns, e.g. "race,sex". allows wildcards like "race=*"')
     parser.add_argument('--pred', type=str, default='pred', help='name of the column holding model predictions')
     parser.add_argument('--metric', type=str, default='infinity', help='metric to use. available choices depend on backend')
+    parser.add_argument('--max_time', '--max-time', type=float, default=None, help='maximum number of seconds to run before terminating')
     return parser
     
 if __name__ == "__main__":
@@ -144,7 +145,7 @@ if __name__ == "__main__":
         log(f"initializing snn backend...")
         backend = Snn(df, args.pred, args.eps)
 
-    runner = Runner(backend)
+    runner = DataframeRunner(backend)
 
     log(f"starting...")
     monitor_positives = sorted(runner.run(df, args.n_examples))

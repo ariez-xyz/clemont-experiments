@@ -1,7 +1,7 @@
 import numpy as np
 import time
 
-class Runner:
+class DataframeRunner:
     """Class to run the aimon monitoring tool on a pandas dataframe as input data and take performance measurements.
 
     This class manages execution metrics such as timing and accuracy by tracking positives,
@@ -17,14 +17,18 @@ class Runner:
     def get_backend_name(self):
         return self.backend.__class__.__name__
 
-    def run(self, df, max_n=-1):
+    def run(self, df, max_n=-1, max_time=None):
         all_cexs = []
         printed_progress = False
+        start_time = time.time()
 
         for index, row in df.iterrows():
-            if index == max_n:
-                break
             start_iter_time = time.time()
+
+            if index >= max_n:
+                break
+            if max_time is not None and start_iter_time >= start_time + max_time:
+                break
 
             iter_cexs = self.backend.observe(row, row_id=index)
 

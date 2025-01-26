@@ -3,7 +3,7 @@ import numpy as np
 
 from aimon.backends.bdd import BDD
 from aimon.backends.faiss import BruteForce
-from aimon.runner import Runner
+from aimon.runner import DataframeRunner
 
 np.set_printoptions(suppress=True)
 
@@ -50,8 +50,8 @@ if __name__ == "__main__":
 
     bf = BruteForce(df, 'pred', 1/NBINS)
 
-    #runner = Runner(bdd)
-    runner = Runner(bf)
+    #runner = DataframeRunner(bdd)
+    runner = DataframeRunner(bf)
 
     monitor_positives = sorted(runner.run(df))
     naive_positives   = sorted(naive(df, 1/NBINS, num_columns))
