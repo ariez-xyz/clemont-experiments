@@ -2,7 +2,7 @@
 
 # parameters
 export name="imagenet3dcc-Tian2022Deeper_DeiT-B"
-export eps=7.5
+export eps=12.5
 export metric="L2"
 export pred="pred"
 
