@@ -38,7 +38,7 @@ class BruteForce(BaseBackend):
         self._meta = {
             "epsilon": epsilon,
             "decision_col": decision_col,
-            "metric": "Linf",
+            "metric": metric,
             "is_exact": True,
             "is_sound": True,
             "is_complete": True,
