@@ -65,12 +65,12 @@ def make_argparser():
     parser.add_argument('--pred', type=str, default='pred', help='name of the column holding model predictions')
     parser.add_argument('--metric', type=str, default='infinity', help='metric to use. available choices depend on backend')
     parser.add_argument('--max_time', '--max-time', type=float, default=None, help='maximum number of seconds to run before terminating')
+    parser.add_argument('--batchsize', type=int, default=None, help='batchsize (kdtree, snn only)')
     return parser
     
 if __name__ == "__main__":
     args = make_argparser().parse_args()
     csvpaths = args.csvpath
-    print(csvpaths)
 
     # user must provide exactly 1 of eps or n_bins
     if args.eps and args.n_bins:
@@ -135,15 +135,24 @@ if __name__ == "__main__":
             categorical_cols=low_cardinality_cols,
             collect_cex=True
         )
+
     elif args.backend == 'bf':
         log(f"initializing brute force backend...")
         backend = BruteForce(df, args.pred, args.eps, args.metric.lower())
+
     elif args.backend == 'kdtree':
         log(f"initializing kd-tree backend...")
-        backend = KdTree(df, args.pred, args.eps, args.metric)
+        if args.batchsize:
+            backend = KdTree(df, args.pred, args.eps, args.metric, batchsize=args.batchsize)
+        else:
+            backend = KdTree(df, args.pred, args.eps, args.metric)
+
     elif args.backend == 'snn':
         log(f"initializing snn backend...")
-        backend = Snn(df, args.pred, args.eps)
+        if args.batchsize:
+            backend = Snn(df, args.pred, args.eps, batchsize=args.batchsize)
+        else:
+            backend = Snn(df, args.pred, args.eps)
 
     runner = DataframeRunner(backend)
 
