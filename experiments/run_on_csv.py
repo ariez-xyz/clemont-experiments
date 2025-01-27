@@ -61,7 +61,7 @@ def make_argparser():
     parser.add_argument('--verbose', action='store_true', help='verbose output (print differences)')
     parser.add_argument('--randomize_order', '--randomize-order', action='store_true', help='Randomize CSV order')
     parser.add_argument('--backend', type=str, default='bf', choices=['bf', 'bdd', 'kdtree', 'snn'], help='which implementation to use as backend')
-    parser.add_argument('--blind_cols', '--blind-cols', type=str, help='comma-separated list of sensitive columns, e.g. "race,sex". allows wildcards like "race=*"')
+    parser.add_argument('--blind_cols', '--blind-cols', type=str, help='comma-separated list of column names for the monitor to ignore, e.g. "race,sex". allows * wildcard, e.g. "race=*" to drop all columns starting with "race=". allows slicing, e.g. "12:" to drop all columns that come after column 12')
     parser.add_argument('--pred', type=str, default='pred', help='name of the column holding model predictions')
     parser.add_argument('--metric', type=str, default='infinity', help='metric to use. available choices depend on backend')
     parser.add_argument('--max_time', '--max-time', type=float, default=None, help='maximum number of seconds to run before terminating')
@@ -108,12 +108,19 @@ if __name__ == "__main__":
                 for col in df.columns:
                     if col.startswith(expr[:-1]):
                         cols_to_drop.append(col)
+            elif expr[-1] == ":": # slice
+                drop = False
+                for col in df.columns:
+                    if drop:
+                        cols_to_drop.append(col)
+                    elif col.startswith(expr[:-1]):
+                        drop = True
             else: # literal
                 cols_to_drop.append(expr)
         # Separate into dropped and remaining columns
         blind_df = df[cols_to_drop].copy()
         df.drop(columns=cols_to_drop, inplace=True)
-        log(f"dropped sensitive columns {cols_to_drop} (new shape is {df.shape})")
+        log(f"dropped columns {cols_to_drop} (new shape is {df.shape})")
 
     if args.randomize_order:
         df = df.sample(frac=1).reset_index(drop=True)  # Randomize the dataframe rows
