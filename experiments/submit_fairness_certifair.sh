@@ -3,16 +3,16 @@
 # parameters
 export backend="bf"
 export metric="infinity"
-export input_files=($(find "../data/lcifr/predictions/" -name "pred*csv"))
+export input_files=($(find "../data/Certifair/predictions/" -name "*csv"))
 export epss=(0.0025 0.005 0.01 0.02 0.04 0.08 0.12 0.16 0.2 0.24 0.28 0.32)
 
 export results_base="../results/fairness/"
-export pred="Prediction"
+export pred="prediction"
 
 # setup dirs, venv, etc
 export work_script="slurm_fairness_work.sh"
-export results_dir="$results_base/results/lcifr/"
-export logs_dir="$results_base/logs/lcifr/"
+export results_dir="$results_base/results/certifair/"
+export logs_dir="$results_base/logs/certifair/"
 unset SLURM_EXPORT_ENV
 mkdir -p "$results_dir"
 mkdir -p "$logs_dir"
