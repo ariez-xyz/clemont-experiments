@@ -31,9 +31,9 @@ sbatch \
 	--job-name=$work_script \
 	--output="$logs_dir/$backend-%A-%a.log" \
 	--array=$array \
-	-c 4 \
+	-c 8 \
 	--time=13:00:00 \
-	--mem=32G \
+	--mem=96G \
 	--no-requeue \
 	--export=ALL \
 	$work_script 
