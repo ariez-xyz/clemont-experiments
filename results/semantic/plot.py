@@ -7,7 +7,6 @@ import matplotlib.pyplot as plt
 import argparse
 import numpy as np
 import re
-import csv
 
 warned_missing_datafiles = False
 def warn(s):
@@ -73,34 +72,53 @@ def process_directory(directory_path, use_rate=False):
     return df, epsilon, metric
 
 def plot_heatmap(df, title, save_path=None, vmin=None, vmax=None):
-    plt.figure(figsize=(11, 4), dpi=300)
+    plt.figure(figsize=(5, 2.6), dpi=300)
+
+    df = df.iloc[::-1]  # Reverse the order of rows
     
-    # Handle log transformation for non-rate values only
     is_rate = df.values.max() <= 1
     if is_rate:
         plot_data = np.log10(df * 100 + 1)
+        raw_data = df * 100
     else:
         plot_data = np.log10(df.clip(lower=1))
+        raw_data = df
         
     if vmin is None:
         vmin = plot_data.values.min()
     if vmax is None:
         vmax = plot_data.values.max()
     
-    sns.heatmap(plot_data, 
-                annot=(df * 100).values, 
-                cmap='YlOrRd',
-                fmt='.2f' if is_rate else 'g',
-                vmin=vmin,
-                vmax=vmax)
+    # Create the heatmap
+    hm = sns.heatmap(plot_data, 
+                     # Uncomment to add labels to each cell.
+                     #annot=raw_data, 
+                     cmap='YlOrRd',
+                     fmt='.2f' if is_rate else 'g',
+                     vmin=vmin,
+                     vmax=vmax,
+                     cbar_kws={'format': '%.2f'})
     
-    plt.title(title)
+     # Uncomment to add a title.
+    #plt.title(title)
     plt.ylabel('Severity')
     plt.xlabel('Corruption Type')
     plt.xticks(rotation=45, ha='right')
     
-    cbar = plt.gca().collections[0].colorbar
-    cbar.set_label('log10(Value)')
+    # Modify colorbar to show actual values instead of log values
+    cbar = hm.collections[0].colorbar
+    
+    # Calculate tick positions in log space
+    if is_rate:
+        tick_locations = np.linspace(vmin, vmax, 5)
+        tick_labels = np.round(100 * (10 ** tick_locations - 1) / 100, 2)
+    else:
+        tick_locations = np.linspace(vmin, vmax, 5)
+        tick_labels = np.round(10 ** tick_locations, 2)
+    
+    cbar.set_ticks(tick_locations)
+    cbar.set_ticklabels(tick_labels)
+    cbar.set_label('Percentage' if is_rate else 'Count')
     
     plt.tight_layout()
     
@@ -159,3 +177,5 @@ def main():
 
 if __name__ == "__main__":
     main()
+
+
