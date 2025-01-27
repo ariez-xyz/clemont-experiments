@@ -68,6 +68,33 @@ def process_directory(directory_path, use_rate=False):
     df = pd.DataFrame.from_dict({k: pd.Series(v) for k, v in results.items()})
     df.index.name = 'Severity'
     df = df.reindex(sorted(df.columns), axis=1)
+
+    # Drop bit_error if present
+    if 'bit_error' in df.columns:
+        df = df.drop('bit_error', axis=1)
+
+    # Define semantic groupings and sort order
+    imagenet_c_order = [
+        'gaussian_noise', 'shot_noise', 'impulse_noise',  # noise group
+        'defocus_blur', 'glass_blur', 'motion_blur', 'zoom_blur',  # blur group
+        'snow', 'frost', 'fog',  # weather group
+        'brightness', 'contrast',  # intensity group
+        'elastic_transform', 'pixelate', 'jpeg_compression'  # digital group
+    ]
+
+    camera_order = [
+        'iso_noise',  # noise
+        'near_focus', 'far_focus',  # focus
+        'xy_motion_blur', 'z_motion_blur',  # motion
+        'flash', 'low_light',  # lighting
+        'color_quant'  # digital
+    ]
+
+    # Apply the appropriate sort order
+    if all(col in df.columns for col in imagenet_c_order):
+        df = df[imagenet_c_order]
+    elif all(col in df.columns for col in camera_order):
+        df = df[camera_order]
     
     return df, epsilon, metric
 
@@ -118,7 +145,7 @@ def plot_heatmap(df, title, save_path=None, vmin=None, vmax=None):
     
     cbar.set_ticks(tick_locations)
     cbar.set_ticklabels(tick_labels)
-    cbar.set_label('Percentage' if is_rate else 'Count')
+    cbar.set_label('TP rate (%)' if is_rate else 'Count')
     
     plt.tight_layout()
     
