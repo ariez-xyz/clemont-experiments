@@ -158,7 +158,7 @@ if __name__ == "__main__":
     runner = DataframeRunner(backend)
 
     log(f"starting...")
-    monitor_positives = sorted(runner.run(df, args.n_examples))
+    monitor_positives = sorted(runner.run(df, args.n_examples, max_time=args.max_time))
 
     if args.verbose:
         for pair in monitor_positives:
