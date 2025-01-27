@@ -130,7 +130,6 @@ if __name__ == "__main__":
         keep = pd.concat([sampled_columns, pd.Series([args.pred])])
         df = df[keep]
         log(f"keeping columns: {keep} (new shape is {df.shape})")
-        print(df)
 
     if args.randomize_order:
         df = df.sample(frac=1).reset_index(drop=True)  # Randomize the dataframe rows
