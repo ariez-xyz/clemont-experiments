@@ -123,9 +123,14 @@ if __name__ == "__main__":
         df.drop(columns=cols_to_drop, inplace=True)
         log(f"dropped columns {cols_to_drop} (new shape is {df.shape})")
 
-    if args.sample_cols is not None: # Randomly sample columns and drop the rest
-        sampled_columns = df.columns.to_series().sample(n=args.sample_cols, random_state=0)
-        df = df[sampled_columns]
+    if args.sample_cols is not None:
+        # Ensure prediction column is included in sample
+        non_pred_cols = df.columns.drop(args.pred)
+        sampled_columns = non_pred_cols.to_series().sample(n=args.sample_cols, random_state=0)
+        keep = pd.concat([sampled_columns, pd.Series([args.pred])])
+        df = df[keep]
+        log(f"keeping columns: {keep} (new shape is {df.shape})")
+        print(df)
 
     if args.randomize_order:
         df = df.sample(frac=1).reset_index(drop=True)  # Randomize the dataframe rows
