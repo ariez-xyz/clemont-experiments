@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # parameters
-export backend="kdtree"
+export backend="bdd"
 export metric="infinity"
 export input_file1="../data/RobustBench/predictions/imagenet-Standard_R50.csv"
 export input_file2="../data/RobustBench/predictions/imagenet-Standard_R50.csv"
