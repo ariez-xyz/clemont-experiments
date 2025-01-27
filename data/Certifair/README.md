@@ -10,4 +10,4 @@ To reproduce the provided predictions:
 2. follow the installation instructions
 3. copy `certifair.py` and `makepreds.sh` into the cloned repository, overwriting the originals
 4. activate the environment created during installation, and run `./makepreds.sh`.
-
+5. use the combine.sh script to create combined predictions files for test+train sets.
