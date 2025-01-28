@@ -27,14 +27,14 @@ def rolling_average(data, window):
 
 # Read all JSON files
 data = []
-for filepath in glob.glob('results/*/*.json'):
+for filepath in glob.glob('results/snn/*.json'):
     with open(filepath, 'r') as f:
         result = json.load(f)
         file_info = parse_filename(filepath)
         data.append({**file_info, 'timings': result['timings']})
 
 # Sort data by norm, batchsize, method
-data.sort(key=lambda x: (x['norm'], x['batchsize'], x['method']))
+data.sort(key=lambda x: (x['norm'], x['method'], x['eps'], x['batchsize']))
 
 # Create plot
 plt.figure(figsize=(12, 8))
@@ -50,4 +50,4 @@ plt.title('Processing Time per Sample')
 plt.grid(True, alpha=0.3)
 plt.legend(bbox_to_anchor=(1.05, 1), loc='upper left')
 plt.tight_layout()
-plt.show()
+plt.savefig('fig.png', bbox_inches='tight', dpi=300)
