@@ -18,6 +18,5 @@ srun python run_on_csv.py "$input_file" \
 	--eps "$eps" \
 	--metric "$metric" \
 	--backend "$backend" \
-	--full-output \
 	--out-path "$results_dir/$input_basename-eps$eps.json"
 
