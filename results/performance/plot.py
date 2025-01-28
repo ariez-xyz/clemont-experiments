@@ -35,6 +35,7 @@ for filepath in glob.glob('results/snn/*.json'):
 
 # Sort data by norm, batchsize, method
 data.sort(key=lambda x: (x['norm'], x['method'], x['eps'], x['batchsize']))
+data = list(filter(lambda x: str(x['batchsize']) == '10000', data))
 
 # Create plot
 plt.figure(figsize=(12, 8))
