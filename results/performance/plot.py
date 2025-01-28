@@ -16,6 +16,10 @@ def parse_args():
                        help='Fix batch size to a specific value')
     parser.add_argument('--truncate', type=int, default=5_000_000,
                        help='disregard samples past a certain point')
+    parser.add_argument('--eps', type=str, default="0.05",
+                       help='epsilon to plot')
+    parser.add_argument('--outfile', type=str, default="fig.png",
+                       help='name of file to save to')
     parser.add_argument('--omit_beginning', type=int, default=100,
                        help='omit this many samples at the beginning (avoid startup cost going into rolling average)')
     return parser.parse_args()
@@ -56,10 +60,11 @@ args = parse_args()
 # Read all JSON files
 data = []
 for filepath in glob.glob(os.path.join(args.results_dir, 'results/*/*.json')):
-    with open(filepath, 'r') as f:
-        result = json.load(f)
-        file_info = parse_filename(filepath)
-        data.append({**file_info, 'timings': result['timings'][:args.truncate]})
+    if args.eps in filepath:
+        with open(filepath, 'r') as f:
+            result = json.load(f)
+            file_info = parse_filename(filepath)
+            data.append({**file_info, 'timings': result['timings'][:args.truncate]})
 
 # Sort data by norm, batchsize, method
 data.sort(key=lambda x: (x['norm'], x['method'], x['eps'], x['batchsize']))
@@ -83,4 +88,4 @@ else:
 plt.grid(True, alpha=0.3)
 plt.legend()
 plt.tight_layout()
-plt.savefig(os.path.join(args.results_dir, 'fig.png'), dpi=300)
+plt.savefig(os.path.join(args.results_dir, args.outfile), dpi=300)
