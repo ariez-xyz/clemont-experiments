@@ -2,11 +2,13 @@ import json
 import random
 import os
 import matplotlib.pyplot as plt
-import torch
 import argparse
 import json
+import pandas as pd
 from typing import Optional
 from robustbench.data import load_cifar10, load_cifar100, load_cifar10c, load_cifar100c, load_imagenet, load_imagenet3dcc
+from torchvision import datasets
+
 
 def load_dataset(name, n_examples, corruption=None, severity=5):
 
@@ -23,8 +25,8 @@ def load_dataset(name, n_examples, corruption=None, severity=5):
         if not corruption: raise ValueError("cifar100c requires specifying a corruption")
         x_test, y_test = load_cifar100c(n_examples=n_examples, corruptions=[corruption], severity=severity, data_dir="../../data/RobustBench/data/")
     elif name == 'imagenet3dcc':
-        if not corruption3d: raise ValueError("imagenet3dcc requires specifying a corruption")
-        x_test, y_test = load_imagenet3dcc(n_examples=n_examples, corruption=[corruption], severity=severity, data_dir="../../data/RobustBench/data/")
+        if not corruption: raise ValueError("imagenet3dcc requires specifying a corruption")
+        x_test, y_test = load_imagenet3dcc(n_examples=n_examples, corruptions=[corruption], severity=severity, data_dir="../../data/RobustBench/data/")
     else:
         raise ValueError(f"unsupported dataset {name}")
     return x_test, y_test
@@ -72,6 +74,20 @@ def visualize_positives_from_json(json_path, max_samples):
     # Load datasets
     x_clean, _ = load_dataset(dataset_clean, n_examples=threshold)
     x_corrupt, _ = load_dataset(dataset_corrupt, n_examples=threshold, corruption=corruption, severity=severity)
+
+    # Load model predictions
+    pred_clean = pd.read_csv(f"../../data/RobustBench/predictions/{dataset_corrupt}-{model}/vanilla.csv")["pred"]
+    pred_corrupt = pd.read_csv(f"../../data/RobustBench/predictions/{dataset_corrupt}-{model}/{corruption}-{severity}.csv")["pred"]
+
+    # Map numerical predictions to class names
+    if dataset_clean == 'cifar10':
+        class_names = ['airplane', 'automobile', 'bird', 'cat', 'deer', 
+                      'dog', 'frog', 'horse', 'ship', 'truck']
+    else:  # cifar100
+        class_names = ['apple', 'aquarium_fish', 'baby', 'bear', 'beaver', 'bed', 'bee', 'beetle', 'bicycle', 'bottle', 'bowl', 'boy', 'bridge', 'bus', 'butterfly', 'camel', 'can', 'castle', 'caterpillar', 'cattle', 'chair', 'chimpanzee', 'clock', 'cloud', 'cockroach', 'couch', 'crab', 'crocodile', 'cup', 'dinosaur', 'dolphin', 'elephant', 'flatfish', 'forest', 'fox', 'girl', 'hamster', 'house', 'kangaroo', 'keyboard', 'lamp', 'lawn_mower', 'leopard', 'lion', 'lizard', 'lobster', 'man', 'maple_tree', 'motorcycle', 'mountain', 'mouse', 'mushroom', 'oak_tree', 'orange', 'orchid', 'otter', 'palm_tree', 'pear', 'pickup_truck', 'pine_tree', 'plain', 'plate', 'poppy', 'porcupine', 'possum', 'rabbit', 'raccoon', 'ray', 'road', 'rocket', 'rose', 'sea', 'seal', 'shark', 'shrew', 'skunk', 'skyscraper', 'snail', 'snake', 'spider', 'squirrel', 'streetcar', 'sunflower', 'sweet_pepper', 'table', 'tank', 'telephone', 'television', 'tiger', 'tractor', 'train', 'trout', 'tulip', 'turtle', 'wardrobe', 'whale', 'willow_tree', 'wolf', 'woman', 'worm']
+
+    pred_clean = pred_clean.map(lambda x: class_names[int(x)])
+    pred_corrupt = pred_corrupt.map(lambda x: class_names[int(x)])
     
     def get_data(idx):
         if idx < threshold:
@@ -94,11 +110,11 @@ def visualize_positives_from_json(json_path, max_samples):
         col = (i % pairs_per_row) * 3
         
         axes[row, col].imshow(clean_img)
-        axes[row, col].set_title(f'Clean {clean_idx}')
+        axes[row, col].set_title(f'{pred_clean[clean_idx]}')
         axes[row, col].axis('off')
         
         axes[row, col + 1].imshow(corrupt_img)
-        axes[row, col + 1].set_title(f'Corrupted {corrupt_idx}')
+        axes[row, col + 1].set_title(f'{pred_corrupt[corrupt_idx-threshold]}')
         axes[row, col + 1].axis('off')
         
         # Add separator
