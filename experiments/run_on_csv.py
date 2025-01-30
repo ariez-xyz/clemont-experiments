@@ -190,7 +190,9 @@ if __name__ == "__main__":
         out = {
             'n_true_positives': runner.n_true_positives,
             'n_positives': runner.n_positives,
+            'n_processed': len(runner.timings),
             'total_time': runner.total_time,
+            'avg_time': runner.total_time / len(runner.timings),
             'date': datetime.now().isoformat(),
             'backend': runner.get_backend_name(),
             'n_bins': args.n_bins,
