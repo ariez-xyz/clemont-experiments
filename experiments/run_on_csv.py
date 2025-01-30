@@ -6,7 +6,7 @@ import sys
 import time
 from datetime import datetime
 
-from aimon.backends.bdd import BDD
+from aimon.backends.bdd import BDD, BAD_CHARS
 from aimon.backends.faiss import BruteForce
 from aimon.backends.kdtree import KdTree
 from aimon.backends.snn import Snn
@@ -135,6 +135,11 @@ if __name__ == "__main__":
     if args.randomize_order:
         df = df.sample(frac=1).reset_index(drop=True)  # Randomize the dataframe rows
         log(f"randomized order")
+
+    # Clean column names of problematic chars for BDD.
+    if args.backend == 'bdd':
+        for old_char, new_char in BAD_CHARS.items():
+            df.columns = df.columns.str.replace(old_char, new_char)
 
     num_columns = df.shape[1]
     low_cardinality_cols = [col for col in df.columns if df[col].nunique() < args.n_bins]

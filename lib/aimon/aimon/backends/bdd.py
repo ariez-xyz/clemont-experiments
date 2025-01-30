@@ -5,9 +5,24 @@ from .discretization import Discretization
 from .base import BaseBackend
 from dd.cudd import BDD as cuddMgr
 
+BAD_CHARS = {
+    '=': '_eq_',
+    '-': '_',
+    '/': '_',
+    '(': '',
+    ')': '',
+    '&': '',
+    '|': '',
+    '^': '',
+}
+
 class BDD(BaseBackend):
     def __init__(self, data_sample, n_bins, decision_col, onehot_cols=[], categorical_cols=[], collect_cex=False):
         self.collect_cex = collect_cex
+
+        if any(any(char in col for char in BAD_CHARS.keys()) for col in data_sample.columns):
+            raise ValueError(f"BDD error: column names cannot contain characters {BAD_CHARS.keys()}")
+
         self.discretization = Discretization(data_sample, n_bins, decision_col, onehot_cols, categorical_cols)
         self.id_map = defaultdict(list)
 

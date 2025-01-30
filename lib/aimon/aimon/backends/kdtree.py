@@ -41,7 +41,7 @@ class KdTree(BaseBackend):
         decision = row[self.meta["decision_col"]]
 
         if self.current_batch >= self.batchsize: # Rebuild
-            print(f"rebuilding at {len(self.history)}...")
+            print(f"rebuilding at {len(self.history)}...", end='\r')
             st = time.time()
             self.kdt = KDTree(self.history, metric=self.meta["metric"])
             self.bf = BruteForce(self.df, self.meta["decision_col"], self.meta["epsilon"], self.meta["metric"])

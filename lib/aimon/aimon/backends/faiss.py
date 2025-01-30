@@ -24,7 +24,6 @@ class BruteForce(BaseBackend):
             flat_index = faiss.IndexFlat(self.dim, self.METRICS[metric])
             with_custom_ids = faiss.IndexIDMap(flat_index) # This decorator adds support for add_with_ids()
             self.indices[class_val] = with_custom_ids
-        print(f"initialized {len(self.indices)} indices. eps={epsilon}")
 
         self.epsilon = epsilon
         if metric == 'l2': 
