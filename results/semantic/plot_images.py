@@ -37,7 +37,7 @@ def visualize_positives_from_json(json_path, max_samples):
     corruption = None
     severity = None
     
-    model = filename.split('-')[-5]
+    model = "-".join(filename.split('-')[1:-4])
     if filename.startswith('cifar10c-'):
         dataset_clean = 'cifar10'
         dataset_corrupt = 'cifar10c'
