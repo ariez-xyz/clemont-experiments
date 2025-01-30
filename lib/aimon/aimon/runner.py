@@ -9,6 +9,7 @@ class DataframeRunner:
     """
     def __init__(self, backend):
         self.backend = backend
+        self.n_flagged = 0
         self.n_positives = 0
         self.n_true_positives = 0
         self.timings = []
@@ -45,6 +46,9 @@ class DataframeRunner:
             # Count remaining true positives after exact post-verification
             self.n_true_positives += len(iter_cexs)
             all_cexs.extend([(cex, index) for cex in iter_cexs])
+
+            if len(all_cexs) > 0:
+                self.n_flagged += 1
 
             # Timing code.
             iter_time = time.time() - start_iter_time

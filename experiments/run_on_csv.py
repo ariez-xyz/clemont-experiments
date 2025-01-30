@@ -57,7 +57,8 @@ def make_argparser():
     parser.add_argument('--n_bins', '--n-bins', type=int, help='Number of bins')
     parser.add_argument('--n_examples', '--n-examples', type=int, default=None, help='Cap the number of samples to process')
     parser.add_argument('--out_path', '--out-path', type=str, help='Path to save output JSON')
-    parser.add_argument('--full_output', '--full-output', action='store_true', help='complete json output (timings, concrete counterexample pairs)')
+    parser.add_argument('--full_output', '--full-output', action='store_true', help='complete json output (timings)')
+    parser.add_argument('--concise_output', '--concise-output', action='store_true', help='shortened json output (omit positives)')
     parser.add_argument('--verbose', action='store_true', help='verbose output (print differences)')
     parser.add_argument('--randomize_order', '--randomize-order', action='store_true', help='Randomize CSV order')
     parser.add_argument('--backend', type=str, default='bf', choices=['bf', 'bdd', 'kdtree', 'snn'], help='which implementation to use as backend')
@@ -191,6 +192,8 @@ if __name__ == "__main__":
             'n_true_positives': runner.n_true_positives,
             'n_positives': runner.n_positives,
             'n_processed': len(runner.timings),
+            'n_flagged': runner.n_flagged,
+            'perc_flagged': runner.n_flagged / runner.n_positives,
             'total_time': runner.total_time,
             'avg_time': runner.total_time / len(runner.timings),
             'date': datetime.now().isoformat(),
@@ -199,8 +202,10 @@ if __name__ == "__main__":
             'eps': args.eps,
             'args': vars(args),
             'backend_meta': backend.meta,
-            'positives': [(int(x), int(y)) for x, y in monitor_positives],
         } 
+
+        if not args.concise_output:
+            out['positives'] = [(int(x), int(y)) for x, y in monitor_positives]
 
         if args.full_output:
             out['timings'] = [round(t, 6) for t in runner.timings]
