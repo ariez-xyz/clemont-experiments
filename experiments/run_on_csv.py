@@ -193,7 +193,7 @@ if __name__ == "__main__":
             'n_positives': runner.n_positives,
             'n_processed': len(runner.timings),
             'n_flagged': runner.n_flagged,
-            'perc_flagged': runner.n_flagged / runner.n_positives,
+            'perc_flagged': runner.n_flagged / len(runner.timings),
             'total_time': runner.total_time,
             'avg_time': runner.total_time / len(runner.timings),
             'date': datetime.now().isoformat(),
