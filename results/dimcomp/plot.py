@@ -15,7 +15,7 @@ def get_average_time(json_path):
 results_dir = 'results'
 methods = os.listdir(results_dir)
 
-plt.figure(figsize=(7.1, 5))
+plt.figure(figsize=(5, 4))
 
 for method in methods:
     method_dir = os.path.join(results_dir, method)
@@ -36,7 +36,8 @@ for method in methods:
     avg_times = np.array(avg_times)[sorted_indices]
     
     method_displaynames = {
-        "kdtree": "Kd-tree",
+        "kdtree": "Kd-tree (Linf)",
+        "kdtree-l2": "Kd-tree (L2)",
         "bdd": "BDD",
         "snn": "SNN",
         "bf": "Brute force",
@@ -47,9 +48,9 @@ plt.xscale('log', base=2)
 plt.yscale('log')
 plt.xlabel('Number of Dimensions')
 plt.ylabel('Average Processing Time (seconds)')
-plt.title('Processing Time vs Dimensions by Method')
+#plt.title('Processing Time vs Dimensions by Method')
 plt.grid(True, which="both", ls="-", alpha=0.5)
 plt.legend()
 plt.tight_layout()
-plt.savefig('fig.png', dpi=300)
+plt.savefig('dimensions.png', dpi=300)
 plt.close()
