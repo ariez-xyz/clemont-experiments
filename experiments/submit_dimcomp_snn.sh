@@ -32,7 +32,7 @@ sbatch \
 	--output="$logs_dir/$backend-%A-%a.log" \
 	--array=$array \
 	-c 8 \
-	--time=13:00:00 \
+	--time=18:00:00 \
 	--mem=96G \
 	--no-requeue \
 	--export=ALL \

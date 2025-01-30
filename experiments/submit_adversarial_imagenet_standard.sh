@@ -3,8 +3,8 @@
 # parameters
 export name="imagenet-Standard"
 export input_files=$(find ../data/RobustBench/predictions/ -name "$name*csv")
-# >8/255
-export eps=0.031373
+# >4/255
+export eps=0.0157
 export pred="pred"
 export results_base="../results/adversarial/"
 export work_script="slurm_robustbench_work.sh"
