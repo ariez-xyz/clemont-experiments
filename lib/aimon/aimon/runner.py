@@ -45,10 +45,10 @@ class DataframeRunner:
 
             # Count remaining true positives after exact post-verification
             self.n_true_positives += len(iter_cexs)
-            all_cexs.extend([(cex, index) for cex in iter_cexs])
-
-            if len(all_cexs) > 0:
+            if len(iter_cexs) > 0:
                 self.n_flagged += 1
+
+            all_cexs.extend([(cex, index) for cex in iter_cexs])
 
             # Timing code.
             iter_time = time.time() - start_iter_time
