@@ -217,6 +217,7 @@ if __name__ == "__main__":
         if args.full_output:
             out['timings'] = [round(t, 6) for t in runner.timings]
             out['mem'] = runner.mem
+            out['radius_query_ks'] = getattr(runner.backend, 'radius_query_ks', [])
 
         with open(args.out_path, 'w') as f:
             json.dump(out, f, indent=2)
@@ -224,25 +225,27 @@ if __name__ == "__main__":
     if args.diff:
         with open(args.diff) as f:
             data = json.load(f)
-            mp = list(map(lambda tup: str(list(tup)), monitor_positives))
-            op = list(map(lambda tup: str(list(tup)), data['positives']))
+            this_run = list(map(lambda tup: str(list(tup)), monitor_positives))
+            other_run = list(map(lambda tup: str(list(tup)), data['positives']))
+            rqks = data.get('radius_query_ks', [])
             seen = defaultdict(lambda: 0)
-            for positive in mp:
+            for positive in this_run:
                 seen[positive] += 1
-            for positive in op:
+            for positive in other_run:
                 seen[positive] += 1
-            m_only = []
-            o_only = []
+            this_only = []
+            other_only = []
             for k,v in seen.items():
-                if v != 2:
-                    if k in mp:
-                        m_only.append(k)
+                if v != 2: # not seen by both
+                    if k in this_run:
+                        this_only.append(k)
                     else:
-                        o_only.append(k)
-            print("#################\nThis run:", len(mp), m_only, sep='\t')
-            for pair in map(lambda s: eval(s), m_only):
-                print(pair)
-                pretty_print(df, pair[0], pair[1], args.eps, header=False)
-            print(f"#################\n{args.diff}:", len(op), o_only, sep='\t')
-            for pair in map(lambda s: eval(s), o_only):
-                pretty_print(df, pair[0], pair[1], args.eps, header=False)
+                        other_only.append(k)
+            for label, data in (("This run", this_only), (args.diff, other_only)):
+                print(f"#################\n{label}:", data, sep='\t')
+                for pair in map(lambda s: json.loads(s), data):
+                    if len(rqks) > 1:
+                        print(pair, rqks[pair[1]])
+                    else:
+                        print(pair)
+                    pretty_print(df, pair[0], pair[1], args.eps, header=False)

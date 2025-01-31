@@ -61,7 +61,7 @@ class BaseBackend(ABC):
         distances = [[]]
         indices = [[]]
         k = 4
-        max_k = 128  # Limit to avoid excessive iterations and also random errors for hnswlib
+        max_k = 128  # Limit to avoid excessive iterations
 
         # Iteratively run kNN queries, doubling k until results outside epsilon range are returned
         while k <= max_k:
@@ -75,7 +75,10 @@ class BaseBackend(ABC):
             else:
                 break
 
-        self.radius_query_ks += [k]
+        if k > max_k:
+            self.radius_query_ks += [-1] # Indicate that query crossed max_k
+        else:
+            self.radius_query_ks += [k]
 
         # Toss out results outside epsilon range
         valid_points = [i for i, d in enumerate(distances[0]) if d < epsilon]
