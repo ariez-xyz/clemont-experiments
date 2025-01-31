@@ -8,12 +8,17 @@ from dd.cudd import BDD as cuddMgr
 BAD_CHARS = {
     '=': '_eq_',
     '-': '_',
+    '+': 'plus',
+    '<': '_lt_',
+    '>': '_gt_',
     '/': '_',
     '(': '',
     ')': '',
     '&': '',
     '|': '',
     '^': '',
+    ' ': '',
+    '_': '',
 }
 
 class BDD(BaseBackend):
@@ -21,7 +26,7 @@ class BDD(BaseBackend):
         self.collect_cex = collect_cex
 
         if any(any(char in col for char in BAD_CHARS.keys()) for col in data_sample.columns):
-            raise ValueError(f"BDD error: column names cannot contain characters {BAD_CHARS.keys()}")
+            raise ValueError(f"BDD error: column names cannot contain characters {BAD_CHARS.keys()}, please rename using BDD.BAD_CHARS")
 
         self.discretization = Discretization(data_sample, n_bins, decision_col, onehot_cols, categorical_cols)
         self.id_map = defaultdict(list)
@@ -165,9 +170,10 @@ class BDD(BaseBackend):
             # OR these into a single fla
             col_matches = f"({'   |   '.join(col_flas)})"
 
-            
             # the similarity BDD wants every col to be close
-            # An error here is likely because the column is assigned 0 variables.
+            # An error here is likely because 
+            # - the column is assigned 0 variables.
+            # - column naming issues, e.g. ab_c and a_bc are the same after mapping
             # Uncomment the below and check vars_map
             # print(vars_map, col, col_flas, col_nbits)
             D = D & bdd.add_expr(col_matches)
