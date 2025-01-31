@@ -70,6 +70,7 @@ def make_argparser():
     parser.add_argument('--max_time', '--max-time', type=float, default=None, help='maximum number of seconds to run before terminating')
     parser.add_argument('--batchsize', type=int, default=None, help='batchsize (kdtree, snn only)')
     parser.add_argument('--diff', type=str, default=None, help='path to JSON output file to diff the positives against')
+    parser.add_argument('--pairwise-diff', type=str, default=None, help='path to JSON output file to diff the positives against; pairwise output')
     return parser
     
 if __name__ == "__main__":
@@ -87,6 +88,8 @@ if __name__ == "__main__":
         args.eps = 1/args.n_bins
     else:
         args.n_bins = int(1/args.eps)
+        if args.backend == "bdd":
+            print(f"warning: converted eps={args.eps} to {args.n_bins} bins, assuming data is in [0,1] across all dimensions")
 
     dfs = []
     for arg in csvpaths:
@@ -138,10 +141,16 @@ if __name__ == "__main__":
         df = df.sample(frac=1).reset_index(drop=True)  # Randomize the dataframe rows
         log(f"randomized order")
 
-    # Clean column names of problematic chars for BDD.
-    if args.backend == 'bdd':
+    if args.backend == 'bdd': # Rename columns
+        old_cols = df.columns.tolist()
         for old_char, new_char in BAD_CHARS.items():
             df.columns = df.columns.str.replace(old_char, new_char)
+        new_cols = df.columns.tolist()
+        changed = [(old, new) for old, new in zip(old_cols, new_cols) if old != new]
+        if changed:
+            log("Renamed columns for BDD compatibility:")
+            for old, new in changed:
+                log(f"\t{old:20}\t->\t{new}")
 
     num_columns = df.shape[1]
     low_cardinality_cols = [col for col in df.columns if df[col].nunique() < args.n_bins]
@@ -222,8 +231,37 @@ if __name__ == "__main__":
         with open(args.out_path, 'w') as f:
             json.dump(out, f, indent=2)
 
+    # To verify consistent results between runs
     if args.diff:
         with open(args.diff) as f:
+            this_run_counts = defaultdict(lambda: 0)
+            other_run_counts = defaultdict(lambda: 0)
+            all_labels = set()
+            data = json.load(f)
+            other_run = data['positives']
+            for x,y in monitor_positives:
+                this_run_counts[x] += 1
+                this_run_counts[y] += 1
+                all_labels.add(x)
+                all_labels.add(y)
+            for x,y in other_run:
+                other_run_counts[x] += 1
+                other_run_counts[y] += 1
+                all_labels.add(x)
+                all_labels.add(y)
+            print("", f"      id", "#this", "gt/lt", "#other", sep="\t")
+            for label in all_labels:
+                if label not in this_run_counts:
+                    print("", f"{label:8}", "-", "<", other_run_counts[label], sep="\t")
+                elif label not in other_run_counts:
+                    print("", f"{label:8}", this_run_counts[label], ">", "-", sep="\t")
+                elif this_run_counts[label] != other_run_counts[label]:
+                    chev = "<" if this_run_counts[label] < other_run_counts[label] else ">"
+                    print("", f"{label:8}", this_run_counts[label], chev, other_run_counts[label], sep="\t")
+
+    # To verify consistent results between runs
+    if args.pairwise_diff:
+        with open(args.pairwise_diff) as f:
             data = json.load(f)
             this_run = list(map(lambda tup: str(list(tup)), monitor_positives))
             other_run = list(map(lambda tup: str(list(tup)), data['positives']))
@@ -241,7 +279,7 @@ if __name__ == "__main__":
                         this_only.append(k)
                     else:
                         other_only.append(k)
-            for label, data in (("This run", this_only), (args.diff, other_only)):
+            for label, data in (("This run", this_only), (args.pairwise_diff, other_only)):
                 print(f"#################\n{label}:", data, sep='\t')
                 for pair in map(lambda s: json.loads(s), data):
                     if len(rqks) > 1:

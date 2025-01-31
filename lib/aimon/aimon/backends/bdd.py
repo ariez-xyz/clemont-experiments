@@ -6,13 +6,13 @@ from .base import BaseBackend
 from dd.cudd import BDD as cuddMgr
 
 BAD_CHARS = {
-    '=': '_eq_',
-    '-': '_',
+    '=': 'eq',
     '+': 'plus',
-    '<': '_lt_',
-    '>': '_gt_',
-    '/': '_',
+    '<': 'lt',
+    '>': 'gt',
+    '/': 'slash',
     '(': '',
+    '-': '',
     ')': '',
     '&': '',
     '|': '',
