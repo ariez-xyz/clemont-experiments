@@ -5,6 +5,7 @@ import json
 import sys
 import time
 from datetime import datetime
+from collections import defaultdict
 
 from aimon.backends.bdd import BDD, BAD_CHARS
 from aimon.backends.faiss import BruteForce
@@ -68,6 +69,7 @@ def make_argparser():
     parser.add_argument('--metric', type=str, default='infinity', help='metric to use. available choices depend on backend')
     parser.add_argument('--max_time', '--max-time', type=float, default=None, help='maximum number of seconds to run before terminating')
     parser.add_argument('--batchsize', type=int, default=None, help='batchsize (kdtree, snn only)')
+    parser.add_argument('--diff', type=str, default=None, help='path to JSON output file to diff the positives against')
     return parser
     
 if __name__ == "__main__":
@@ -218,3 +220,29 @@ if __name__ == "__main__":
 
         with open(args.out_path, 'w') as f:
             json.dump(out, f, indent=2)
+
+    if args.diff:
+        with open(args.diff) as f:
+            data = json.load(f)
+            mp = list(map(lambda tup: str(list(tup)), monitor_positives))
+            op = list(map(lambda tup: str(list(tup)), data['positives']))
+            seen = defaultdict(lambda: 0)
+            for positive in mp:
+                seen[positive] += 1
+            for positive in op:
+                seen[positive] += 1
+            m_only = []
+            o_only = []
+            for k,v in seen.items():
+                if v != 2:
+                    if k in mp:
+                        m_only.append(k)
+                    else:
+                        o_only.append(k)
+            print("#################\nThis run:", len(mp), m_only, sep='\t')
+            for pair in map(lambda s: eval(s), m_only):
+                print(pair)
+                pretty_print(df, pair[0], pair[1], args.eps, header=False)
+            print(f"#################\n{args.diff}:", len(op), o_only, sep='\t')
+            for pair in map(lambda s: eval(s), o_only):
+                pretty_print(df, pair[0], pair[1], args.eps, header=False)
