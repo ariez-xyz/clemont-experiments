@@ -214,6 +214,7 @@ if __name__ == "__main__":
 
         if args.full_output:
             out['timings'] = [round(t, 6) for t in runner.timings]
+            out['mem'] = runner.mem
 
         with open(args.out_path, 'w') as f:
             json.dump(out, f, indent=2)

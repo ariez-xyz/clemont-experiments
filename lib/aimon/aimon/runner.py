@@ -1,5 +1,6 @@
 import numpy as np
 import time
+import psutil
 
 class DataframeRunner:
     """Class to run the aimon monitoring tool on a pandas dataframe as input data and take performance measurements.
@@ -13,6 +14,7 @@ class DataframeRunner:
         self.n_positives = 0
         self.n_true_positives = 0
         self.timings = []
+        self.mem = []
         self.total_time = 0
 
     def get_backend_name(self):
@@ -22,6 +24,7 @@ class DataframeRunner:
         all_cexs = []
         start_time = time.time()
         last_update = time.time()
+        process = psutil.Process()
 
         for index, row in df.iterrows():
             start_iter_time = time.time()
@@ -53,6 +56,7 @@ class DataframeRunner:
             # Timing code.
             iter_time = time.time() - start_iter_time
             self.timings.append(iter_time)
+            self.mem.append(process.memory_info().rss)
             self.total_time += iter_time
             if time.time() - last_update > 1:
                 print(f"{self.total_time:.2f}s: {index} items", end='\r')
