@@ -23,7 +23,6 @@ class DataframeRunner:
     def run(self, df, max_n=None, max_time=None):
         all_cexs = []
         start_time = time.time()
-        last_update = time.time()
         process = psutil.Process()
 
         for index, row in df.iterrows():
@@ -51,19 +50,13 @@ class DataframeRunner:
             if len(iter_cexs) > 0:
                 self.n_flagged += 1
 
-            all_cexs.extend([(cex, index) for cex in iter_cexs])
-
-            # Timing code.
+            # Performance measurements
             iter_time = time.time() - start_iter_time
             self.timings.append(iter_time)
             self.mem.append(process.memory_info().rss)
             self.total_time += iter_time
-            if time.time() - last_update > 1:
-                print(f"{self.total_time:.2f}s: {index} items", end='\r')
-                last_update = time.time()
 
-        print(f"Total time: {self.total_time:.2f} seconds")
-        return all_cexs
+            yield [(cex, index) for cex in iter_cexs]
 
     def filter_false_positives_Linf(self, cexs, row, df, pred, eps):
         nofp = [cex for cex in cexs if np.all(np.abs(df.loc[cex].drop(pred) - row.drop(pred)) < eps)]

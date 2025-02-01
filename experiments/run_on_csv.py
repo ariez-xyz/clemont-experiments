@@ -91,6 +91,10 @@ if __name__ == "__main__":
         if args.backend == "bdd":
             print(f"warning: converted eps={args.eps} to {args.n_bins} bins, assuming data is in [0,1] across all dimensions")
 
+    ######################
+    # DATA PREPROCESSING #
+    ######################
+
     dfs = []
     for arg in csvpaths:
         # Handle potential newline-separated paths
@@ -158,6 +162,10 @@ if __name__ == "__main__":
 
     log(f"metric is {args.metric}...")
 
+    #################
+    # BACKEND SETUP #
+    #################
+
     if args.backend == 'bdd':
         log(f"initializing BDD backend...")
         assert args.metric == "infinity", f"BDD: unimplemented metric {args.metric}"
@@ -190,8 +198,25 @@ if __name__ == "__main__":
 
     runner = DataframeRunner(backend)
 
+    ##############
+    # MONITORING #
+    ##############
+
     log(f"starting...")
-    monitor_positives = sorted(runner.run(df, args.n_examples, max_time=args.max_time))
+    last_update = time.time()
+    monitor_positives = []
+    for i, cexs in enumerate(runner.run(df, args.n_examples, max_time=args.max_time)):
+        if cexs:
+            monitor_positives.append(cexs)
+        if time.time() - last_update > 1:
+            log(f"\tprocessed {i}")
+            last_update = time.time()
+    monitor_positives.sort()
+    log(f"done")
+
+    ##########
+    # OUTPUT #
+    ##########
 
     if args.verbose:
         for pair in monitor_positives:
@@ -231,7 +256,10 @@ if __name__ == "__main__":
         with open(args.out_path, 'w') as f:
             json.dump(out, f, indent=2)
 
-    # To verify consistent results between runs
+    ##########################
+    # DIFF/CONSISTENCY CHECK #
+    ##########################
+
     if args.diff:
         with open(args.diff) as f:
             this_run_counts = defaultdict(lambda: 0)
@@ -259,7 +287,6 @@ if __name__ == "__main__":
                     chev = "<" if this_run_counts[label] < other_run_counts[label] else ">"
                     print("", f"{label:8}", this_run_counts[label], chev, other_run_counts[label], sep="\t")
 
-    # To verify consistent results between runs
     if args.pairwise_diff:
         with open(args.pairwise_diff) as f:
             data = json.load(f)
