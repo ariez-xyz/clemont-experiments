@@ -6,6 +6,8 @@ import sys
 import time
 from datetime import datetime
 from collections import defaultdict
+from multiprocessing import Process, Queue
+from queue import Empty
 
 from aimon.backends.bdd import BDD, BAD_CHARS
 from aimon.backends.faiss import BruteForce
@@ -14,6 +16,11 @@ from aimon.backends.snn import Snn
 from aimon.runner import DataframeRunner
 
 np.set_printoptions(suppress=True)
+
+def debug(s):
+    if False:
+        timestamp = datetime.utcfromtimestamp(time.time()).strftime('%Y-%m-%d %H:%M:%S')
+        print(f"[DEBUG {timestamp}] {s}", flush=True)
 
 def log(s):
     timestamp = datetime.utcfromtimestamp(time.time()).strftime('%Y-%m-%d %H:%M:%S')
@@ -87,6 +94,37 @@ def setup_backend(args, df):
         raise ArgumentError(f"unknown backend {args.backend}")
     return DataframeRunner(backend)
 
+def partition(df, n_splits, pred):
+    """
+    Partition df into n_splits many sub-df's by splitting columns
+    Every partition contains the 'pred' column as well.
+    """
+
+    pred_idx = df.columns.get_loc(pred)  # Index of the pred column
+
+    other_idxs = np.array([i for i in range(df.shape[1]) if i != pred_idx])  # All indices except pred
+    permuted_other = np.random.default_rng(42).permutation(other_idxs)
+    
+    cols_per_partition = np.array_split(permuted_other, n_splits)
+    
+    partitions = []
+    for subset in cols_per_partition:
+        partition_indices = np.append(subset, pred_idx) # Add the pred column to each partition
+        partitions.append(df.iloc[:, partition_indices])
+
+    log(f"partitioned {len(df.columns)} columns: {list(df.columns)}")
+    return partitions
+
+def process_partition(args, df, idx, result_queue):
+    log(f"\tworker {idx}: {len(df.columns)} columns {list(df.columns)}")
+    runner = setup_backend(args, df)
+    cex_sizes = []
+    for step, cexs in enumerate(runner.run(df, args.n_examples, max_time=args.max_time)):
+        cex_sizes.append(len(cexs))
+        result_queue.put((step, idx, [p[0] for p in cexs]))
+        debug(f"\t worker {idx}: send ({step} {idx} {[p[0] for p in cexs]}) to queue of size {result_queue.qsize()}")
+    log(f"\tworker {idx}: finished, sent {sum(cex_sizes)/len(cex_sizes)} cexs average, {cex_sizes}")
+
 def make_argparser():
     parser = argparse.ArgumentParser(description='run monitor on csv format predictions')
     parser.add_argument('csvpath', type=str, nargs='+', help='Path to one or more CSV files')
@@ -99,6 +137,7 @@ def make_argparser():
     parser.add_argument('--verbose', action='store_true', help='verbose output (print differences)')
     parser.add_argument('--randomize_order', '--randomize-order', action='store_true', help='Randomize CSV order')
     parser.add_argument('--backend', type=str, default='bf', choices=['bf', 'bdd', 'kdtree', 'snn'], help='which implementation to use as backend')
+    parser.add_argument('--parallelize', type=int, default=None, help='split data to multiple processes (Linf only)')
     parser.add_argument('--blind_cols', '--blind-cols', type=str, help='comma-separated list of column names for the monitor to ignore, e.g. "race,sex". allows * wildcard, e.g. "race=*" to drop all columns starting with "race=". allows slicing, e.g. "12:" to drop all columns that come after column 12')
     parser.add_argument('--sample_cols', '--sample-cols', type=int, default=None, help='integer number of columns to randomly sample from the data (will discard the other columns)')
     parser.add_argument('--pred', type=str, default='pred', help='name of the column holding model predictions')
@@ -192,8 +231,6 @@ if __name__ == "__main__":
             for old, new in changed:
                 log(f"\t{old:20}\t->\t{new}")
 
-    num_columns = df.shape[1]
-
     log(f"metric is {args.metric}...")
 
     ##############
@@ -201,19 +238,50 @@ if __name__ == "__main__":
     ##############
 
     log(f"starting...")
+    start_time = time.time()
     last_update = time.time()
-    runner = setup_backend(args, df)
 
-    monitor_positives = []
-    for i, cexs in enumerate(runner.run(df, args.n_examples, max_time=args.max_time)):
-        if cexs:
-            monitor_positives.append(cexs)
-        if time.time() - last_update > 1:
-            log(f"\tprocessed {i}")
-            last_update = time.time()
-    monitor_positives.sort()
+    if args.parallelize:
+        result_queue = Queue()
+        processes = []
+        buffer = defaultdict(dict)  # {iteration: {split_idx: result}}
+        monitor_positives = [] # combined results
+        partitions = partition(df, args.parallelize, args.pred)
 
-    log(f"done")
+        for idx, partition in enumerate(partitions):
+            p = Process(target=process_partition, args=(args, partition, idx, result_queue))
+            processes.append(p)
+            p.start()
+
+        while any(p.is_alive() for p in processes) or not result_queue.empty():
+            debug(f"master: loop cond: {any(p.is_alive() for p in processes)} {not result_queue.empty()}")
+            try:
+                step, split_idx, cexs = result_queue.get(timeout=1)
+                debug(f"master: recv {(step, split_idx, cexs)}, buffer counts: { {k: len(v) for k,v in buffer.items()}}")
+
+                buffer[step][split_idx] = cexs
+
+                if len(buffer[step]) == len(partitions): # all splits for this iteration are ready
+                    debug(f"master: {step} complete")
+                    if time.time() - last_update > 1:
+                        log(f"\tprocessed {step}, in queue: ~{result_queue.qsize()}")
+                        last_update = time.time()
+                    # TODO: Combine and do monitor_positives.append(combined)
+            except Empty:
+                continue
+    else:
+        runner = setup_backend(args, df)
+
+        monitor_positives = []
+        for i, cexs in enumerate(runner.run(df, args.n_examples, max_time=args.max_time)):
+            if cexs:
+                monitor_positives.append(cexs)
+            if time.time() - last_update > 1:
+                log(f"\tprocessed {i}")
+                last_update = time.time()
+        monitor_positives.sort()
+
+    log(f"done in {time.time() - start_time:.2f}s")
 
     ##########
     # OUTPUT #
