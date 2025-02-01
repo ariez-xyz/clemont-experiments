@@ -51,6 +51,42 @@ def pretty_print(df, i, j, eps, header=True, diff_only=False, marker=" "):
         for line in rest:
             print(line)
 
+def setup_backend(args, df):
+    if args.backend == 'bdd':
+        assert args.metric == "infinity", f"BDD: unimplemented metric {args.metric}"
+        low_cardinality_cols = [col for col in df.columns if df[col].nunique() < args.n_bins]
+        log(f"low-cardinality columns: {low_cardinality_cols}. assuming categorical (i.e, must be exact match)")
+        log(f"initializing BDD backend...")
+        backend = BDD(
+            data_sample=df,
+            n_bins=args.n_bins,
+            decision_col=args.pred,
+            categorical_cols=low_cardinality_cols,
+            collect_cex=True
+        )
+
+    elif args.backend == 'bf':
+        log(f"initializing brute force backend...")
+        backend = BruteForce(df, args.pred, args.eps, args.metric.lower())
+
+    elif args.backend == 'kdtree':
+        log(f"initializing kd-tree backend...")
+        if args.batchsize:
+            backend = KdTree(df, args.pred, args.eps, args.metric, batchsize=args.batchsize)
+        else:
+            backend = KdTree(df, args.pred, args.eps, args.metric)
+
+    elif args.backend == 'snn':
+        log(f"initializing snn backend...")
+        assert args.metric.lower() == "l2", f"SNN: unimplemented metric {args.metric}"
+        if args.batchsize:
+            backend = Snn(df, args.pred, args.eps, batchsize=args.batchsize)
+        else:
+            backend = Snn(df, args.pred, args.eps)
+    else:
+        raise ArgumentError(f"unknown backend {args.backend}")
+    return DataframeRunner(backend)
+
 def make_argparser():
     parser = argparse.ArgumentParser(description='run monitor on csv format predictions')
     parser.add_argument('csvpath', type=str, nargs='+', help='Path to one or more CSV files')
@@ -157,46 +193,8 @@ if __name__ == "__main__":
                 log(f"\t{old:20}\t->\t{new}")
 
     num_columns = df.shape[1]
-    low_cardinality_cols = [col for col in df.columns if df[col].nunique() < args.n_bins]
-    log(f"low-cardinality columns: {low_cardinality_cols}. assuming categorical (i.e, must be exact match)")
 
     log(f"metric is {args.metric}...")
-
-    #################
-    # BACKEND SETUP #
-    #################
-
-    if args.backend == 'bdd':
-        log(f"initializing BDD backend...")
-        assert args.metric == "infinity", f"BDD: unimplemented metric {args.metric}"
-        backend = BDD(
-            data_sample=df,
-            n_bins=args.n_bins,
-            decision_col=args.pred,
-            categorical_cols=low_cardinality_cols,
-            collect_cex=True
-        )
-
-    elif args.backend == 'bf':
-        log(f"initializing brute force backend...")
-        backend = BruteForce(df, args.pred, args.eps, args.metric.lower())
-
-    elif args.backend == 'kdtree':
-        log(f"initializing kd-tree backend...")
-        if args.batchsize:
-            backend = KdTree(df, args.pred, args.eps, args.metric, batchsize=args.batchsize)
-        else:
-            backend = KdTree(df, args.pred, args.eps, args.metric)
-
-    elif args.backend == 'snn':
-        log(f"initializing snn backend...")
-        assert args.metric.lower() == "l2", f"SNN: unimplemented metric {args.metric}"
-        if args.batchsize:
-            backend = Snn(df, args.pred, args.eps, batchsize=args.batchsize)
-        else:
-            backend = Snn(df, args.pred, args.eps)
-
-    runner = DataframeRunner(backend)
 
     ##############
     # MONITORING #
@@ -204,6 +202,8 @@ if __name__ == "__main__":
 
     log(f"starting...")
     last_update = time.time()
+    runner = setup_backend(args, df)
+
     monitor_positives = []
     for i, cexs in enumerate(runner.run(df, args.n_examples, max_time=args.max_time)):
         if cexs:
@@ -212,6 +212,7 @@ if __name__ == "__main__":
             log(f"\tprocessed {i}")
             last_update = time.time()
     monitor_positives.sort()
+
     log(f"done")
 
     ##########
