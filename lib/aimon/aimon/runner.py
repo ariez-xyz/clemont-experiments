@@ -16,14 +16,15 @@ class DataframeRunner:
         self.timings = []
         self.mem = []
         self.total_time = 0
+        self.data_shape = None
 
     def get_backend_name(self):
         return self.backend.__class__.__name__
 
     def run(self, df, max_n=None, max_time=None):
-        all_cexs = []
+        self.data_shape = df.shape
         start_time = time.time()
-        process = psutil.Process()
+        process = psutil.Process() # Memory tracking
 
         for index, row in df.iterrows():
             start_iter_time = time.time()

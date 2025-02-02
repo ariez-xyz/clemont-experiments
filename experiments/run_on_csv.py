@@ -91,7 +91,7 @@ def setup_backend(args, df):
         else:
             backend = Snn(df, args.pred, args.eps)
     else:
-        raise ArgumentError(f"unknown backend {args.backend}")
+        raise ValueError(f"unknown backend {args.backend}")
     return DataframeRunner(backend)
 
 def partition(df, n_splits, pred):
@@ -121,9 +121,36 @@ def process_partition(args, df, idx, result_queue):
     cex_sizes = []
     for step, cexs in enumerate(runner.run(df, args.n_examples, max_time=args.max_time)):
         cex_sizes.append(len(cexs))
-        result_queue.put((step, idx, [p[0] for p in cexs]))
+        result_queue.put(("iter", idx, (step, [p[0] for p in cexs])))
         debug(f"\t worker {idx}: send ({step} {idx} {[p[0] for p in cexs]}) to queue of size {result_queue.qsize()}")
-    log(f"\tworker {idx}: finished, sent {sum(cex_sizes)/len(cex_sizes)} cexs average, {cex_sizes}")
+    result_queue.put(("metrics", idx, collect_metrics(runner, args)))
+    log(f"\tworker {idx}: finished, sent {sum(cex_sizes)/len(cex_sizes)} cexs average")
+    debug(f"{cex_sizes}")
+
+def collect_metrics(runner, args):
+    metrics = {
+        'n_true_positives': runner.n_true_positives,
+        'n_positives': runner.n_positives,
+        'n_processed': len(runner.timings),
+        'n_flagged': runner.n_flagged,
+        'perc_flagged': runner.n_flagged / len(runner.timings),
+        'data_shape': runner.data_shape,
+        'total_time': runner.total_time,
+        'avg_time': runner.total_time / len(runner.timings),
+        'date': datetime.now().isoformat(),
+        'backend': runner.get_backend_name(),
+        'n_bins': args.n_bins,
+        'eps': args.eps,
+        'args': vars(args),
+        'backend_meta': runner.backend.meta,
+    } 
+
+    if args.full_output:
+        metrics['timings'] = [round(t, 6) for t in runner.timings]
+        metrics['mem'] = runner.mem
+        metrics['radius_query_ks'] = getattr(runner.backend, 'radius_query_ks', [])
+
+    return metrics
 
 def make_argparser():
     parser = argparse.ArgumentParser(description='run monitor on csv format predictions')
@@ -242,9 +269,11 @@ if __name__ == "__main__":
     last_update = time.time()
 
     if args.parallelize:
+        assert args.metric == "infinity", f"parallelization only implemented for infinity metric"
         result_queue = Queue()
         processes = []
-        buffer = defaultdict(dict)  # {iteration: {split_idx: result}}
+        metrics = {}
+        buffer = defaultdict(dict)  # {iteration: {worker: result}}
         monitor_positives = [] # combined results
         partitions = partition(df, args.parallelize, args.pred)
 
@@ -256,21 +285,28 @@ if __name__ == "__main__":
         while any(p.is_alive() for p in processes) or not result_queue.empty():
             debug(f"master: loop cond: {any(p.is_alive() for p in processes)} {not result_queue.empty()}")
             try:
-                step, split_idx, cexs = result_queue.get(timeout=1)
-                debug(f"master: recv {(step, split_idx, cexs)}, buffer counts: { {k: len(v) for k,v in buffer.items()}}")
+                msg_type, worker_id, payload = result_queue.get(timeout=1)
+                debug(f"master: recv {(msg_type, worker_id, payload)}, buffer counts: { {k: len(v) for k,v in buffer.items()}}")
+                if msg_type == "metrics": # sent upon finishing
+                    metrics[f"worker_{worker_id}"] = payload
+                elif msg_type == "iter":
+                    step, cexs = payload
 
-                buffer[step][split_idx] = cexs
+                    buffer[step][worker_id] = cexs
 
-                if len(buffer[step]) == len(partitions): # all splits for this iteration are ready
-                    cexs = set(buffer[step][0])
-                    for worker in range(1, args.parallelize):
-                        cexs &= set(buffer[step][worker])
-                    for cex in cexs:
-                        monitor_positives.append([cex, step])
-                    debug(f"master: {step} complete")
-                    if time.time() - last_update > 1:
-                        log(f"\tprocessed {step}, in queue: ~{result_queue.qsize()}")
-                        last_update = time.time()
+                    if len(buffer[step]) == len(partitions): # all splits for this iteration are ready
+                        # Process subresults: compute intersection of all workers' results (Linf only)
+                        cexs = set(buffer[step][0])
+                        for worker in range(1, args.parallelize):
+                            cexs &= set(buffer[step][worker])
+
+                        for cex in cexs:
+                            monitor_positives.append([cex, step])
+
+                        debug(f"master: {step} complete")
+                        if time.time() - last_update > 1:
+                            log(f"\tprocessed {step}, in queue: ~{result_queue.qsize()}")
+                            last_update = time.time()
             except Empty:
                 continue
     else:
@@ -278,15 +314,15 @@ if __name__ == "__main__":
 
         monitor_positives = []
         for i, cexs in enumerate(runner.run(df, args.n_examples, max_time=args.max_time)):
-            if cexs:
-                monitor_positives.append(cexs)
+            monitor_positives.extend(cexs)
             if time.time() - last_update > 1:
                 log(f"\tprocessed {i}")
                 last_update = time.time()
-        monitor_positives.sort()
 
-    log(f"done in {time.time() - start_time:.2f}s")
-    print(monitor_positives)
+        monitor_positives.sort()
+        metrics = collect_metrics(runner, args)
+
+    log(f"done. found {len(monitor_positives)} pairs in {time.time() - start_time:.2f}s")
 
     ##########
     # OUTPUT #
@@ -300,35 +336,12 @@ if __name__ == "__main__":
             else:
                 pretty_print(df, pair[0], pair[1], args.eps)
 
-    log(f'found {runner.n_true_positives} unfair pairs')
 
     if args.out_path:
-        out = {
-            'n_true_positives': runner.n_true_positives,
-            'n_positives': runner.n_positives,
-            'n_processed': len(runner.timings),
-            'n_flagged': runner.n_flagged,
-            'perc_flagged': runner.n_flagged / len(runner.timings),
-            'total_time': runner.total_time,
-            'avg_time': runner.total_time / len(runner.timings),
-            'date': datetime.now().isoformat(),
-            'backend': runner.get_backend_name(),
-            'n_bins': args.n_bins,
-            'eps': args.eps,
-            'args': vars(args),
-            'backend_meta': backend.meta,
-        } 
-
         if not args.concise_output:
-            out['positives'] = [(int(x), int(y)) for x, y in monitor_positives]
-
-        if args.full_output:
-            out['timings'] = [round(t, 6) for t in runner.timings]
-            out['mem'] = runner.mem
-            out['radius_query_ks'] = getattr(runner.backend, 'radius_query_ks', [])
-
+            metrics['positives'] = [(int(x), int(y)) for x, y in monitor_positives]
         with open(args.out_path, 'w') as f:
-            json.dump(out, f, indent=2)
+            json.dump(metrics, f, indent=2)
 
     ##########################
     # DIFF/CONSISTENCY CHECK #
@@ -351,15 +364,16 @@ if __name__ == "__main__":
                 other_run_counts[y] += 1
                 all_labels.add(x)
                 all_labels.add(y)
-            print("", f"      id", "#this", "gt/lt", "#other", sep="\t")
-            for label in all_labels:
-                if label not in this_run_counts:
-                    print("", f"{label:8}", "-", "<", other_run_counts[label], sep="\t")
-                elif label not in other_run_counts:
-                    print("", f"{label:8}", this_run_counts[label], ">", "-", sep="\t")
-                elif this_run_counts[label] != other_run_counts[label]:
-                    chev = "<" if this_run_counts[label] < other_run_counts[label] else ">"
-                    print("", f"{label:8}", this_run_counts[label], chev, other_run_counts[label], sep="\t")
+            if all_labels:
+                print("DIFF:", f"      id", "#this", "gt/lt", "#other", sep="\t")
+                for label in sorted(all_labels):
+                    if label not in this_run_counts:
+                        print("", f"{label:8}", "-", "<", other_run_counts[label], sep="\t")
+                    elif label not in other_run_counts:
+                        print("", f"{label:8}", this_run_counts[label], ">", "-", sep="\t")
+                    elif this_run_counts[label] != other_run_counts[label]:
+                        chev = "<" if this_run_counts[label] < other_run_counts[label] else ">"
+                        print("", f"{label:8}", this_run_counts[label], chev, other_run_counts[label], sep="\t")
 
     if args.pairwise_diff:
         with open(args.pairwise_diff) as f:
@@ -380,11 +394,13 @@ if __name__ == "__main__":
                         this_only.append(k)
                     else:
                         other_only.append(k)
-            for label, data in (("This run", this_only), (args.pairwise_diff, other_only)):
+            first_id = lambda x: int(x.split(",")[0][1:])
+            for label, data in (("This run", sorted(this_only, key=first_id)), 
+                                (args.pairwise_diff, sorted(other_only, key=first_id))):
                 print(f"#################\n{label}:", data, sep='\t')
                 for pair in map(lambda s: json.loads(s), data):
                     if len(rqks) > 1:
-                        print(pair, rqks[pair[1]])
+                        print(pair, "radius query k =", rqks[pair[1]])
                     else:
                         print(pair)
                     pretty_print(df, pair[0], pair[1], args.eps, header=False)
