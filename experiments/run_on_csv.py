@@ -262,11 +262,15 @@ if __name__ == "__main__":
                 buffer[step][split_idx] = cexs
 
                 if len(buffer[step]) == len(partitions): # all splits for this iteration are ready
+                    cexs = set(buffer[step][0])
+                    for worker in range(1, args.parallelize):
+                        cexs &= set(buffer[step][worker])
+                    for cex in cexs:
+                        monitor_positives.append([cex, step])
                     debug(f"master: {step} complete")
                     if time.time() - last_update > 1:
                         log(f"\tprocessed {step}, in queue: ~{result_queue.qsize()}")
                         last_update = time.time()
-                    # TODO: Combine and do monitor_positives.append(combined)
             except Empty:
                 continue
     else:
@@ -282,6 +286,7 @@ if __name__ == "__main__":
         monitor_positives.sort()
 
     log(f"done in {time.time() - start_time:.2f}s")
+    print(monitor_positives)
 
     ##########
     # OUTPUT #
