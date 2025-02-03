@@ -15,7 +15,7 @@ def naive(df, epsilon, num_columns):
             row_i, row_j = df.iloc[i], df.iloc[j]
             
             if abs(row_i['pred'] - row_j['pred']) > epsilon:
-                if all(abs(row_i[f'Column_{k}'] - row_j[f'Column_{k}']) <= epsilon for k in range(1, num_columns)):
+                if all(abs(row_i[f'c{k}'] - row_j[f'c{k}']) <= epsilon for k in range(1, num_columns)):
                     unfair_pairs.append((i, j))
     
     return unfair_pairs
@@ -34,7 +34,7 @@ if __name__ == "__main__":
     num_rows = 200
     num_columns = 10
     NBINS = 4
-    column_names = ['pred'] + [f'Column_{i}' for i in range(1, num_columns)]
+    column_names = ['pred'] + [f'c{i}' for i in range(1, num_columns)]
     np.random.seed(42)
 
     data = np.random.uniform(0, 1, size=(num_rows, num_columns))
@@ -53,7 +53,10 @@ if __name__ == "__main__":
     #runner = DataframeRunner(bdd)
     runner = DataframeRunner(bf)
 
-    monitor_positives = sorted(runner.run(df))
+    monitor_positives = []
+    for cexs in runner.run(df):
+        monitor_positives.extend(cexs) # cexs may be empty
+    monitor_positives = sorted(monitor_positives)
     naive_positives   = sorted(naive(df, 1/NBINS, num_columns))
 
     if monitor_positives != naive_positives:
