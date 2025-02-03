@@ -175,7 +175,7 @@ def make_argparser():
     parser.add_argument('--verbose', action='store_true', help='verbose output (print differences)')
     parser.add_argument('--randomize_order', '--randomize-order', action='store_true', help='Randomize CSV order')
     parser.add_argument('--backend', type=str, default='bf', choices=['bf', 'bdd', 'kdtree', 'snn'], help='which implementation to use as backend')
-    parser.add_argument('--parallelize', type=int, default=None, help='split data to multiple processes (Linf only)')
+    parser.add_argument('--parallelize', type=int, default=1, help='split data to multiple processes (Linf only)')
     parser.add_argument('--blind_cols', '--blind-cols', type=str, help='comma-separated list of column names for the monitor to ignore, e.g. "race,sex". allows * wildcard, e.g. "race=*" to drop all columns starting with "race=". allows slicing, e.g. "12:" to drop all columns that come after column 12')
     parser.add_argument('--sample_cols', '--sample-cols', type=int, default=None, help='integer number of columns to randomly sample from the data (will discard the other columns)')
     parser.add_argument('--pred', type=str, default='pred', help='name of the column holding model predictions')
@@ -282,7 +282,7 @@ if __name__ == "__main__":
     start_time = time.time()
     last_update = time.time()
 
-    if args.parallelize:
+    if args.parallelize > 1:
         assert args.metric == "infinity", f"parallelization only implemented for infinity metric"
         result_queue = Queue()
         processes = []
@@ -330,12 +330,13 @@ if __name__ == "__main__":
                             debug(f"master: {step} complete")
             except Empty:
                 continue
-        # done, collect stats
+        # done, collect overall stats
         metrics['n_processed'] = n_processed
         metrics['n_flagged'] = n_flagged
         metrics['perc_flagged'] = n_flagged / n_processed
         metrics['total_time'] = time.time() - start_time
         metrics['avg_time'] = (time.time() - start_time) / n_processed
+        metrics['args'] = vars(args),
 
     else:
         runner = setup_backend(args, df)
