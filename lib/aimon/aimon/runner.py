@@ -41,7 +41,7 @@ class DataframeRunner:
             # For unsound backends (BDD) filter false positives.
             if not self.backend.meta['is_sound']:
                 if self.backend.meta['metric']!= "Linf":
-                    print("warn: false positive filtering is currently only implemented for Linf distance")
+                    raise ValueError("false positive filtering is currently only implemented for Linf distance")
                 pred = self.backend.meta['decision_col']
                 eps = self.backend.meta['epsilon']
                 iter_cexs = self.filter_false_positives_Linf(iter_cexs, row, df, pred, eps)

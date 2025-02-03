@@ -53,8 +53,8 @@ class Discretization:
             cur_nbins = min(self.n_bins, self.col_counts[col] - 1)
 
             if col == self.decision:
-                cur_nbins = 2
-                print("WARNING: Assuming decision is binary, using two bins", file=sys.stderr)
+                cur_nbins =  self.col_counts[col]
+                print(f"BDD: Assuming {cur_nbins} decision classes", file=sys.stderr)
 
             bin_edges = np.histogram_bin_edges(df[col], bins=cur_nbins)
             bins[col] = bin_edges
