@@ -289,6 +289,8 @@ if __name__ == "__main__":
         metrics = {}
         n_processed = 0
         n_flagged = 0
+        timings = []
+        last_item_time = time.time()
         buffer = defaultdict(dict)  # {iteration: {worker: result}}
         monitor_positives = [] # combined results
         partitions = partition(df, args.parallelize, args.pred)
@@ -322,7 +324,10 @@ if __name__ == "__main__":
                             for cex in cexs:
                                 monitor_positives.append([cex, step])
 
+                            # performance metrics
                             n_processed += 1
+                            timings.append(time.time() - last_item_time)
+                            last_item_time = time.time()
                             if cexs: n_flagged += 1
                             if time.time() - last_update > 1:
                                 log(f"\tprocessed {step}, in queue: ~{result_queue.qsize()}")
@@ -337,6 +342,8 @@ if __name__ == "__main__":
         metrics['total_time'] = time.time() - start_time
         metrics['avg_time'] = (time.time() - start_time) / n_processed
         metrics['args'] = vars(args),
+        if args.full_output:
+            metrics['timings'] = [f"{t:.6f}" for t in timings]
 
     else:
         runner = setup_backend(args, df)
