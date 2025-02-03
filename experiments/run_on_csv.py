@@ -115,15 +115,26 @@ def partition(df, n_splits, pred):
     log(f"partitioned {len(df.columns)} columns: {list(df.columns)}")
     return partitions
 
-def process_partition(args, df, idx, result_queue):
+def process_partition(args, df, idx, result_queue, msg_batch=50):
     log(f"\tworker {idx}: {len(df.columns)} columns {list(df.columns)}")
+
     runner = setup_backend(args, df)
     cex_sizes = []
+    updates = []
+
     for step, cexs in enumerate(runner.run(df, args.n_examples, max_time=args.max_time)):
+        updates.append((step, [p[0] for p in cexs]))
+        if len(updates) > msg_batch:
+            result_queue.put(("iter", idx, updates))
+            updates = []
+
         cex_sizes.append(len(cexs))
-        result_queue.put(("iter", idx, (step, [p[0] for p in cexs])))
         debug(f"\t worker {idx}: send ({step} {idx} {[p[0] for p in cexs]}) to queue of size {result_queue.qsize()}")
+
+    if updates: # any remaining updates?
+        result_queue.put(("iter", idx, updates))
     result_queue.put(("metrics", idx, collect_metrics(runner, args)))
+
     log(f"\tworker {idx}: finished, sent {sum(cex_sizes)/len(cex_sizes)} cexs average")
     debug(f"{cex_sizes}")
 
@@ -243,7 +254,7 @@ if __name__ == "__main__":
         sampled_columns = non_pred_cols.to_series().sample(n=args.sample_cols, random_state=0)
         keep = pd.concat([sampled_columns, pd.Series([args.pred])])
         df = df[keep]
-        log(f"keeping columns: {keep} (new shape is {df.shape})")
+        log(f"keeping columns: {list(keep)} (new shape is {df.shape})")
 
     if args.randomize_order:
         df = df.sample(frac=1).reset_index(drop=True)  # Randomize the dataframe rows
@@ -289,26 +300,30 @@ if __name__ == "__main__":
             try:
                 msg_type, worker_id, payload = result_queue.get(timeout=1)
                 debug(f"master: recv {(msg_type, worker_id, payload)}, buffer counts: { {k: len(v) for k,v in buffer.items()}}")
+
                 if msg_type == "metrics": # sent upon finishing
                     metrics[f"worker_{worker_id}"] = payload
+
                 elif msg_type == "iter":
-                    step, cexs = payload
+                    for item in payload:
+                        step, cexs = item
 
-                    buffer[step][worker_id] = cexs
+                        buffer[step][worker_id] = cexs
 
-                    if len(buffer[step]) == len(partitions): # all splits for this iteration are ready
-                        # Process subresults: compute intersection of all workers' results (Linf only)
-                        cexs = set(buffer[step][0])
-                        for worker in range(1, args.parallelize):
-                            cexs &= set(buffer[step][worker])
+                        if len(buffer[step]) == len(partitions): # received all results for the `step`-th item?
+                            # Process subresults: compute intersection of all workers' results (Linf only)
+                            cexs = set(buffer[step][0])
+                            for worker in range(1, args.parallelize):
+                                cexs &= set(buffer[step][worker])
 
-                        for cex in cexs:
-                            monitor_positives.append([cex, step])
+                            for cex in cexs:
+                                monitor_positives.append([cex, step])
 
-                        debug(f"master: {step} complete")
-                        if time.time() - last_update > 1:
-                            log(f"\tprocessed {step}, in queue: ~{result_queue.qsize()}")
-                            last_update = time.time()
+                            debug(f"master: {step} complete")
+
+                    if time.time() - last_update > 1:
+                        log(f"\tprocessed {step}, in queue: ~{result_queue.qsize()}")
+                        last_update = time.time()
             except Empty:
                 continue
     else:
