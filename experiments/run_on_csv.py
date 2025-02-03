@@ -287,6 +287,8 @@ if __name__ == "__main__":
         result_queue = Queue()
         processes = []
         metrics = {}
+        n_processed = 0
+        n_flagged = 0
         buffer = defaultdict(dict)  # {iteration: {worker: result}}
         monitor_positives = [] # combined results
         partitions = partition(df, args.parallelize, args.pred)
@@ -320,13 +322,21 @@ if __name__ == "__main__":
                             for cex in cexs:
                                 monitor_positives.append([cex, step])
 
+                            n_processed += 1
+                            if cexs: n_flagged += 1
+                            if time.time() - last_update > 1:
+                                log(f"\tprocessed {step}, in queue: ~{result_queue.qsize()}")
+                                last_update = time.time()
                             debug(f"master: {step} complete")
-
-                    if time.time() - last_update > 1:
-                        log(f"\tprocessed {step}, in queue: ~{result_queue.qsize()}")
-                        last_update = time.time()
             except Empty:
                 continue
+        # done, collect stats
+        metrics['n_processed'] = n_processed
+        metrics['n_flagged'] = n_flagged
+        metrics['perc_flagged'] = n_flagged / n_processed
+        metrics['total_time'] = time.time() - start_time
+        metrics['avg_time'] = (time.time() - start_time) / n_processed
+
     else:
         runner = setup_backend(args, df)
 
