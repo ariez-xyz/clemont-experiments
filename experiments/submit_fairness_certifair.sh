@@ -1,10 +1,9 @@
 #!/bin/bash
 
 # parameters
-export backend="bf"
 export metric="infinity"
 export input_files=($(find "../data/Certifair/predictions/" -name "*csv"))
-export epss=(0.0025 0.005 0.01 0.02 0.04 0.08 0.12 0.16 0.2 0.24 0.28 0.32)
+export epss=(0.0025 0.005 0.01 0.02 0.04 0.08 0.16 0.32)
 
 export results_base="../results/fairness/"
 export pred="prediction"
@@ -33,10 +32,10 @@ export array="1-$NUM_TASKS"
 # Submit to queue
 sbatch \
 	--job-name=$work_script \
-	--output="$logs_dir/$backend-%A-%a.log" \
+	--output="$logs_dir/%a-%A.log" \
 	--array=$array \
-	-c 1 \
-	--time=00:15:00 \
+	-c 16 \
+	--time=01:00:00 \
 	--mem=1G \
 	--no-requeue \
 	--export=ALL \

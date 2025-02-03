@@ -16,7 +16,46 @@ echo epsilon=$eps input=$input_file out="$input_basename-$eps.json"
 srun python run_on_csv.py "$input_file" \
 	--pred "$pred" \
 	--eps "$eps" \
-	--metric "$metric" \
-	--backend "$backend" \
-	--out-path "$results_dir/$input_basename-eps$eps.json"
+	--metric l2 \
+	--backend kdtree \
+	--full-output \
+	--out-path "$results_dir/$input_basename-kdtree-l2-eps$eps.json"
+
+srun python run_on_csv.py "$input_file" \
+	--pred "$pred" \
+	--eps "$eps" \
+	--metric l2 \
+	--backend snn \
+	--full-output \
+	--out-path "$results_dir/$input_basename-snn-eps$eps.json"
+
+srun python run_on_csv.py "$input_file" \
+	--pred "$pred" \
+	--eps "$eps" \
+	--metric infinity \
+	--backend bf \
+	--full-output \
+	--out-path "$results_dir/$input_basename-bf-eps$eps.json"
+
+for par in 1 2 4 8 16; do
+	srun python run_on_csv.py "$input_file" \
+		--pred "$pred" \
+		--eps "$eps" \
+		--metric infinity \
+		--backend kdtree \
+		--full-output \
+		--parallelize $par \
+		--faiss-threads 1 \
+		--out-path "$results_dir/$input_basename-kdtree-$par-eps$eps.json"
+
+	srun python run_on_csv.py "$input_file" \
+		--pred "$pred" \
+		--eps "$eps" \
+		--metric infinity \
+		--backend bdd \
+		--full-output \
+		--parallelize $par \
+		--faiss-threads 1 \
+		--out-path "$results_dir/$input_basename-bdd-$par-eps$eps.json"
+done
 
