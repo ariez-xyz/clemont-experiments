@@ -188,10 +188,12 @@ if __name__ == "__main__":
     # infer the respective missing arg
     if args.n_bins:
         args.eps = 1/args.n_bins
+        if args.backend != "bdd":
+            log(f"warning: converted n_bins={args.n_bins} to eps={args.eps}, assuming data is in [0,1] across all dimensions")
     else:
         args.n_bins = int(1/args.eps)
         if args.backend == "bdd":
-            print(f"warning: converted eps={args.eps} to {args.n_bins} bins, assuming data is in [0,1] across all dimensions")
+            log(f"warning: converted eps={args.eps} to {args.n_bins} bins, assuming data is in [0,1] across all dimensions")
 
     ######################
     # DATA PREPROCESSING #
@@ -388,15 +390,19 @@ if __name__ == "__main__":
                 seen[positive] += 1
             this_only = []
             other_only = []
+            both = []
             for k,v in seen.items():
                 if v != 2: # not seen by both
                     if k in this_run:
                         this_only.append(k)
                     else:
                         other_only.append(k)
+                else:
+                    both.append(k)
             first_id = lambda x: int(x.split(",")[0][1:])
             for label, data in (("This run", sorted(this_only, key=first_id)), 
-                                (args.pairwise_diff, sorted(other_only, key=first_id))):
+                                (args.pairwise_diff, sorted(other_only, key=first_id)),
+                                ("Both runs", sorted(both, key=first_id))):
                 print(f"#################\n{label}:", data, sep='\t')
                 for pair in map(lambda s: json.loads(s), data):
                     if len(rqks) > 1:
