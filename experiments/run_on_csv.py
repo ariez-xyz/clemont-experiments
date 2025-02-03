@@ -74,22 +74,22 @@ def setup_backend(args, df):
 
     elif args.backend == 'bf':
         log(f"initializing brute force backend...")
-        backend = BruteForce(df, args.pred, args.eps, args.metric.lower())
+        backend = BruteForce(df, args.pred, args.eps, args.metric.lower(), args.faiss_threads)
 
     elif args.backend == 'kdtree':
         log(f"initializing kd-tree backend...")
         if args.batchsize:
-            backend = KdTree(df, args.pred, args.eps, args.metric, batchsize=args.batchsize)
+            backend = KdTree(df, args.pred, args.eps, args.metric, batchsize=args.batchsize, bf_threads=args.faiss_threads)
         else:
-            backend = KdTree(df, args.pred, args.eps, args.metric)
+            backend = KdTree(df, args.pred, args.eps, args.metric, bf_threads=args.faiss_threads)
 
     elif args.backend == 'snn':
         log(f"initializing snn backend...")
         assert args.metric.lower() == "l2", f"SNN: unimplemented metric {args.metric}"
         if args.batchsize:
-            backend = Snn(df, args.pred, args.eps, batchsize=args.batchsize)
+            backend = Snn(df, args.pred, args.eps, batchsize=args.batchsize, bf_threads=args.faiss_threads)
         else:
-            backend = Snn(df, args.pred, args.eps)
+            backend = Snn(df, args.pred, args.eps, bf_threads=args.faiss_threads)
     else:
         raise ValueError(f"unknown backend {args.backend}")
     return DataframeRunner(backend)
@@ -182,6 +182,7 @@ def make_argparser():
     parser.add_argument('--metric', type=str, default='infinity', help='metric to use. available choices depend on backend')
     parser.add_argument('--max_time', '--max-time', type=float, default=None, help='maximum number of seconds to run before terminating')
     parser.add_argument('--batchsize', type=int, default=None, help='batchsize (kdtree, snn only)')
+    parser.add_argument('--faiss_threads', '--faiss-threads', type=int, default=4, help='number of threads to use for faiss brute force (bf, kdtree, snn only). default=4')
     parser.add_argument('--diff', type=str, default=None, help='path to JSON output file to diff the positives against')
     parser.add_argument('--pairwise-diff', type=str, default=None, help='path to JSON output file to diff the positives against; pairwise output')
     return parser

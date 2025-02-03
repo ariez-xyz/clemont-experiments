@@ -6,7 +6,7 @@ from aimon.backends.base import BaseBackend
 from aimon.backends.faiss import BruteForce
 
 class KdTree(BaseBackend):
-    def __init__(self, df, decision_col, epsilon, metric='infinity', batchsize=1000):
+    def __init__(self, df, decision_col, epsilon, metric='infinity', batchsize=1000, bf_threads=4):
         if metric not in KDTree([[0]]).valid_metrics:
             raise NotImplementedError(f"invalid metric {metric}. valid metrics: {KDTree([[0]]).valid_metrics}")
 
@@ -15,7 +15,7 @@ class KdTree(BaseBackend):
         self.batchsize = batchsize
 
         self.current_batch = 0
-        self.bf = BruteForce(df, decision_col, epsilon, metric)
+        self.bf = BruteForce(df, decision_col, epsilon, metric, bf_threads)
         self.history = []
         self.histories = {c: [] for c in self.classes}
 
@@ -27,6 +27,7 @@ class KdTree(BaseBackend):
             "decision_col": decision_col,
             "metric": metric,
             "batchsize": batchsize,
+            "bf_threads": bf_threads,
             "is_exact": True,
             "is_sound": True,
             "is_complete": True,
@@ -44,7 +45,7 @@ class KdTree(BaseBackend):
             print(f"rebuilding at {len(self.history)}...", end='\r')
             st = time.time()
             self.kdt = KDTree(self.history, metric=self.meta["metric"])
-            self.bf = BruteForce(self.df, self.meta["decision_col"], self.meta["epsilon"], self.meta["metric"])
+            self.bf = BruteForce(self.df, self.meta["decision_col"], self.meta["epsilon"], self.meta["metric"], self.meta["bf_threads"])
             self.meta["index_time"] += time.time() - st
             self.current_batch = 0
 

@@ -7,7 +7,7 @@ from aimon.backends.base import BaseBackend
 from aimon.backends.faiss import BruteForce
 
 class Snn(BaseBackend):
-    def __init__(self, df, decision_col, epsilon, metric='l2', batchsize=5000):
+    def __init__(self, df, decision_col, epsilon, metric='l2', batchsize=5000, bf_threads=4):
         if metric != 'l2':
             raise NotImplementedError(f"invalid metric {metric}. snnpy only supports l2")
 
@@ -16,7 +16,7 @@ class Snn(BaseBackend):
         self.batchsize = batchsize
 
         self.current_batch = 0
-        self.bf = BruteForce(df, decision_col, epsilon, 'l2')
+        self.bf = BruteForce(df, decision_col, epsilon, 'l2', bf_threads)
         self.history = []
         self.histories = {c: [] for c in self.classes}
 
@@ -28,6 +28,7 @@ class Snn(BaseBackend):
             "decision_col": decision_col,
             "metric": "l2",
             "batchsize": batchsize,
+            "bf_threads": bf_threads,
             "is_exact": True,
             "is_sound": True,
             "is_complete": True,
@@ -46,7 +47,7 @@ class Snn(BaseBackend):
             X = np.array([series.values for series in self.history])
             st = time.time()
             self.snn = snnpy.build_snn_model(X)
-            self.bf = BruteForce(self.df, self.meta["decision_col"], self.meta["epsilon"], "l2")
+            self.bf = BruteForce(self.df, self.meta["decision_col"], self.meta["epsilon"], "l2", self.meta["bf_threads"])
             self.meta["index_time"] += time.time() - st
             self.current_batch = 0
 
