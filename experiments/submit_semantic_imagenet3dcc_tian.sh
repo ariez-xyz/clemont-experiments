@@ -30,7 +30,7 @@ sbatch \
 	--output="$logs_dir/$name-%A-%a.log" \
 	--array=$array \
 	-c 8 \
-	--time=05:00:00 \
+	--time=15:00:00 \
 	--mem=64G \
 	--no-requeue \
 	--export=ALL \

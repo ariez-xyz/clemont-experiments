@@ -3,13 +3,14 @@
 # parameters
 export backend="snn"
 export metric="l2"
+export parallelize="1"
 export input_file1="../data/RobustBench/predictions/imagenet-Standard_R50.csv"
-export input_file2="../data/RobustBench/predictions/imagenet-Standard_R50.csv"
+export input_file2="../data/RobustBench/predictions/imagenet-Standard_R50-adv.csv"
 export results_base="../results/dimcomp"
 export pred="pred"
 # imagenet max. 3*224*224=150528 cols
 export samplecols="8 16 32 64 128 256 512 1024 2048 4096 8192 16384 32767 65536 131072"
-export eps=0.157 # > 4/255
+export eps=0.0157 # > 4/255
 export batchsize=100
 export maxtime=$((60*60*12))
 
@@ -32,7 +33,7 @@ sbatch \
 	--output="$logs_dir/$backend-%A-%a.log" \
 	--array=$array \
 	-c 8 \
-	--time=18:00:00 \
+	--time=14:00:00 \
 	--mem=96G \
 	--no-requeue \
 	--export=ALL \

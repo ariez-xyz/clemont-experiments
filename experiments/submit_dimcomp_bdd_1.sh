@@ -1,10 +1,11 @@
 #!/bin/bash
 
 # parameters
-export backend="bf"
+export backend="bdd"
 export metric="infinity"
+export parallelize="1"
 export input_file1="../data/RobustBench/predictions/imagenet-Standard_R50.csv"
-export input_file2="../data/RobustBench/predictions/imagenet-Standard_R50.csv"
+export input_file2="../data/RobustBench/predictions/imagenet-Standard_R50-adv.csv"
 export results_base="../results/dimcomp"
 export pred="pred"
 # imagenet max. 3*224*224=150528 cols
@@ -15,8 +16,8 @@ export maxtime=$((60*60*12))
 
 # setup dirs, venv, etc
 export work_script="slurm_dimcomp_work.sh"
-export results_dir="$results_base/results/$backend"
-export logs_dir="$results_base/logs/$backend"
+export results_dir="$results_base/results/$backend-1t"
+export logs_dir="$results_base/logs/$backend-1t"
 unset SLURM_EXPORT_ENV
 mkdir -p "$results_dir"
 mkdir -p "$logs_dir"
@@ -32,7 +33,7 @@ sbatch \
 	--output="$logs_dir/$backend-%A-%a.log" \
 	--array=$array \
 	-c 8 \
-	--time=13:00:00 \
+	--time=14:00:00 \
 	--mem=96G \
 	--no-requeue \
 	--export=ALL \

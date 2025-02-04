@@ -13,6 +13,7 @@ srun python run_on_csv.py "$input_file1" "$input_file2" \
 	--max-time "$maxtime" \
 	--backend "$backend" \
 	--full-output \
+	--parallelize "$parallelize" \
 	--sample-cols "$sc" \
 	--blind-cols label \
 	--out-path "$results_dir/$sc-d.json"

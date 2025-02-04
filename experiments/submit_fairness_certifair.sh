@@ -36,7 +36,7 @@ sbatch \
 	--array=$array \
 	-c 16 \
 	--time=01:00:00 \
-	--mem=1G \
+	--mem=4G \
 	--no-requeue \
 	--export=ALL \
 	$work_script 

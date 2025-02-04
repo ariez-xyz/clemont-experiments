@@ -19,6 +19,6 @@ srun python run_on_csv.py "$input_file" \
 	--max-time "$maxtime" \
 	--backend "$backend" \
 	--full-output \
-	--blind-cols 21,22,23,24,25,26,27 \
-	--out-path "$results_dir/$batchsize-$metric-$eps.json"
+	--parallelize "$parallelize" \
+	--out-path "$results_dir/$batchsize-$metric-$eps-$parallelize.json"
 

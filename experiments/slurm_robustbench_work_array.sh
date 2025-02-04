@@ -9,5 +9,18 @@ srun python run_on_csv.py "$base_file" "$input_file" \
 	--pred "$pred" \
 	--eps "$eps" \
 	--metric "$metric" \
-	--out_path "$results_dir/$name-$metric-$eps-$input_basename.json"
+	--out_path "$results_dir/$name-$metric-$eps-$input_basename-bf.json"
 
+srun python run_on_csv.py "$base_file" "$input_file" \
+	--pred "$pred" \
+	--eps "$eps" \
+	--metric "$metric" \
+	--backend kdtree \
+	--out_path "$results_dir/$name-$metric-$eps-$input_basename-kd.json"
+
+srun python run_on_csv.py "$base_file" "$input_file" \
+	--pred "$pred" \
+	--eps "$eps" \
+	--metric "$metric" \
+	--backend snn \
+	--out_path "$results_dir/$name-$metric-$eps-$input_basename-snn.json"

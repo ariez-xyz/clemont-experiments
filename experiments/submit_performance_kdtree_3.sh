@@ -2,14 +2,14 @@
 
 # parameters
 export backend="kdtree"
-export metric="l2"
+export metric="infinity"
 export input_file="../data/RobustTrees/predictions/higgs/train_pred.csv"
 export results_base="../results/performance"
 export pred="pred"
 export epss=(0.01 0.025 0.05)
 export batchsizes=(1000 5000 10000 50000 100000)
 export maxtime=$((60*60*22))
-export parallelize=1
+export parallelize=3
 
 # setup dirs, venv, etc
 export work_script="slurm_performance_work.sh"

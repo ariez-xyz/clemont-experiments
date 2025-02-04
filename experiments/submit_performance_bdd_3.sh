@@ -4,14 +4,15 @@
 export backend="bdd"
 export metric="infinity"
 export input_file="../data/RobustTrees/predictions/higgs/train_pred.csv"
-export results_base="../results/performance-12d"
+export results_base="../results/performance"
 export pred="pred"
-export epss=(0.005 0.01 0.025 0.05)
+export epss=(0.01 0.025 0.05)
 export batchsizes=(0)
-export maxtime=$((60*60*12))
+export maxtime=$((60*60*22))
+export parallelize=3
 
 # setup dirs, venv, etc
-export work_script="slurm_performance_work_12d.sh"
+export work_script="slurm_performance_work.sh"
 export results_dir="$results_base/results/$backend"
 export logs_dir="$results_base/logs/$backend"
 unset SLURM_EXPORT_ENV
@@ -37,7 +38,7 @@ sbatch \
 	--output="$logs_dir/$backend-%A-%a.log" \
 	--array=$array \
 	-c 4 \
-	--time=13:00:00 \
+	--time=24:00:00 \
 	--mem=32G \
 	--no-requeue \
 	--export=ALL \
