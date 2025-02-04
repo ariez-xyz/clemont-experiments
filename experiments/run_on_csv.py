@@ -4,6 +4,7 @@ import argparse
 import json
 import sys
 import time
+import resource
 from datetime import datetime
 from collections import defaultdict
 from multiprocessing import Process, Queue
@@ -154,6 +155,7 @@ def collect_metrics(runner, args):
         'total_time': runner.total_time,
         'avg_time': runner.total_time / len(runner.timings),
         'date': datetime.now().isoformat(),
+        'peak_mem': resource.getrusage(resource.RUSAGE_SELF).ru_maxrss,
         'backend': runner.get_backend_name(),
         'n_bins': args.n_bins,
         'eps': args.eps,
@@ -348,6 +350,7 @@ if __name__ == "__main__":
         metrics['args'] = vars(args),
         metrics['perc_flagged'] = n_flagged / n_processed
         metrics['avg_time'] = (time.time() - start_time) / n_processed
+        metrics['peak_mem'] = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss,
         if args.full_output:
             metrics['timings'] = [f"{t:.6f}" for t in timings]
 
