@@ -3,7 +3,6 @@
 # parameters
 export name="cifar10c-Diffenderfer2021Winning_LRR_CARD_Deck"
 export eps=7.5
-export metric="L2"
 export pred="pred"
 
 # setup dirs, venv, etc

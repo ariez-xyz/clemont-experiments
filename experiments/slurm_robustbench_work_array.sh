@@ -8,19 +8,19 @@ echo running on $base_file + $input_file
 srun python run_on_csv.py "$base_file" "$input_file" \
 	--pred "$pred" \
 	--eps "$eps" \
-	--metric "$metric" \
+	--metric L2 \
 	--out_path "$results_dir/$name-$metric-$eps-$input_basename-bf.json"
 
 srun python run_on_csv.py "$base_file" "$input_file" \
 	--pred "$pred" \
 	--eps "$eps" \
-	--metric "$metric" \
+	--metric l2 \
 	--backend kdtree \
 	--out_path "$results_dir/$name-$metric-$eps-$input_basename-kd.json"
 
 srun python run_on_csv.py "$base_file" "$input_file" \
 	--pred "$pred" \
 	--eps "$eps" \
-	--metric "$metric" \
+	--metric L2 \
 	--backend snn \
 	--out_path "$results_dir/$name-$metric-$eps-$input_basename-snn.json"

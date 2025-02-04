@@ -3,7 +3,6 @@
 # parameters
 export name="cifar10c-Standard"
 export eps=7.5
-export metric="L2"
 export pred="pred"
 
 # setup dirs, venv, etc

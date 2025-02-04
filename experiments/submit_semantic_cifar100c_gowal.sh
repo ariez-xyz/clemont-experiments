@@ -3,7 +3,6 @@
 # parameters
 export name="cifar100c-Gowal2020Uncovering_Linf"
 export eps=7.5
-export metric="L2"
 export pred="pred"
 
 # setup dirs, venv, etc

@@ -3,7 +3,6 @@
 # parameters
 export name="imagenet3dcc-Tian2022Deeper_DeiT-B"
 export eps=12.5
-export metric="L2"
 export pred="pred"
 
 # setup dirs, venv, etc
@@ -29,9 +28,9 @@ sbatch \
 	--job-name=$work_script \
 	--output="$logs_dir/$name-%A-%a.log" \
 	--array=$array \
-	-c 8 \
-	--time=15:00:00 \
-	--mem=64G \
+	-c 1 \
+	--time=0:45:00 \
+	--mem=8G \
 	--no-requeue \
 	--export=ALL \
 	$work_script 
