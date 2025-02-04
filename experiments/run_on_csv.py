@@ -125,17 +125,19 @@ def process_partition(args, df, idx, result_queue, msg_batch=100):
     runner = setup_backend(args, df)
     cex_sizes = []
     cexs_buf = []
+    last_updated = 0
 
     for step, iter_cexs in enumerate(runner.run(df, args.n_examples, max_time=args.max_time)):
         cexs_buf.extend(iter_cexs)
-        if len(cexs_buf) >= msg_batch:
+        if len(cexs_buf) >= msg_batch or step - last_updated > 1000:
+            last_updated = step
             send("iter", (step, cexs_buf))
             cexs_buf = []
 
         cex_sizes.append(len(iter_cexs))
 
-    if cexs_buf: # any remaining updates?
-        send("iter", (len(cex_sizes), cexs_buf))
+    # send remaining updates
+    send("iter", (len(cex_sizes), cexs_buf))
     send("metrics", collect_metrics(runner, args))
 
     log(f"\tworker {idx}: finished, sent {sum(cex_sizes)/len(cex_sizes)} cexs average")
@@ -342,10 +344,10 @@ if __name__ == "__main__":
         # done, collect overall stats
         metrics['n_processed'] = n_processed
         metrics['n_flagged'] = n_flagged
-        metrics['perc_flagged'] = n_flagged / n_processed
         metrics['total_time'] = time.time() - start_time
-        metrics['avg_time'] = (time.time() - start_time) / n_processed
         metrics['args'] = vars(args),
+        metrics['perc_flagged'] = n_flagged / n_processed
+        metrics['avg_time'] = (time.time() - start_time) / n_processed
         if args.full_output:
             metrics['timings'] = [f"{t:.6f}" for t in timings]
 
