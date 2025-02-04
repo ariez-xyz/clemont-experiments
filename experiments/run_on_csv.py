@@ -74,22 +74,22 @@ def setup_backend(args, df):
 
     elif args.backend == 'bf':
         log(f"initializing brute force backend...")
-        backend = BruteForce(df, args.pred, args.eps, args.metric.lower(), args.faiss_threads)
+        backend = BruteForce(df, args.pred, args.eps, args.metric.lower(), args.faiss_omp_threads)
 
     elif args.backend == 'kdtree':
         log(f"initializing kd-tree backend...")
         if args.batchsize:
-            backend = KdTree(df, args.pred, args.eps, args.metric, batchsize=args.batchsize, bf_threads=args.faiss_threads)
+            backend = KdTree(df, args.pred, args.eps, args.metric, batchsize=args.batchsize, bf_threads=args.st_threads)
         else:
-            backend = KdTree(df, args.pred, args.eps, args.metric, bf_threads=args.faiss_threads)
+            backend = KdTree(df, args.pred, args.eps, args.metric, bf_threads=args.st_threads)
 
     elif args.backend == 'snn':
         log(f"initializing snn backend...")
         assert args.metric.lower() == "l2", f"SNN: unimplemented metric {args.metric}"
         if args.batchsize:
-            backend = Snn(df, args.pred, args.eps, batchsize=args.batchsize, bf_threads=args.faiss_threads)
+            backend = Snn(df, args.pred, args.eps, batchsize=args.batchsize, bf_threads=args.st_threads)
         else:
-            backend = Snn(df, args.pred, args.eps, bf_threads=args.faiss_threads)
+            backend = Snn(df, args.pred, args.eps, bf_threads=args.st_threads)
     else:
         raise ValueError(f"unknown backend {args.backend}")
     return DataframeRunner(backend)
@@ -115,25 +115,28 @@ def partition(df, n_splits, pred):
     log(f"partitioned {len(df.columns)} columns: {list(df.columns)}")
     return partitions
 
-def process_partition(args, df, idx, result_queue, msg_batch=50):
+def process_partition(args, df, idx, result_queue, msg_batch=100):
     log(f"\tworker {idx}: {len(df.columns)} columns {list(df.columns)}")
 
+    def send(msg_type, payload): 
+        result_queue.put((msg_type, idx, payload))
+        if msg_type == "iter":
+            debug(f"\t worker {idx}: send ({cexs_buf})")
     runner = setup_backend(args, df)
     cex_sizes = []
-    updates = []
+    cexs_buf = []
 
-    for step, cexs in enumerate(runner.run(df, args.n_examples, max_time=args.max_time)):
-        updates.append((step, [p[0] for p in cexs]))
-        if len(updates) > msg_batch:
-            result_queue.put(("iter", idx, updates))
-            updates = []
+    for step, iter_cexs in enumerate(runner.run(df, args.n_examples, max_time=args.max_time)):
+        cexs_buf.extend(iter_cexs)
+        if len(cexs_buf) >= msg_batch:
+            send("iter", (step, cexs_buf))
+            cexs_buf = []
 
-        cex_sizes.append(len(cexs))
-        debug(f"\t worker {idx}: send ({step} {idx} {[p[0] for p in cexs]}) to queue of size {result_queue.qsize()}")
+        cex_sizes.append(len(iter_cexs))
 
-    if updates: # any remaining updates?
-        result_queue.put(("iter", idx, updates))
-    result_queue.put(("metrics", idx, collect_metrics(runner, args)))
+    if cexs_buf: # any remaining updates?
+        send("iter", (len(cex_sizes), cexs_buf))
+    send("metrics", collect_metrics(runner, args))
 
     log(f"\tworker {idx}: finished, sent {sum(cex_sizes)/len(cex_sizes)} cexs average")
     debug(f"{cex_sizes}")
@@ -175,14 +178,15 @@ def make_argparser():
     parser.add_argument('--verbose', action='store_true', help='verbose output (print differences)')
     parser.add_argument('--randomize_order', '--randomize-order', action='store_true', help='Randomize CSV order')
     parser.add_argument('--backend', type=str, default='bf', choices=['bf', 'bdd', 'kdtree', 'snn'], help='which implementation to use as backend')
-    parser.add_argument('--parallelize', type=int, default=1, help='split data to multiple processes (Linf only)')
+    parser.add_argument('--parallelize', type=int, default=1, help='split data to multiple processes (Linf only).')
     parser.add_argument('--blind_cols', '--blind-cols', type=str, help='comma-separated list of column names for the monitor to ignore, e.g. "race,sex". allows * wildcard, e.g. "race=*" to drop all columns starting with "race=". allows slicing, e.g. "12:" to drop all columns that come after column 12')
     parser.add_argument('--sample_cols', '--sample-cols', type=int, default=None, help='integer number of columns to randomly sample from the data (will discard the other columns)')
     parser.add_argument('--pred', type=str, default='pred', help='name of the column holding model predictions')
     parser.add_argument('--metric', type=str, default='infinity', help='metric to use. available choices depend on backend')
     parser.add_argument('--max_time', '--max-time', type=float, default=None, help='maximum number of seconds to run before terminating')
     parser.add_argument('--batchsize', type=int, default=None, help='batchsize (kdtree, snn only)')
-    parser.add_argument('--faiss_threads', '--faiss-threads', type=int, default=4, help='number of threads to use for faiss brute force (bf, kdtree, snn only). default=4')
+    parser.add_argument('--st_threads', '--st-threads', type=int, default=1, help='number of threads to use for the brute force short-term memory (kdtree, snn backends only). defaults to 1')
+    parser.add_argument('--faiss_omp_threads', '--faiss-omp-threads', type=int, default=0, help='number of faiss threads to use (bf backend only). defaults to max available')
     parser.add_argument('--diff', type=str, default=None, help='path to JSON output file to diff the positives against')
     parser.add_argument('--pairwise-diff', type=str, default=None, help='path to JSON output file to diff the positives against; pairwise output')
     return parser
@@ -282,7 +286,7 @@ if __name__ == "__main__":
     start_time = time.time()
     last_update = time.time()
 
-    if args.parallelize > 1:
+    if args.parallelize > 1 and args.backend != 'bf':
         assert args.metric == "infinity", f"parallelization only implemented for infinity metric"
         result_queue = Queue()
         processes = []
@@ -291,7 +295,8 @@ if __name__ == "__main__":
         n_flagged = 0
         timings = []
         last_item_time = time.time()
-        buffer = defaultdict(dict)  # {iteration: {worker: result}}
+        subresults = defaultdict(lambda: defaultdict(list))  # {iteration: {worker: result}}
+        worker_progress = {p : 0 for p in range(args.parallelize)}
         monitor_positives = [] # combined results
         partitions = partition(df, args.parallelize, args.pred)
 
@@ -301,40 +306,39 @@ if __name__ == "__main__":
             p.start()
 
         while any(p.is_alive() for p in processes) or not result_queue.empty():
-            debug(f"master: loop cond: {any(p.is_alive() for p in processes)} {not result_queue.empty()}")
+            #debug(f"master: loop cond: {any(p.is_alive() for p in processes)} {not result_queue.empty()}")
+            if time.time() - last_update > 1:
+                log(f"\tprocessed {n_processed}, in queue: ~{result_queue.qsize()}")
+                last_update = time.time()
+
             try:
                 msg_type, worker_id, payload = result_queue.get(timeout=1)
-                debug(f"master: recv {(msg_type, worker_id, payload)}, buffer counts: { {k: len(v) for k,v in buffer.items()}}")
 
                 if msg_type == "metrics": # sent upon finishing
                     metrics[f"worker_{worker_id}"] = payload
 
                 elif msg_type == "iter":
-                    for item in payload:
-                        step, cexs = item
+                    worker_completed_iter, cexs = payload
+                    worker_progress[worker_id] = worker_completed_iter
+                    debug(f"master: recv {(msg_type, worker_id, payload)}, worker_progress: {worker_progress}")
+                    for low_id, high_id in cexs:
+                        subresults[high_id][worker_id].append(low_id)
 
-                        buffer[step][worker_id] = cexs
+                    while n_processed <= min(worker_progress.values()): # Aggregate subresults
+                        cexs = set(subresults[n_processed][0]) # compute intersection of all workers' results (Linf only)
+                        for worker in range(1, args.parallelize):
+                            cexs &= set(subresults[n_processed][worker])
+                        for cex in cexs: # collect
+                            monitor_positives.append([cex, n_processed])
 
-                        if len(buffer[step]) == len(partitions): # received all results for the `step`-th item?
-                            # Process subresults: compute intersection of all workers' results (Linf only)
-                            cexs = set(buffer[step][0])
-                            for worker in range(1, args.parallelize):
-                                cexs &= set(buffer[step][worker])
-
-                            for cex in cexs:
-                                monitor_positives.append([cex, step])
-
-                            # performance metrics
-                            n_processed += 1
-                            timings.append(time.time() - last_item_time)
-                            last_item_time = time.time()
-                            if cexs: n_flagged += 1
-                            if time.time() - last_update > 1:
-                                log(f"\tprocessed {step}, in queue: ~{result_queue.qsize()}")
-                                last_update = time.time()
-                            debug(f"master: {step} complete")
+                        timings.append(time.time() - last_item_time)
+                        debug(f"master: {n_processed} complete with cexs {cexs}")
+                        if cexs: n_flagged += 1
+                        n_processed += 1
+                        last_item_time = time.time()
             except Empty:
                 continue
+
         # done, collect overall stats
         metrics['n_processed'] = n_processed
         metrics['n_flagged'] = n_flagged

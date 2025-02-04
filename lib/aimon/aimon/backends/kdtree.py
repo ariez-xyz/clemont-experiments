@@ -6,7 +6,7 @@ from aimon.backends.base import BaseBackend
 from aimon.backends.faiss import BruteForce
 
 class KdTree(BaseBackend):
-    def __init__(self, df, decision_col, epsilon, metric='infinity', batchsize=1000, bf_threads=4):
+    def __init__(self, df, decision_col, epsilon, metric='infinity', batchsize=1000, bf_threads=1):
         if metric not in KDTree([[0]]).valid_metrics:
             raise NotImplementedError(f"invalid metric {metric}. valid metrics: {KDTree([[0]]).valid_metrics}")
 

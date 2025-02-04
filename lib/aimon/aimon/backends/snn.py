@@ -7,7 +7,7 @@ from aimon.backends.base import BaseBackend
 from aimon.backends.faiss import BruteForce
 
 class Snn(BaseBackend):
-    def __init__(self, df, decision_col, epsilon, metric='l2', batchsize=5000, bf_threads=4):
+    def __init__(self, df, decision_col, epsilon, metric='l2', batchsize=5000, bf_threads=1):
         if metric != 'l2':
             raise NotImplementedError(f"invalid metric {metric}. snnpy only supports l2")
 

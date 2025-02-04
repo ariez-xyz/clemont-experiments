@@ -12,12 +12,14 @@ class BruteForce(BaseBackend):
         'inner_product': faiss.METRIC_INNER_PRODUCT,
     }
 
-    def __init__(self, df, decision_col, epsilon, metric='infinity', nthreads=4):
+    def __init__(self, df, decision_col, epsilon, metric='infinity', nthreads=0):
         if metric not in self.METRICS.keys():
             raise NotImplementedError(f"invalid metric {metric}. valid metrics: {list(self.METRICS.keys())}")
 
         self.dim = df.shape[1] - 1 # kNN algo is blind to the decision column
-        faiss.omp_set_num_threads(nthreads)
+
+        if nthreads > 0:
+            faiss.omp_set_num_threads(nthreads)
 
         # Create separate indices for each unique class
         self.indices = {}
