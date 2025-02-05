@@ -5,7 +5,8 @@ sc="${samplecols_array[$((SLURM_ARRAY_TASK_ID-1))]}"
 
 echo $array samplecols=$samplecols sc=$sc
 
-srun python run_on_csv.py "$input_file1" "$input_file2" \
+srun python run_on_csv.py ../data/RobustBench/predictions/imagenet-Standard_R50.csv \
+	../data/RobustBench/predictions/imagenet-Standard_R50-adv.csv \
 	--pred "$pred" \
 	--eps "$eps" \
 	--batchsize "$batchsize" \
