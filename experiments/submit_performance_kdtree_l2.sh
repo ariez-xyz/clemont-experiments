@@ -39,7 +39,7 @@ sbatch \
 	--array=$array \
 	-c 4 \
 	--time=24:00:00 \
-	--mem=32G \
+	--mem=128G \
 	--no-requeue \
 	--export=ALL \
 	$work_script 
