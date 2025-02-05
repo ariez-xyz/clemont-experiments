@@ -262,7 +262,7 @@ if __name__ == "__main__":
         non_pred_cols = df.columns.drop(args.pred)
         sampled_columns = non_pred_cols.to_series().sample(n=args.sample_cols, random_state=0)
         keep = pd.concat([sampled_columns, pd.Series([args.pred])])
-        df = df[keep]
+        df = df[keep].copy()
         log(f"keeping columns: {list(keep)} (new shape is {df.shape})")
 
     if args.randomize_order:
@@ -352,7 +352,7 @@ if __name__ == "__main__":
         metrics['avg_time'] = (time.time() - start_time) / n_processed
         metrics['peak_mem'] = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss,
         if args.full_output:
-            metrics['timings'] = [f"{t:.6f}" for t in timings]
+            metrics['timings'] = [round(t, 6) for t in timings]
 
     else:
         runner = setup_backend(args, df)
