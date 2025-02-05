@@ -17,7 +17,7 @@ def get_average_time(json_path):
 results_dir = 'results'
 methods = os.listdir(results_dir)
 
-plt.figure(figsize=(5, 4))
+plt.figure(figsize=(10, 8))
 
 for method in methods:
     method_dir = os.path.join(results_dir, method)
@@ -27,7 +27,8 @@ for method in methods:
     avg_times = []
     
     for json_file in json_files:
-        if 'lowdec' in json_file:
+        print("PLOTTING ONLY LOWDEC FILES")
+        if 'lowdec' in json_file and not "bf-1t" in json_file:
             dim = extract_dim_from_filename(json_file)
             avg_time = get_average_time(os.path.join(method_dir, json_file))
             
