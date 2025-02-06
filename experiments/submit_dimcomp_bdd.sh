@@ -6,10 +6,10 @@ export metric="infinity"
 export results_base="../results/dimcomp"
 export pred="pred"
 # imagenet max. 3*224*224=150528 cols
-export samplecols="8 16 32 64 128 256 512 1024 2048 4096 8192 16384 32767 65536"
+export samplecols="8 16 32 64 128 256"
 export eps=0.0315 # > 8/255
 export batchsize=0
-export maxtime=$((60*60*22))
+export maxtime=$((60*60*38))
 
 # setup dirs, venv, etc
 export work_script="slurm_dimcomp_work.sh"
@@ -22,7 +22,7 @@ pushd ..
 source activate.sh
 popd
 export NUM_TASKS=${#samplecols[@]}
-export array="1-14"
+export array="1-6"
 
 # Submit to queue
 sbatch \
@@ -30,7 +30,7 @@ sbatch \
 	--output="$logs_dir/$backend-%A-%a.log" \
 	--array=$array \
 	-c 1 \
-	--time=24:00:00 \
+	--time=36:00:00 \
 	--mem=512G \
 	--no-requeue \
 	--export=ALL \
