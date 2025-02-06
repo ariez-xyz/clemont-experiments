@@ -7,9 +7,11 @@ from aimon.backends.base import BaseBackend
 from aimon.backends.faiss import BruteForce
 
 class Snn(BaseBackend):
-    def __init__(self, df, decision_col, epsilon, metric='l2', batchsize=5000, bf_threads=1):
+    def __init__(self, df, decision_col, epsilon, metric='l2', batchsize=500, bf_threads=1):
         if metric != 'l2':
             raise NotImplementedError(f"invalid metric {metric}. snnpy only supports l2")
+        if epsilon > 0.1:
+            print("WARNING: Large epsilon values in L2 metric may produce issues with the prediction (a differing prediction may be epsilon-close)")
 
         self.classes = df[decision_col].unique()
         self.df = df
@@ -59,10 +61,11 @@ class Snn(BaseBackend):
         cexs = self.bf.observe(row, row_id)
         self.meta["bf_time"] += time.time() - st
 
-        # Now query the previous batches which are stored in the kd-tree
+        # Now query the previous batches which are stored in the SNN index
         for c in self.classes:
             # For each possible decision class, flip the current row's decision to that class
             # in order to find epsilon-close points with that (different) decision.
+            # TODO: Fix for large epsilon values: after overriding the decision, the search may return points close to the *original* point (that is, they have a matching prediction, but are still epsilon-close)
             if c == decision:
                 continue # skip search for points with same decision
             row[self.meta["decision_col"]] = c

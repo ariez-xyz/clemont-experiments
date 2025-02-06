@@ -27,7 +27,7 @@ def log(s):
     timestamp = datetime.utcfromtimestamp(time.time()).strftime('%Y-%m-%d %H:%M:%S')
     print(f"[{timestamp}] {s}", flush=True)
 
-def pretty_print(df, i, j, eps, header=True, diff_only=False, marker=" "):
+def pretty_print(df, i, j, eps, header=True, diff_only=False, marker=" ", metric="infinity"):
     if header:
         print(f'\n {"column".rjust(30)}\trow {i}\trow {j}\tdelta')
 
@@ -45,7 +45,6 @@ def pretty_print(df, i, j, eps, header=True, diff_only=False, marker=" "):
             line = f"{marker}{df.columns[col][:30].rjust(30)}\t{val_i:.6f}\t{val_j:.6f}\t{diff:.6f}"
             rest.append(line)
         else:
-            # Only apply ANSI color codes if stdout is a terminal
             if sys.stdout.isatty():
                 line = f"\033[91m{marker}{df.columns[col][:30].rjust(30)}\t{val_i:.6f}\t{val_j:.6f}\t{diff:.6f}\033[0m"
             else:
@@ -81,9 +80,9 @@ def setup_backend(args, df):
     elif args.backend == 'kdtree':
         log(f"initializing kd-tree backend...")
         if args.batchsize:
-            backend = KdTree(df, args.pred, args.eps, args.metric, batchsize=args.batchsize, bf_threads=args.st_threads)
+            backend = KdTree(df, args.pred, args.eps, args.metric.lower(), batchsize=args.batchsize, bf_threads=args.st_threads)
         else:
-            backend = KdTree(df, args.pred, args.eps, args.metric, bf_threads=args.st_threads)
+            backend = KdTree(df, args.pred, args.eps, args.metric.lower(), bf_threads=args.st_threads)
 
     elif args.backend == 'snn':
         log(f"initializing snn backend...")
@@ -474,4 +473,4 @@ if __name__ == "__main__":
                         print(pair, "radius query k =", rqks[pair[1]])
                     else:
                         print(pair)
-                    pretty_print(df, pair[0], pair[1], args.eps, header=False)
+                    pretty_print(df, pair[0], pair[1], args.eps, header=False, metric=args.metric)

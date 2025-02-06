@@ -9,6 +9,8 @@ class KdTree(BaseBackend):
     def __init__(self, df, decision_col, epsilon, metric='infinity', batchsize=1000, bf_threads=1):
         if metric not in KDTree([[0]]).valid_metrics:
             raise NotImplementedError(f"invalid metric {metric}. valid metrics: {KDTree([[0]]).valid_metrics}")
+        if epsilon > 0.1 and metric == 'l2':
+            print("WARNING: Large epsilon values in L2 metric may produce issues with the prediction (a differing prediction may be epsilon-close)")
 
         self.classes = df[decision_col].unique()
         self.df = df
@@ -37,15 +39,13 @@ class KdTree(BaseBackend):
         self.kdt = KDTree(df, metric=self.meta["metric"])
 
     def observe(self, row, row_id=None):
-        #if len(self.history) < self.batchsize:
-        #    st = time.time()
-
-        #    cexs = self.bf.observe(row, row_id)
-        #    self.history.append(row)
-
-        #    self.meta["bf_time"] += time.time() - st
-        #    self.current_batch += 1
-        #    return cexs
+        if len(self.history) < self.batchsize:
+            st = time.time()
+            cexs = self.bf.observe(row, row_id)
+            self.history.append(row)
+            self.meta["bf_time"] += time.time() - st
+            self.current_batch += 1
+            return cexs
 
         decision = row[self.meta["decision_col"]]
 
@@ -66,6 +66,7 @@ class KdTree(BaseBackend):
         for c in self.classes:
             # For each possible decision class, flip the current row's decision to that class
             # in order to find epsilon-close points with that (different) decision.
+            # TODO: Fix for large epsilon values: after overriding the decision, the search may return points close to the *original* point (that is, they have a matching prediction, but are still epsilon-close)
             if c == decision:
                 continue # skip search for points with same decision
             row[self.meta["decision_col"]] = c
