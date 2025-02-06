@@ -7,18 +7,19 @@ IFS=' ' read -r -a param_pairs <<< "$PARAM_PAIRS"
 param_pair="${param_pairs[$((SLURM_ARRAY_TASK_ID-1))]}"
 
 # Split the parameter pair
-IFS=',' read -r eps batchsize <<< "$param_pair"
+IFS=',' read -r eps dropcols <<< "$param_pair"
 
-echo epsilon=$eps batchsize=$batchsize
+echo epsilon=$eps dropcols=$dropcols
 
 srun python run_on_csv.py "$input_file" \
 	--pred "$pred" \
 	--eps "$eps" \
-	--batchsize "$batchsize" \
+	--batchsize 10000 \
 	--metric "$metric" \
 	--max-time "$maxtime" \
 	--backend "$backend" \
 	--full-output \
 	--parallelize "$parallelize" \
-	--out-path "$results_dir/$batchsize-$metric-$eps-$parallelize.json"
+	--blind-cols $dropcols \
+	--out-path "$results_dir/$metric-$eps-$parallelize-$dropcols.json"
 

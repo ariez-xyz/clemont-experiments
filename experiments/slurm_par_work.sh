@@ -15,7 +15,7 @@ srun python run_on_csv.py $input_file \
 	--max-time "$maxtime" \
 	--backend "$backend" \
 	--full-output \
-	--preload 10 \
+	--parallelize "$parallelize" \
 	--pred 0 \
 	--out-path "$results_dir/$sc-d.json"
 

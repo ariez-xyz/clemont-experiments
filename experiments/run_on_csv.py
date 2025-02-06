@@ -130,10 +130,13 @@ def process_partition(args, df, idx, result_queue, msg_batch=100):
         result_queue.put((msg_type, idx, payload))
         if msg_type == "iter":
             debug(f"\t worker {idx}: send ({cexs_buf})")
+
     runner = setup_backend(args, df)
     cex_sizes = []
     cexs_buf = []
     last_updated = 0
+
+    send("iter", (0, [])) # Indicate worker is ready
 
     for step, iter_cexs in enumerate(runner.run(df, args.n_examples, max_time=args.max_time)):
         cexs_buf.extend(iter_cexs)
@@ -302,11 +305,11 @@ if __name__ == "__main__":
     ##############
 
     log(f"starting...")
-    start_time = time.time()
     last_update = time.time()
 
     if args.parallelize > 1 and args.backend != 'bf':
         assert args.metric == "infinity", f"parallelization only implemented for infinity metric"
+        start_time = -1
         result_queue = Queue()
         processes = []
         metrics = {}
@@ -337,6 +340,9 @@ if __name__ == "__main__":
                     metrics[f"worker_{worker_id}"] = payload
 
                 elif msg_type == "iter":
+                    if start_time == -1: 
+                        log(f"\tfirst worker {worker_id} ready")
+                        start_time = time.time() # Start time is when first worker is ready
                     worker_completed_iter, cexs = payload
                     worker_progress[worker_id] = worker_completed_iter
                     debug(f"master: recv {(msg_type, worker_id, payload)}, worker_progress: {worker_progress}")
@@ -371,6 +377,7 @@ if __name__ == "__main__":
 
     else:
         runner = setup_backend(args, df)
+        start_time = time.time()
 
         monitor_positives = []
         for i, cexs in enumerate(runner.run(df, args.n_examples, max_time=args.max_time)):
