@@ -271,7 +271,7 @@ if __name__ == "__main__":
         non_pred_cols = df.columns.drop(args.pred)
         sampled_columns = non_pred_cols.to_series().sample(n=args.sample_cols, random_state=0)
         keep = pd.concat([sampled_columns, pd.Series([args.pred])])
-        df = df[keep].copy()
+        df = df[keep]
         log(f"keeping columns: {list(keep)} (new shape is {df.shape})")
 
     if args.randomize_order:
