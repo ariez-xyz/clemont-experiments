@@ -60,6 +60,7 @@ def pretty_print(df, i, j, eps, header=True, diff_only=False, marker=" "):
             print(line)
 
 def setup_backend(args, df):
+    global start_time
     if args.backend == 'bdd':
         assert args.metric == "infinity", f"BDD: unimplemented metric {args.metric}"
         low_cardinality_cols = [col for col in df.columns if df[col].nunique() < args.n_bins]
@@ -93,6 +94,12 @@ def setup_backend(args, df):
             backend = Snn(df, args.pred, args.eps, bf_threads=args.st_threads)
     else:
         raise ValueError(f"unknown backend {args.backend}")
+
+    if args.preload:
+        shape = backend.preload(df, args.pred, repeat=args.preload)
+        log(f"EXPERIMENTAL: preloaded data of shape {shape}")
+        start_time = time.time()
+
     return DataframeRunner(backend)
 
 def partition(df, n_splits, pred):
@@ -192,7 +199,9 @@ def make_argparser():
     parser.add_argument('--st_threads', '--st-threads', type=int, default=1, help='number of threads to use for the brute force short-term memory (kdtree, snn backends only). defaults to 1')
     parser.add_argument('--faiss_omp_threads', '--faiss-omp-threads', type=int, default=0, help='number of faiss threads to use (bf backend only). defaults to max available')
     parser.add_argument('--diff', type=str, default=None, help='path to JSON output file to diff the positives against')
-    parser.add_argument('--pairwise-diff', type=str, default=None, help='path to JSON output file to diff the positives against; pairwise output')
+    parser.add_argument('--pairwise_diff', '--pairwise-diff', type=str, default=None, help='path to JSON output file to diff the positives against; pairwise output')
+    parser.add_argument('--preload', type=int, default=None, help='EXPERIMENTAL. Breaks batching, timing, and more. Augment the CSVs with noise and preload them into backend this many times')
+    parser.add_argument('--quantize_pred', '--quantize-pred', type=int, default=None, help='EXPERIMENTAL. Reduce unique values in prediction column to specified number (for benchmarking).')
     return parser
     
 if __name__ == "__main__":
@@ -280,7 +289,13 @@ if __name__ == "__main__":
             for old, new in changed:
                 log(f"\t{old:20}\t->\t{new}")
 
+    if args.quantize_pred:
+        df[args.pred] = df[args.pred].mod(args.quantize_pred)
+
     log(f"metric is {args.metric}...")
+
+    if args.preload and (not args.batchsize or args.batchsize < len(df)):
+        log(f"WARNING: received --preload but not --batchsize. Preloaded data will be discarded when another batch starts.")
 
     ##############
     # MONITORING #

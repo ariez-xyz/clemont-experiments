@@ -1,6 +1,7 @@
 from abc import ABC, abstractmethod
 from typing import Callable, List, Tuple, cast
 import pandas as pd
+import numpy as np
 
 class BaseBackend(ABC):
     """Abstract base class for monitoring backends.
@@ -38,6 +39,12 @@ class BaseBackend(ABC):
         return self._meta
 
     @abstractmethod
+    def index(self, df: pd.DataFrame):
+        """Preload the backend with the points in the dataframe (no monitoring)
+        """
+        pass
+
+    @abstractmethod
     def observe(self, row, row_id=None) -> List[int]:
         """Process an observation through the backend.
         
@@ -52,6 +59,18 @@ class BaseBackend(ABC):
             by concrete backend classes.
         """
         pass
+
+    def preload(self, df, pred, repeat=5):
+        base_data = df.drop(columns=pred).to_numpy()
+        chunks = []
+        for i in range(repeat):
+            chunks.append(base_data * (1 - (i/repeat)*0.2))
+        augmented_data = np.concatenate(chunks)
+        # Create augmented dataframe with repeated predictions
+        augmented_df = pd.DataFrame(augmented_data, columns=df.drop(columns=pred).columns)
+        augmented_df[pred] = pd.concat([df[pred]] * repeat).reset_index(drop=True)
+        self.index(augmented_df)
+        return augmented_df.shape
 
     def emulate_range_query(
         self,

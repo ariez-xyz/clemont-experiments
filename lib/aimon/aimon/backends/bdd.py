@@ -59,6 +59,14 @@ class BDD(BaseBackend):
     def hash_dict(self, d): # There may be better options but this is not as bad as it seems
         return json.dumps({k:v for k,v in d.items() if k.startswith('x_')}, sort_keys=True)
 
+    def index(self, df):
+        for index, row in df.iterrows():
+            binned_row = self.discretization.bin_row(row)
+            x_val, _ = self.make_valuations(binned_row)
+            self.history_bdd = self.history_bdd | self.bdd.cube(x_val) # add current sample to history
+            if index % 10000 == 0:
+                print(index)
+
     def observe(self, row, row_id=None):
         if self.collect_cex and row_id == None:
             self.collect_cex = False

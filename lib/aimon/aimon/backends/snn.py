@@ -34,6 +34,9 @@ class Snn(BaseBackend):
             "is_complete": True,
         }
 
+    def index(self, df):
+        self.snn = snnpy.build_snn_model(df.to_numpy())
+
     def observe(self, row, row_id=None):
         if len(self.history) < self.batchsize:
             self.history.append(row)

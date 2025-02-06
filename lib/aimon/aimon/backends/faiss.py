@@ -46,6 +46,11 @@ class BruteForce(BaseBackend):
             "is_complete": True,
         }
 
+    def index(self, df):
+        for decision, group in df.groupby(self.meta["decision_col"]):
+            group = group.drop(columns=self.meta["decision_col"])
+            self.indices[decision].add_with_ids(group.values, group.index.values)
+
     def observe(self, row, row_id=None) -> List[int]:
         cexs = []
         row_data = np.array(row.drop(self.decision_col)).reshape(1, -1)

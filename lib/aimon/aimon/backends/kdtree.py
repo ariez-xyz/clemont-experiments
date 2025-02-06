@@ -33,11 +33,19 @@ class KdTree(BaseBackend):
             "is_complete": True,
         }
 
+    def index(self, df):
+        self.kdt = KDTree(df, metric=self.meta["metric"])
+
     def observe(self, row, row_id=None):
-        if len(self.history) < self.batchsize:
-            self.history.append(row)
-            self.current_batch += 1
-            return self.bf.observe(row, row_id)
+        #if len(self.history) < self.batchsize:
+        #    st = time.time()
+
+        #    cexs = self.bf.observe(row, row_id)
+        #    self.history.append(row)
+
+        #    self.meta["bf_time"] += time.time() - st
+        #    self.current_batch += 1
+        #    return cexs
 
         decision = row[self.meta["decision_col"]]
 
