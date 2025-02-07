@@ -50,6 +50,7 @@ for method in methods:
 
 plt.xscale('log', base=2)
 plt.yscale('log')
+plt.ylim(top=1)
 plt.xlabel('Number of Dimensions')
 plt.ylabel('Average Processing Time (seconds)')
 #plt.title('Processing Time vs Dimensions by Method')
