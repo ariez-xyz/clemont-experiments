@@ -20,8 +20,8 @@ methods = os.listdir(results_dir)
 
 plt.figure(figsize=(5, 4))
 
-y_min = 0.001
-y_max = 1.0
+y_min = 0.0001
+y_max = 0.4
 
 # Use matplotlib's default colors
 colors = {
