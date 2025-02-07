@@ -20,6 +20,21 @@ methods = os.listdir(results_dir)
 
 plt.figure(figsize=(5, 4))
 
+y_min = 0.001
+y_max = 1.0
+
+# Use matplotlib's default colors
+colors = {
+    'kdtree': '#1f77b4',  # matplotlib default blue
+    'bdd': '#ff7f0e'      # matplotlib default orange
+}
+
+line_styles = {
+    '1t': '-',
+    '16t': '--',
+    '96t': ':'
+}
+
 for method in methods:
     method_dir = os.path.join(results_dir, method)
     json_files = os.listdir(method_dir)
@@ -38,6 +53,13 @@ for method in methods:
     dimensions = np.array(dimensions)[sorted_indices]
     avg_times = np.array(avg_times)[sorted_indices]
     
+    # Mask out points outside the y-axis limits
+    mask = (avg_times >= y_min) & (avg_times <= y_max)
+    
+    # Determine color and line style
+    base_method = 'kdtree' if 'kdtree' in method else 'bdd'
+    thread_style = method.split('-')[1]  # Gets '1t', '16t', or '96t'
+    
     method_displaynames = {
         "kdtree-1t": "Kd-tree (1 thread)",
         "kdtree-16t": "Kd-tree (16 threads)",
@@ -46,16 +68,24 @@ for method in methods:
         "bdd-16t": "BDD (16 threads)",
         "bdd-96t": "BDD (96 threads)",
     }
-    plt.plot(dimensions, avg_times, marker='o', label=method_displaynames[method])
+    
+    # Plot line for all points
+    plt.plot(dimensions, avg_times, 
+             line_styles[thread_style], 
+             color=colors[base_method],
+             label=method_displaynames[method])
+    # Plot markers only for points within limits
+    plt.plot(dimensions[mask], avg_times[mask], 'o', 
+             color=colors[base_method])
 
 plt.xscale('log', base=2)
 plt.yscale('log')
-plt.ylim(top=1)
+plt.ylim(y_min, y_max)
 plt.xlabel('Number of Dimensions')
 plt.ylabel('Average Processing Time (seconds)')
-#plt.title('Processing Time vs Dimensions by Method')
 plt.grid(True, which="both", ls="-", alpha=0.5)
 plt.legend()
 plt.tight_layout()
 plt.savefig('dimensions.png', dpi=300)
 plt.close()
+
