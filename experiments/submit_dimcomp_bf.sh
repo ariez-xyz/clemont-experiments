@@ -7,7 +7,6 @@ export results_base="../results/dimcomp"
 export pred="pred"
 # imagenet max. 3*224*224=150528 cols
 export samplecols="4 8 16 32 64 128 256 512 1024 2048 4096 8192 16384 32767 65536"
-export eps=0.0314 # >8/255
 export batchsize=0
 export maxtime=$((60*60*22))
 

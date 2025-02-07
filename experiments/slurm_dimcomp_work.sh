@@ -9,7 +9,7 @@ echo $array samplecols=$samplecols sc=$sc infile=$input_file
 
 srun python run_on_csv.py $input_file \
 	--pred "$pred" \
-	--eps "$eps" \
+	--eps 0.0157 \
 	--batchsize "$batchsize" \
 	--metric "$metric" \
 	--max-time "$maxtime" \
