@@ -18,7 +18,7 @@ def get_average_time(json_path):
 results_dir = 'results'
 methods = os.listdir(results_dir)
 
-plt.figure(figsize=(10, 8))
+plt.figure(figsize=(5, 4))
 
 for method in methods:
     method_dir = os.path.join(results_dir, method)
