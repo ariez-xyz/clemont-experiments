@@ -61,10 +61,13 @@ class BaseBackend(ABC):
         pass
 
     def preload(self, df, pred, repeat=5):
+        np.random.seed(42)
         base_data = df.drop(columns=pred).to_numpy()
         chunks = []
-        for i in range(repeat):
-            chunks.append(base_data * (1 - (i/repeat)*0.2))
+        for _ in range(repeat):
+            noise = np.random.normal(0, 0.5, base_data.shape)
+            noisy_data = np.clip(base_data + noise, 0, 1)
+            chunks.append(noisy_data)
         augmented_data = np.concatenate(chunks)
         # Create augmented dataframe with repeated predictions
         augmented_df = pd.DataFrame(augmented_data, columns=df.drop(columns=pred).columns)
