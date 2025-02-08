@@ -11,7 +11,7 @@ def parse_args():
     parser = argparse.ArgumentParser(description='Plot timing results from JSON files')
     parser.add_argument('--results-dir', type=str, default=os.getcwd(),
                        help='Directory containing results (default: current directory)')
-    parser.add_argument('--windowsize', type=int, default=20000,
+    parser.add_argument('--windowsize', type=int, default=100000,
                        help='rolling average windowsize')
     parser.add_argument('--fix-batchsize', type=int, default=10000,
                        help='Fix batch size to a specific value')
@@ -65,10 +65,12 @@ args = parse_args()
 data = []
 for filepath in glob.glob(os.path.join(args.results_dir, 'results/*/*.json')):
     if args.eps in filepath and args.sample in filepath:
-        print(filepath, file=sys.stderr)
         with open(filepath, 'r') as f:
             result = json.load(f)
             file_info = parse_filename(filepath)
+            if args.sample == "11:" and file_info['parallelization'] != '1':
+                continue
+            print("added", filepath, file=sys.stderr)
             data.append({**file_info, 'timings': result['timings'][:args.truncate]})
 
 # Sort data by norm, batchsize, method
@@ -84,6 +86,7 @@ for item in data:
 
 plt.xlabel('Sample')
 plt.ylabel('Time (seconds)')
+plt.ylim(top=0.03)
 plt.grid(True, alpha=0.3)
 plt.title(f"dropcols={args.sample}, eps={args.eps}")
 plt.legend()
