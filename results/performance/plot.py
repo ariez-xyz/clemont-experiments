@@ -11,7 +11,7 @@ def parse_args():
     parser = argparse.ArgumentParser(description='Plot timing results from JSON files')
     parser.add_argument('--results-dir', type=str, default=os.getcwd(),
                        help='Directory containing results (default: current directory)')
-    parser.add_argument('--windowsize', type=int, default=100000,
+    parser.add_argument('--windowsize', type=int, default=20000,
                        help='rolling average windowsize')
     parser.add_argument('--fix-batchsize', type=int, default=10000,
                        help='Fix batch size to a specific value')
@@ -78,9 +78,9 @@ data.sort(key=lambda x: (x['norm'], x['method'], x['eps']))
 plt.figure(figsize=(7.1, 5))
 
 for item in data:
-    x = np.arange(len(item['timings']))
-    y = rolling_average(item['timings'], args.windowsize)
-    plt.plot(x[args.omit_beginning:], y[args.omit_beginning:], label=item["name"])
+    x = np.arange(len(item['timings'][args.omit_beginning:]))
+    y = rolling_average(item['timings'][args.omit_beginning:], args.windowsize)
+    plt.plot(x, y, label=item["name"])
 
 plt.xlabel('Sample')
 plt.ylabel('Time (seconds)')
