@@ -1,6 +1,7 @@
 import json
 import glob
 import os
+import sys
 import pandas as pd
 import matplotlib.pyplot as plt
 import numpy as np
@@ -16,7 +17,9 @@ def parse_args():
                        help='Fix batch size to a specific value')
     parser.add_argument('--truncate', type=int, default=5_000_000,
                        help='disregard samples past a certain point')
-    parser.add_argument('--eps', type=str, default="0.05",
+    parser.add_argument('--sample', type=str, default="11:",
+                       help='dimensionality to plot')
+    parser.add_argument('--eps', type=str, default="0.025",
                        help='epsilon to plot')
     parser.add_argument('--outfile', type=str, default="fig.png",
                        help='name of file to save to')
@@ -27,7 +30,7 @@ def parse_args():
 def parse_filename(filepath):
     filename = os.path.basename(filepath)
     method = os.path.basename(os.path.dirname(filepath))
-    batchsize, norm, eps = filename.replace('.json', '').split('-')
+    norm, eps, parallelization, sample = filename.replace('.json', '').split('-')
     
     norm_displaynames = {
         "infinity": "Linf",
@@ -40,16 +43,17 @@ def parse_filename(filepath):
         "bf": "Brute force",
     }
 
-    name = f"{method_displaynames[method]}, {norm_displaynames[norm]} ε={eps}"
-    if batchsize != '0':
-        name += f" (batchsize={int(batchsize)//1000}k)"
+    name = f"{method_displaynames[method]} ({norm_displaynames[norm]})"
+    if parallelization != '1':
+        name += f'{parallelization} threads'
     
     return {
         'method': method,
-        'batchsize': int(batchsize),
+        'batchsize': 10000,#int(batchsize),
         'norm': norm,
         'eps': float(eps),
-        'name': name
+        'name': name,
+        'parallelization': parallelization,
     }
 
 def rolling_average(data, window):
@@ -60,16 +64,15 @@ args = parse_args()
 # Read all JSON files
 data = []
 for filepath in glob.glob(os.path.join(args.results_dir, 'results/*/*.json')):
-    if args.eps in filepath:
+    if args.eps in filepath and args.sample in filepath:
+        print(filepath, file=sys.stderr)
         with open(filepath, 'r') as f:
             result = json.load(f)
             file_info = parse_filename(filepath)
             data.append({**file_info, 'timings': result['timings'][:args.truncate]})
 
 # Sort data by norm, batchsize, method
-data.sort(key=lambda x: (x['norm'], x['method'], x['eps'], x['batchsize']))
-if args.fix_batchsize != None:
-    data = list(filter(lambda x: int(x['batchsize']) == args.fix_batchsize or str(x['batchsize']) == '0', data))
+data.sort(key=lambda x: (x['norm'], x['method'], x['eps']))
 
 # Create plot
 plt.figure(figsize=(7.1, 5))
@@ -81,11 +84,8 @@ for item in data:
 
 plt.xlabel('Sample')
 plt.ylabel('Time (seconds)')
-if '12d' in args.results_dir:
-    plt.title(f'Processing Time per Sample, 5M rows, 12 cols, {args.windowsize // 1000}k rolling average')
-else:
-    plt.title(f'Processing Time per Sample, 5M rows, 22 cols, {args.windowsize // 1000}k rolling average')
 plt.grid(True, alpha=0.3)
+plt.title(f"dropcols={args.sample}, eps={args.eps}")
 plt.legend()
 plt.tight_layout()
 plt.savefig(os.path.join(args.results_dir, args.outfile), dpi=300)
