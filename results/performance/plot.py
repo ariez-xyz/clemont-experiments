@@ -64,29 +64,29 @@ args = parse_args()
 # Read all JSON files
 data = []
 for filepath in glob.glob(os.path.join(args.results_dir, 'results/*/*.json')):
-    if args.eps in filepath and args.sample in filepath:
+    if args.eps in filepath and args.sample in filepath and 'run2' not in filepath:
         with open(filepath, 'r') as f:
             result = json.load(f)
             file_info = parse_filename(filepath)
-            if args.sample == "11:" and file_info['parallelization'] != '1':
-                continue
+            #if args.sample == "11:" and file_info['parallelization'] != '1':
+            #    continue
             print("added", filepath, file=sys.stderr)
             data.append({**file_info, 'timings': result['timings'][:args.truncate]})
 
 # Sort data by norm, batchsize, method
-data.sort(key=lambda x: (x['norm'], x['method'], x['eps']))
+data.sort(key=lambda x: (x['parallelization'], x['norm'], x['method']))
 
 # Create plot
-plt.figure(figsize=(7.1, 5))
+plt.figure(figsize=(7, 5))
 
 for item in data:
-    x = np.arange(len(item['timings'][args.omit_beginning:]))
-    y = rolling_average(item['timings'][args.omit_beginning:], args.windowsize)
+    x = np.arange(len(item['timings'][args.omit_beginning:][::1000]))
+    y = rolling_average(item['timings'][args.omit_beginning:][::1000], args.windowsize)
     plt.plot(x, y, label=item["name"])
 
 plt.xlabel('Sample')
 plt.ylabel('Time (seconds)')
-plt.ylim(top=0.03)
+#plt.ylim(top=0.03)
 plt.grid(True, alpha=0.3)
 plt.title(f"dropcols={args.sample}, eps={args.eps}")
 plt.legend()
