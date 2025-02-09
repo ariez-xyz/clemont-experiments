@@ -80,8 +80,8 @@ data.sort(key=lambda x: (x['parallelization'], x['norm'], x['method']))
 plt.figure(figsize=(7, 5))
 
 for item in data:
-    x = np.arange(len(item['timings'][args.omit_beginning:][::1000]))
-    y = rolling_average(item['timings'][args.omit_beginning:][::1000], args.windowsize)
+    x = np.arange(len(item['timings'][args.omit_beginning:]))[::1000]
+    y = rolling_average(item['timings'][args.omit_beginning:], args.windowsize)[::1000]
     plt.plot(x, y, label=item["name"])
 
 plt.xlabel('Sample')
