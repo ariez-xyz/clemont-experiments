@@ -16,17 +16,16 @@ def get_average_time(json_path):
         #return np.mean(timings)
 
 results_dir = 'results'
-methods = os.listdir(results_dir)
+methods = sorted(os.listdir(results_dir))
 
 plt.figure(figsize=(5, 4))
 
 y_min = 0.0001
-y_max = 0.4
+y_max = 0.8
 
-# Use matplotlib's default colors
 colors = {
-    'kdtree': '#1f77b4',  # matplotlib default blue
-    'bdd': '#ff7f0e'      # matplotlib default orange
+    'bdd': '#1f77b4',  # matplotlib default blue
+    'kdtree': '#2ca02c'      # matplotlib default green
 }
 
 line_styles = {
@@ -80,10 +79,10 @@ for method in methods:
 
 plt.xscale('log', base=2)
 plt.yscale('log')
-plt.ylim(y_min, y_max)
+plt.ylim(top=y_max)
 plt.xlabel('Number of Dimensions')
 plt.ylabel('Average Processing Time (seconds)')
-plt.grid(True, which="both", ls="-", alpha=0.5)
+plt.grid(True, which="both", ls="-", alpha=0.3)
 plt.legend()
 plt.tight_layout()
 plt.savefig('dimensions.png', dpi=300)
