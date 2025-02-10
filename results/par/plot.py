@@ -18,24 +18,25 @@ def get_average_time(json_path):
 results_dir = 'results'
 methods = sorted(os.listdir(results_dir))
 
-plt.figure(figsize=(5, 4))
+plt.figure(figsize=(5, 3))
 
 y_min = 0.0001
 y_max = 0.8
 
+
 colors = {
-    'bdd-96t': '#08306b',  # dark blue
-    'bdd-16t': '#2171b5', # medium blue
-    'bdd-1t': '#9ecae1', # light blue
-    'kdtree-96t': '#00441b',  # dark green
-    'kdtree-16t': '#238b45', # medium green
-    'kdtree-1t': '#a1d99b', # light green
+    'bdd-1t': '#4c9edb',     # light blue
+    'bdd-16t': '#1f77b4',    # default blue
+    'bdd-96t': '#164b73',    # dark blue
+    'kdtree-1t': '#ffb74d',  # light orange
+    'kdtree-16t': '#f57c00', # default orange
+    'kdtree-96t': '#b35a00', # dark orange
 }
 
 line_styles = {
     '1t': '-',
-    '16t': '--',
-    '96t': ':'
+    '16t': '-',
+    '96t': '-'
 }
 
 for method in methods:
@@ -79,7 +80,7 @@ for method in methods:
              color=colors[f'{base_method}-{thread_style}'],
              label=method_displaynames[method])
     # Plot markers only for points within limits
-    plt.plot(dimensions[mask], avg_times[mask], 'o', 
+    plt.plot(dimensions[mask], avg_times[mask], {'1t': 'o', '16t': 'x', '96t': 'v'}[thread_style], 
              color=colors[f'{base_method}-{thread_style}'])
 
 plt.xscale('log', base=2)
