@@ -90,6 +90,7 @@ plt.figure(figsize=(5, 3))
 for item in data:
     x = np.arange(len(item['timings'][args.omit_beginning:]))[::1000]
     y = rolling_average(item['timings'][args.omit_beginning:], args.windowsize)[::1000]
+    y = rolling_average(y, args.windowsize//100)
     plt.plot(x, y, '-' if item['parallelization'] == '1' else '--', label=item["name"])
 
 plt.xlabel('Sample')
