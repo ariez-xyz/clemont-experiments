@@ -25,12 +25,17 @@ def parse_args():
                        help='name of file to save to')
     parser.add_argument('--omit_beginning', type=int, default=100,
                        help='omit this many samples at the beginning (avoid startup cost going into rolling average)')
+    parser.add_argument('--run', type=int, default=1,
+                       help='-run$i postfix to use')
     return parser.parse_args()
 
 def parse_filename(filepath):
     filename = os.path.basename(filepath)
     method = os.path.basename(os.path.dirname(filepath))
-    norm, eps, parallelization, sample = filename.replace('.json', '').split('-')
+    if args.run == 1:
+        norm, eps, parallelization, sample = filename.replace('.json', '').split('-')
+    else:
+        norm, eps, parallelization, sample, run = filename.replace('.json', '').split('-')
     
     norm_displaynames = {
         "infinity": "Linf",
@@ -64,14 +69,17 @@ args = parse_args()
 # Read all JSON files
 data = []
 for filepath in glob.glob(os.path.join(args.results_dir, 'results/*/*.json')):
-    if args.eps in filepath and args.sample in filepath and 'run2' not in filepath:
-        with open(filepath, 'r') as f:
-            result = json.load(f)
-            file_info = parse_filename(filepath)
-            #if args.sample == "11:" and file_info['parallelization'] != '1':
-            #    continue
-            print("added", filepath, file=sys.stderr)
-            data.append({**file_info, 'timings': result['timings'][:args.truncate]})
+    if (args.run == 1 and 'run' in filepath) or (args.run > 1 and f'run{args.run}' not in filepath):
+        continue
+    if args.eps not in filepath or args.sample not in filepath:
+        continue
+    with open(filepath, 'r') as f:
+        print("adding", filepath, file=sys.stderr)
+        result = json.load(f)
+        file_info = parse_filename(filepath)
+        #if args.sample == "11:" and file_info['parallelization'] != '1':
+        #    continue
+        data.append({**file_info, 'timings': result['timings'][:args.truncate]})
 
 # Sort data by norm, batchsize, method
 data.sort(key=lambda x: (x['parallelization'], x['norm'], x['method']))
