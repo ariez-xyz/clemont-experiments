@@ -96,7 +96,7 @@ for item in data:
 plt.xlabel('Sample')
 plt.ylabel('Time (seconds)')
 plt.ylim(top=0.06, bottom=0)
-#plt.grid(True, alpha=0.3)
+plt.grid(True, alpha=0.3)
 #plt.title(f"dropcols={args.sample}, eps={args.eps}")
 #plt.legend()
 plt.tight_layout()
