@@ -21,5 +21,6 @@ srun python run_on_csv.py "$input_file" \
 	--full-output \
 	--parallelize "$parallelize" \
 	--blind-cols $dropcols \
-	--out-path "$results_dir/$metric-$eps-$parallelize-$dropcols.json"
+	--randomize-order \
+	--out-path "$results_dir/$metric-$eps-$parallelize-$dropcols-run3.json"
 
