@@ -79,7 +79,7 @@ for filepath in glob.glob(os.path.join(args.results_dir, 'results/*/*.json')):
         file_info = parse_filename(filepath)
         #if args.sample == "11:" and file_info['parallelization'] != '1':
         #    continue
-        data.append({**file_info, 'timings': result['timings'][:args.truncate]})
+        data.append({**file_info, 'timings': result['timings'][args.omit_beginning:args.truncate]})
 
 # Sort data by norm, batchsize, method
 data.sort(key=lambda x: (x['parallelization'], x['norm'], x['method']))
@@ -88,15 +88,15 @@ data.sort(key=lambda x: (x['parallelization'], x['norm'], x['method']))
 plt.figure(figsize=(4, 3))
 
 for item in data:
-    x = np.arange(len(item['timings'][args.omit_beginning:]))[::1000]
-    y = rolling_average(item['timings'][args.omit_beginning:], args.windowsize)[::1000]
+    x = np.arange(len(item['timings']))[::1000]
+    y = rolling_average(item['timings'], args.windowsize)[::1000]
     y = rolling_average(y, args.windowsize // 1000) # More smoothing
     plt.plot(x, y, '-' if item['parallelization'] == '1' else '--', label=item["name"])
 
 plt.xlabel('Sample')
 plt.ylabel('Time (seconds)')
-plt.ylim(top=0.07, bottom=0)
-plt.grid(True, alpha=0.3)
+plt.ylim(top=0.06, bottom=0)
+#plt.grid(True, alpha=0.3)
 #plt.title(f"dropcols={args.sample}, eps={args.eps}")
 #plt.legend()
 plt.tight_layout()
