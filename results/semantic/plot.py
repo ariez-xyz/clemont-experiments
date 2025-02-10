@@ -98,109 +98,117 @@ def process_directory(directory_path, use_rate=False):
     
     return df, epsilon, metric
 
-def plot_heatmap(df, title, save_path=None, vmin=None, vmax=None):
-    plt.figure(figsize=(5, 2.6), dpi=300)
-
-    df = df.iloc[::-1]  # Reverse the order of rows
+def process_all_directories(base_dir='results', use_rate=False, outfile="out.png"):
+    # Find all model directories
+    subdirs = sorted([d for d in glob.glob(os.path.join(base_dir, '*')) if os.path.isdir(d)])
+    is_imagenet = any('imagenet' in d for d in subdirs)
+    if is_imagenet: subdirs = reversed(subdirs)
     
-    is_rate = df.values.max() <= 1
-    if is_rate:
-        plot_data = np.log10(df * 100 + 1)
-        raw_data = df * 100
-    else:
-        plot_data = np.log10(df.clip(lower=1))
-        raw_data = df
-        
-    if vmin is None:
-        vmin = plot_data.values.min()
-    if vmax is None:
-        vmax = plot_data.values.max()
+    # Collect data from all directories
+    model_data = {}
+    global_vmin = 0#float('inf')
+    global_vmax = 1.52#float('-inf')
     
-    # Create the heatmap
-    hm = sns.heatmap(plot_data, 
-                     # Uncomment to add labels to each cell.
-                     #annot=raw_data, 
-                     cmap='YlOrRd',
-                     fmt='.2f' if is_rate else 'g',
-                     vmin=vmin,
-                     vmax=vmax,
-                     cbar_kws={'format': '%.2f'})
-    
-     # Uncomment to add a title.
-    #plt.title(title)
-    plt.ylabel('Severity')
-    plt.xlabel('Corruption Type')
-    plt.xticks(rotation=45, ha='right')
-    
-    # Modify colorbar to show actual values instead of log values
-    cbar = hm.collections[0].colorbar
-    
-    # Calculate tick positions in log space
-    if is_rate:
-        tick_locations = np.linspace(vmin, vmax, 5)
-        tick_labels = np.round(100 * (10 ** tick_locations - 1) / 100, 2)
-    else:
-        tick_locations = np.linspace(vmin, vmax, 5)
-        tick_labels = np.round(10 ** tick_locations, 2)
-    
-    cbar.set_ticks(tick_locations)
-    cbar.set_ticklabels(tick_labels)
-    cbar.set_label('TP rate (%)' if is_rate else 'Count')
-    
-    plt.tight_layout()
-    
-    if save_path:
-        plt.savefig(save_path)
-        plt.close()
-    else:
-        plt.show()
-
-def process_all_directories(base_dir='results', use_rate=False):
-    subdirs = [d for d in glob.glob(os.path.join(base_dir, '*')) if os.path.isdir(d)]
-    
-    all_dfs = []
-    all_eps = []
-    all_metrics = []
     for subdir in subdirs:
+        if is_imagenet and '7.5' in subdir: continue
         df, eps, metric = process_directory(subdir, use_rate)
         if not df.empty:
-            all_dfs.append(df)
-            all_eps.append(eps)
-            all_metrics.append(metric)
+            model_name = os.path.basename(subdir)
+            # Transpose the dataframe here
+            df = df.T
+            if use_rate:
+                values = np.log10(df * 100 + 1)
+            else:
+                values = np.log10(df.clip(lower=1))
+                
+#            global_vmin = min(global_vmin, values.values.min())
+#            global_vmax = max(global_vmax, values.values.max())
+            model_data[model_name] = (df, eps, metric)
     
-    if use_rate:
-        global_vmin = min(np.log10(df * 100 + 1).values.min() for df in all_dfs)
-        global_vmax = max(np.log10(df * 100 + 1).values.max() for df in all_dfs)
+    if not model_data:
+        return
+        
+    n_models = len(model_data)
+    # Adjust figure size - make it a bit taller to accommodate colorbar
+    if is_imagenet:
+        fig = plt.figure(figsize=(0.2+n_models, 5))
     else:
-        global_vmin = min(np.log10(df.clip(lower=1)).values.min() for df in all_dfs)
-        global_vmax = max(np.log10(df.clip(lower=1)).values.max() for df in all_dfs)
+        fig = plt.figure(figsize=(1+n_models, 5))
     
-    for subdir, df, eps, metric in zip(subdirs, all_dfs, all_eps, all_metrics):
-        dirname = os.path.basename(subdir)
-        title = f"{'%' if use_rate else '#'} flagged inputs by Corruption Type and Severity\n{dirname}, eps={eps}, metric={metric}"
-        save_path = f"{dirname}_heatmap.png"
-        plot_heatmap(df, title, save_path, vmin=global_vmin, vmax=global_vmax)
+    # Create grid with more space for colorbar
+    gs = plt.GridSpec(2, n_models, height_ratios=[20, 1])
+    
+    axes = []
+    for idx, (model_name, (df, eps, metric)) in enumerate(model_data.items()):
+        ax = fig.add_subplot(gs[0, idx])
+        axes.append(ax)
+        
+        show_yticks = (idx == 0)
+        # Further simplify model names
+        short_name = 'Tian' if 'Tian' in model_name else model_name.split('-')[-1].split('2')[0]
+        
+        plot_heatmap(df, short_name, ax=ax, 
+                    vmin=global_vmin, vmax=global_vmax,
+                    show_yticks=show_yticks,
+                    use_rate=use_rate)
+    
+    # Add shared colorbar with logarithmic scale ticks
+    norm = plt.Normalize(vmin=10**global_vmin, vmax=10**global_vmax)
+    sm = plt.cm.ScalarMappable(cmap='YlOrRd', norm=norm)
+    cbar_ax = fig.add_subplot(gs[1, :])
+    cbar = plt.colorbar(sm, cax=cbar_ax, orientation='horizontal')
+    
+    # Values we want to show
+    tick_values = np.array([0, 1.42, 4.83, 13.09, 33.03])
+    
+    # Calculate positions that are equally spaced
+    tick_positions = np.linspace(10**global_vmin, 10**global_vmax, len(tick_values))
+    
+    cbar.set_ticks(tick_positions)
+    cbar.set_ticklabels([f'{x:.2f}' for x in tick_values])
+    
+    cbar.set_label('TP rate (%)', labelpad=10)
+
+    
+    # Reduce spacing between subplots
+    plt.subplots_adjust(hspace=0.4, wspace=0.05)
+    
+    plt.savefig(outfile, bbox_inches='tight', dpi=300)
+    plt.close()
+
+def plot_heatmap(df, title, ax=None, vmin=None, vmax=None, show_yticks=True, use_rate=False):
+    if use_rate:
+        plot_data = np.log10(df * 100 + 1)
+    else:
+        plot_data = np.log10(df.clip(lower=1))
+    
+    sns.heatmap(plot_data, 
+                ax=ax,
+                cmap='YlOrRd',
+                cbar=False,
+                vmin=vmin,
+                vmax=vmax,
+                )#square=True)
+    
+    ax.set_title(title, pad=5, size=10)
+    ax.set_xlabel('Severity', labelpad=5)
+    if not show_yticks:
+        ax.set_yticks([])
+    
+    ax.set_xticks(np.arange(5) + 0.5)
+    ax.set_xticklabels(range(1, 6))
 
 def main():
     parser = argparse.ArgumentParser(description='Process and visualize corruption test results')
-    parser.add_argument('directory', type=str, nargs='?', 
+    parser.add_argument('directory', type=str, default='results', 
                         help='Directory containing JSON result files (optional)')
     parser.add_argument('--rate', action='store_true', 
                         help='Use true positive rate instead of absolute numbers')
+    parser.add_argument('--out', type=str, default='comparison_heatmap.png',
+                        help='outfile')
     args = parser.parse_args()
     
-    if args.directory:
-        if not os.path.isdir(args.directory):
-            print(f"Error: {args.directory} is not a valid directory")
-            return
-        
-        df = process_directory(args.directory, args.rate)
-        if not df.empty:
-            dirname = os.path.basename(args.directory)
-            title = f"{'True Positive Rate' if args.rate else 'True Positives'} by Corruption Type and Severity\n{dirname}"
-            plot_heatmap(df, title)
-    else:
-        process_all_directories(use_rate=args.rate)
+    process_all_directories(base_dir=args.directory, use_rate=args.rate, outfile=args.out)
 
 if __name__ == "__main__":
     main()
