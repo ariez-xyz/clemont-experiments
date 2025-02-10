@@ -85,7 +85,7 @@ for filepath in glob.glob(os.path.join(args.results_dir, 'results/*/*.json')):
 data.sort(key=lambda x: (x['parallelization'], x['norm'], x['method']))
 
 # Create plot
-plt.figure(figsize=(7, 5))
+plt.figure(figsize=(5, 3))
 
 for item in data:
     x = np.arange(len(item['timings'][args.omit_beginning:]))[::1000]
@@ -94,9 +94,9 @@ for item in data:
 
 plt.xlabel('Sample')
 plt.ylabel('Time (seconds)')
-#plt.ylim(top=0.03)
+plt.ylim(top=0.07)
 plt.grid(True, alpha=0.3)
-plt.title(f"dropcols={args.sample}, eps={args.eps}")
+#plt.title(f"dropcols={args.sample}, eps={args.eps}")
 plt.legend()
 plt.tight_layout()
 plt.savefig(os.path.join(args.results_dir, args.outfile), dpi=300)
