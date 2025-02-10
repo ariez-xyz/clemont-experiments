@@ -49,11 +49,11 @@ for method in methods:
     if method == 'bdd':
         plt.plot([2**6, 2**7], [avg_times[-1], 100], color='#1f77b4', linestyle='--', alpha=0.5)
     if method == 'l2-snn':
-        plt.plot([2**15, 2**16], [avg_times[-1], 100], color='#ff7f0e', linestyle='--', alpha=0.5)
+        plt.plot([2**15, 2**16], [avg_times[-1], 25], color='#ff7f0e', linestyle='--', alpha=0.5)
 
 plt.xscale('log', base=2)
 plt.yscale('log')
-plt.ylim(top=2)
+plt.ylim(top=4)
 plt.xlabel('Number of Dimensions')
 plt.ylabel('Average Processing Time (seconds)')
 #plt.title('Processing Time vs Dimensions by Method')
