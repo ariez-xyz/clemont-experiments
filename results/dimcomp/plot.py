@@ -16,9 +16,9 @@ def get_average_time(json_path):
         #return np.mean(timings)
 
 results_dir = 'results'
-methods = os.listdir(results_dir)
+methods = sorted(os.listdir(results_dir))
 
-plt.figure(figsize=(5, 4))
+plt.figure(figsize=(5, 3))
 
 for method in methods:
     method_dir = os.path.join(results_dir, method)
@@ -49,7 +49,7 @@ for method in methods:
     if method == 'bdd':
         plt.plot([2**6, 2**7], [avg_times[-1], 100], color='#1f77b4', linestyle='--', alpha=0.5)
     if method == 'l2-snn':
-        plt.plot([2**15, 2**16], [avg_times[-1], 25], color='#ff7f0e', linestyle='--', alpha=0.5)
+        plt.plot([2**15, 2**16], [avg_times[-1], 25], color='#9467bd', linestyle='--', alpha=0.5)
 
 plt.xscale('log', base=2)
 plt.yscale('log')
@@ -57,7 +57,10 @@ plt.ylim(top=4)
 plt.xlabel('Number of Dimensions')
 plt.ylabel('Average Processing Time (seconds)')
 #plt.title('Processing Time vs Dimensions by Method')
-plt.grid(True, which="both", ls="-", alpha=0.5)
+plt.grid(True, alpha=0.3)
+# Set x-axis ticks to even powers
+even_powers = np.arange(2, 17, 2)
+plt.xticks(2**even_powers, [f'$2^{{{p}}}$' for p in even_powers])
 
 
 
