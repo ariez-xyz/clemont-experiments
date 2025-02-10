@@ -47,13 +47,9 @@ for method in methods:
     }
     plt.plot(dimensions, avg_times, marker='o', label=method_displaynames[method])
     if method == 'bdd':
-        last_y_bdd = avg_times[-1]
-        plt.plot([2**6, 2**7], [last_y_bdd, 10], 
-                 color='blue', linestyle='--', alpha=0.5)
-    if method == 'snn':
-        last_y_snn = avg_times[-1]
-        plt.plot([2**15, 2**16], [last_y_snn, 10], 
-                 color='orange', linestyle='--', alpha=0.5)
+        plt.plot([2**6, 2**7], [avg_times[-1], 100], color='#1f77b4', linestyle='--', alpha=0.5)
+    if method == 'l2-snn':
+        plt.plot([2**15, 2**16], [avg_times[-1], 100], color='#ff7f0e', linestyle='--', alpha=0.5)
 
 plt.xscale('log', base=2)
 plt.yscale('log')
