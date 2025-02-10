@@ -14,7 +14,7 @@ def get_dataset_size(dataset_name, source):
         }
     else:  # lcifr
         sizes = {
-            'adult': 30163,
+            'adult': "TODO",
             'compas': 4223,
             'german': 801
         }

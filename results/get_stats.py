@@ -17,7 +17,7 @@ for json_file in directory.glob('**/*.json'):
             data['peak_mem'] = data['peak_mem'][0]
         
         # Extract the basename from the csvpath
-        csvpath = data['args']['csvpath'][0]
+        csvpath = data['args']['out_path']
         basename = os.path.basename(csvpath)
 
         if 'parallelize' in data['args'].keys():
@@ -30,10 +30,10 @@ for json_file in directory.glob('**/*.json'):
         while f'worker_{i}' in data.keys():
             worker_mem_deltas.append(data[f'worker_{i}']['peak_mem'] - data[f'worker_{i}']['mem'][0]/1024)
             i += 1
-        if worker_mem_deltas:
-            mem_delta = sum(worker_mem_deltas)/len(worker_mem_deltas)
-        else:
-            mem_delta = data['peak_mem'] - data['mem'][0]/1024
+        #if worker_mem_deltas:
+        #    mem_delta = sum(worker_mem_deltas)/len(worker_mem_deltas)
+        #else:
+        #    mem_delta = data['peak_mem'] - data['mem'][0]/1024
 
         # Create tuple with required fields
         result_tuple = (
@@ -52,3 +52,5 @@ for json_file in directory.glob('**/*.json'):
 #print("filename, eps, avg time, backend, peak memory recorded by main process, n_positives")
 for result in sorted(results):
     print(result)
+
+print("WARNING: Current script is not counting memory usage from worker processes if there are any", file=sys.stderr)
