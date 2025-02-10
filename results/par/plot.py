@@ -24,8 +24,12 @@ y_min = 0.0001
 y_max = 0.8
 
 colors = {
-    'bdd': '#1f77b4',  # matplotlib default blue
-    'kdtree': '#2ca02c'      # matplotlib default green
+    'bdd-96t': '#08306b',  # dark blue
+    'bdd-16t': '#2171b5', # medium blue
+    'bdd-1t': '#9ecae1', # light blue
+    'kdtree-96t': '#00441b',  # dark green
+    'kdtree-16t': '#238b45', # medium green
+    'kdtree-1t': '#a1d99b', # light green
 }
 
 line_styles = {
@@ -45,8 +49,9 @@ for method in methods:
         dim = extract_dim_from_filename(json_file)
         avg_time = get_average_time(os.path.join(method_dir, json_file))
         
-        dimensions.append(dim)
-        avg_times.append(avg_time)
+        if dim > 2:
+            dimensions.append(dim)
+            avg_times.append(avg_time)
     
     sorted_indices = np.argsort(dimensions)
     dimensions = np.array(dimensions)[sorted_indices]
@@ -71,11 +76,11 @@ for method in methods:
     # Plot line for all points
     plt.plot(dimensions, avg_times, 
              line_styles[thread_style], 
-             color=colors[base_method],
+             color=colors[f'{base_method}-{thread_style}'],
              label=method_displaynames[method])
     # Plot markers only for points within limits
     plt.plot(dimensions[mask], avg_times[mask], 'o', 
-             color=colors[base_method])
+             color=colors[f'{base_method}-{thread_style}'])
 
 plt.xscale('log', base=2)
 plt.yscale('log')
@@ -84,7 +89,9 @@ plt.xlabel('Number of Dimensions')
 plt.ylabel('Average Processing Time (seconds)')
 plt.grid(True, which="both", ls="-", alpha=0.3)
 plt.legend()
+even_powers = np.arange(2, 17, 2)
+plt.xticks(2**even_powers, [f'$2^{{{p}}}$' for p in even_powers])
 plt.tight_layout()
-plt.savefig('dimensions.png', dpi=300)
+plt.savefig('parallelization.png', dpi=300)
 plt.close()
 
