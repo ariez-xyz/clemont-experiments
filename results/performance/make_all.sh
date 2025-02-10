@@ -5,6 +5,7 @@ for d in 11 23; do
 				--run $run \
 				--sample $d: \
 				--truncate 10000000 \
+				--omit_beginning 100 \
 				--outfile $d-$eps.png; 
 		done; 
 	done; 

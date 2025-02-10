@@ -50,7 +50,7 @@ def parse_filename(filepath):
 
     name = f"{method_displaynames[method]} ({norm_displaynames[norm]})"
     if parallelization != '1':
-        name += f'{parallelization} threads'
+        name += f' {parallelization}t'
     
     return {
         'method': method,
@@ -85,12 +85,12 @@ for filepath in glob.glob(os.path.join(args.results_dir, 'results/*/*.json')):
 data.sort(key=lambda x: (x['parallelization'], x['norm'], x['method']))
 
 # Create plot
-plt.figure(figsize=(5, 3))
+plt.figure(figsize=(4, 3))
 
 for item in data:
     x = np.arange(len(item['timings'][args.omit_beginning:]))[::1000]
     y = rolling_average(item['timings'][args.omit_beginning:], args.windowsize)[::1000]
-    y = rolling_average(y, 25)
+    y = rolling_average(y, args.windowsize // 1000) # More smoothing
     plt.plot(x, y, '-' if item['parallelization'] == '1' else '--', label=item["name"])
 
 plt.xlabel('Sample')
@@ -98,6 +98,6 @@ plt.ylabel('Time (seconds)')
 plt.ylim(top=0.07, bottom=0)
 plt.grid(True, alpha=0.3)
 #plt.title(f"dropcols={args.sample}, eps={args.eps}")
-plt.legend()
+#plt.legend()
 plt.tight_layout()
 plt.savefig(os.path.join(args.results_dir, args.outfile), dpi=300)
