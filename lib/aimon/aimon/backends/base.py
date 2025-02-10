@@ -65,7 +65,7 @@ class BaseBackend(ABC):
         base_data = df.drop(columns=pred).to_numpy()
         chunks = []
         for _ in range(repeat):
-            noise = np.random.normal(0, 0.5, base_data.shape)
+            noise = np.random.normal(0, 0.1, base_data.shape)
             noisy_data = np.clip(base_data + noise, 0, 1)
             chunks.append(noisy_data)
         augmented_data = np.concatenate(chunks)
