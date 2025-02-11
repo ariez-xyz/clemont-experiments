@@ -167,7 +167,7 @@ def process_all_directories(base_dir='results', use_rate=False, outfile="out.png
     cbar.set_ticks(tick_positions)
     cbar.set_ticklabels([f'{x:.2f}' for x in tick_values])
     
-    cbar.set_label('TP rate (%)', labelpad=10)
+    cbar.set_label('% violations', labelpad=10)
 
     
     # Reduce spacing between subplots
