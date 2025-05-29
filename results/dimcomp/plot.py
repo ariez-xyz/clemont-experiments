@@ -18,7 +18,7 @@ def get_average_time(json_path):
 results_dir = 'results'
 methods = sorted(os.listdir(results_dir))
 
-plt.figure(figsize=(5, 3))
+plt.figure(figsize=(4, 3))
 
 for method in methods:
     method_dir = os.path.join(results_dir, method)
@@ -55,16 +55,16 @@ plt.xscale('log', base=2)
 plt.yscale('log')
 plt.ylim(top=4)
 plt.xlabel('Number of Dimensions')
-plt.ylabel('Average Processing Time (seconds)')
+plt.ylabel('Average Time (seconds)')
 #plt.title('Processing Time vs Dimensions by Method')
-plt.grid(True, alpha=0.3)
+plt.grid(True, which="both", ls="-", alpha=0.3)
 # Set x-axis ticks to even powers
 even_powers = np.arange(2, 17, 2)
 plt.xticks(2**even_powers, [f'$2^{{{p}}}$' for p in even_powers])
 
 
 
-plt.legend()
+#plt.legend()
 plt.tight_layout()
 plt.savefig('dimensions.png', dpi=300)
 plt.close()

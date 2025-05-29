@@ -17,8 +17,10 @@ def get_average_time(json_path):
 
 results_dir = 'results'
 methods = sorted(os.listdir(results_dir))
+methods[0], methods[1] = methods[1], methods[0]
+methods[3], methods[4] = methods[4], methods[3]
 
-plt.figure(figsize=(5, 3))
+plt.figure(figsize=(4, 3))
 
 y_min = 0.0001
 y_max = 0.8
@@ -66,12 +68,12 @@ for method in methods:
     thread_style = method.split('-')[1]  # Gets '1t', '16t', or '96t'
     
     method_displaynames = {
-        "kdtree-1t": "Kd-tree (1 thread)",
-        "kdtree-16t": "Kd-tree (16 threads)",
-        "kdtree-96t": "Kd-tree (96 threads)",
-        "bdd-1t": "BDD (1 thread)",
-        "bdd-16t": "BDD (16 threads)",
-        "bdd-96t": "BDD (96 threads)",
+        "kdtree-1t": "Kd-tree 1t",
+        "kdtree-16t": "Kd-tree 16t",
+        "kdtree-96t": "Kd-tree 96t",
+        "bdd-1t": "BDD 1t",
+        "bdd-16t": "BDD 16t",
+        "bdd-96t": "BDD 96t",
     }
     
     # Plot line for all points
@@ -87,9 +89,9 @@ plt.xscale('log', base=2)
 plt.yscale('log')
 plt.ylim(top=y_max)
 plt.xlabel('Number of Dimensions')
-plt.ylabel('Average Processing Time (seconds)')
+plt.ylabel('Average Time (seconds)')
 plt.grid(True, which="both", ls="-", alpha=0.3)
-plt.legend()
+#plt.legend()
 even_powers = np.arange(2, 17, 2)
 plt.xticks(2**even_powers, [f'$2^{{{p}}}$' for p in even_powers])
 plt.tight_layout()
