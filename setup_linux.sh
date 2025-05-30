@@ -16,11 +16,8 @@ if [ ! -f "activate.fish" ]; then
 fi
 
 micromamba install -y python=3.11
-micromamba install -y pytorch::faiss-cpu
-pip install --upgrade pybind11
-pip install --verbose 'nmslib @ git+https://github.com/nmslib/nmslib.git#egg=nmslib&subdirectory=python_bindings'
 pip install pandas matplotlib xgboost scikit-learn
-pip install snnpy
+pip install clemont
 
 pushd lib/
 ###################################################
@@ -54,11 +51,5 @@ popd
 ##################################################
 # End tulip-control/dd script install_dd_cudd.sh #
 ##################################################
-popd
-
-
-# Install monitor as library.
-pushd lib
-pip install -e aimon
 popd
 

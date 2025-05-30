@@ -10,11 +10,11 @@ from collections import defaultdict
 from multiprocessing import Process, Queue
 from queue import Empty
 
-from aimon.backends.bdd import BDD, BAD_CHARS
-from aimon.backends.faiss import BruteForce
-from aimon.backends.kdtree import KdTree
-from aimon.backends.snn import Snn
-from aimon.runner import DataframeRunner
+from clemont.backends.bdd import BDD, BAD_CHARS
+from clemont.backends.faiss import BruteForce
+from clemont.backends.kdtree import KdTree
+from clemont.backends.snn import Snn
+from clemont.runner import DataframeRunner
 
 np.set_printoptions(suppress=True)
 

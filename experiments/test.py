@@ -1,9 +1,9 @@
 import pandas as pd
 import numpy as np
 
-from aimon.backends.bdd import BDD
-from aimon.backends.faiss import BruteForce
-from aimon.runner import DataframeRunner
+from clemont.backends.bdd import BDD
+from clemont.backends.faiss import BruteForce
+from clemont.runner import DataframeRunner
 
 np.set_printoptions(suppress=True)
 
