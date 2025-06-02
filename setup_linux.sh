@@ -17,6 +17,7 @@ fi
 
 micromamba install -y python=3.11
 pip install pandas matplotlib xgboost scikit-learn
+pip install torch torchvision torchaudio
 pip install clemont
 
 pushd lib/
