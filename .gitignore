@@ -1,5 +1,5 @@
 micromamba/
-lib/dd-*
+lib
 *.egg-info/
 *__pycache__/
 results/*/results/
