@@ -34,6 +34,9 @@ from models.mlp import MLP
 import argparse
 from types import SimpleNamespace
 import verifier
+import re
+import os, csv
+import torch
 
 def test_acc(net, loader, device = 'cpu'):
     correct = 0
@@ -50,25 +53,92 @@ def test_acc(net, loader, device = 'cpu'):
         return 100 * correct / len(loader.dataset)
 
 # NOTE: Added this for monitor benchmarking.
-def save_predictions(net, testloader, feature_names, device='cpu', filename='predictions.csv'):
-    predictions = []
+# def save_predictions(net, testloader, feature_names, device='cpu', filename='predictions.csv'):
+#     predictions = []
+#     with torch.no_grad():
+#         for inputs, labels in testloader:
+#             inputs, labels = inputs.to(device), labels.to(device)
+#             # calculate outputs by running images through the network
+#             outputs = net(inputs)
+#             # the class with the highest energy is what we choose as prediction
+#             predicted = torch.round(torch.sigmoid(outputs))
+#             # save predictions along with the data
+#             for pred, label, input_ in zip(predicted, labels, inputs):
+#                 row = [pred.item(), label.item()] + input_.cpu().numpy().tolist()
+#                 predictions.append(row)
+    
+#     import csv
+#     with open(filename, 'w', newline='') as csvfile:
+#         writer = csv.writer(csvfile)
+#         writer.writerow(["prediction", "label"] + feature_names)
+#         writer.writerows(predictions)
+
+#TACAS 2025 Edition: Monitoring Robustness
+
+def save_predictions(
+    net,
+    testloader,
+    feature_names=None,
+    device="cpu",
+    filename="experiments/results/predictions.csv",
+    outputs_are_logits=True,
+    class_names=None,            
+    label_to_index=None,        
+    ):
+
+    def to_probs(outputs: torch.Tensor) -> torch.Tensor:
+        if outputs.dim() == 1: outputs = outputs.unsqueeze(1)
+        if outputs.size(1) == 1: 
+            if outputs_are_logits: p1 = torch.sigmoid(outputs.squeeze(1))
+            else:p1 = outputs.squeeze(1).clamp(0, 1)
+            p0 = 1.0 - p1
+            return torch.stack([p0, p1], dim=1)
+        return torch.softmax(outputs, dim=1) if outputs_are_logits else outputs / (outputs.sum(dim=1, keepdim=True) + 1e-12)
+
+    net.eval()
+    os.makedirs(os.path.dirname(filename), exist_ok=True)
+
+    if class_names and len(class_names) == 2: prob_cols = [f"p0({class_names[0]})", f"p1({class_names[1]})"]
+    else:
+        if class_names:prob_cols = [f"p({name})" for name in class_names]
+        else: prob_cols = ["p(0)", "p(1)"]
+    header = ["pred"] + prob_cols + ["label"]
+    if feature_names: header += list(feature_names)
+
+    rows = []
     with torch.no_grad():
         for inputs, labels in testloader:
-            inputs, labels = inputs.to(device), labels.to(device)
-            # calculate outputs by running images through the network
-            outputs = net(inputs)
-            # the class with the highest energy is what we choose as prediction
-            predicted = torch.round(torch.sigmoid(outputs))
-            # save predictions along with the data
-            for pred, label, input_ in zip(predicted, labels, inputs):
-                row = [pred.item(), label.item()] + input_.cpu().numpy().tolist()
-                predictions.append(row)
-    
-    import csv
-    with open(filename, 'w', newline='') as csvfile:
-        writer = csv.writer(csvfile)
-        writer.writerow(["prediction", "label"] + feature_names)
-        writer.writerows(predictions)
+            inputs = inputs.to(device)
+            labels = labels.to(device)
+            probs = to_probs(net(inputs))
+            conf, preds = probs.max(dim=1)
+            if label_to_index is not None:
+                mapped = []
+                for y in labels.view(-1).detach().cpu().tolist():
+                    key = int(round(y))
+                    mapped.append(label_to_index.get(key, key))
+            else: mapped = [int(round(y)) for y in labels.view(-1).detach().cpu().tolist()]
+
+            for i in range(probs.size(0)):
+                feats = inputs[i].detach().cpu().flatten().numpy().tolist()
+                row = [int(preds[i].item())] + probs[i].detach().cpu().numpy().tolist() + [mapped[i]] + feats
+                rows.append(row)
+
+    with open(filename, "w", newline="") as f:
+        w = csv.writer(f)
+        w.writerow(header)
+        w.writerows(rows)
+
+    print(f"[save_predictions] wrote {len(rows)} rows to {filename}")
+    if class_names: print("[save_predictions] class order:", ", ".join(f"{i}:{n}" for i, n in enumerate(class_names)))
+
+
+#########################################################################################################################################
+
+
+
+
+
 
 def test(net, testloader, device = 'cpu'):
     correct = 0
@@ -349,9 +419,43 @@ if __name__ == '__main__':
         f.flush()
 
         # NOTE: Added for monitor
-        save_predictions(debiased_model, trainloader, dataset_orig.feature_names, device,  'train_predictions.csv')
+        # save_predictions(debiased_model, trainloader, dataset_orig.feature_names, device,  'train_predictions.csv')
     
-        save_predictions(debiased_model, testloader, dataset_orig.feature_names, device, 'test_predictions.csv')
+        # save_predictions(debiased_model, testloader, dataset_orig.feature_names, device, 'test_predictions.csv')
+        
+        #TACAS Edition: Monitoring
+        label_map = {
+            "adult":  {1.0: ">50K",        0.0: "<=50K"},
+            "german": {1.0: "Good Credit", 0.0: "Bad Credit"},
+            "compas": {1.0: "Did recid.",  0.0: "No recid."}
+        }
+        
+        print(args.dataset)
+        neg = label_map[args.dataset][0.0]
+        pos = label_map[args.dataset][1.0]
+
+        save_predictions(
+            debiased_model,
+            trainloader,
+            feature_names=dataset_orig.feature_names,
+            device="cpu",
+            filename="./train_predictions.csv",
+            outputs_are_logits=True,          
+            class_names=[neg, pos],         
+            label_to_index={0:0, 1:1, 0.0:0, 1.0:1},
+        )
+        
+        save_predictions(
+            debiased_model,
+            testloader,
+            feature_names=dataset_orig.feature_names,
+            device="cpu",
+            filename="./test_predictions.csv",
+            outputs_are_logits=True,        
+            class_names=[neg, pos], 
+            label_to_index={0:0, 1:1, 0.0:0, 1.0:1},
+        )
+        ####################################################################################3
 
         cpu_model = debiased_model.cpu()
         file_dir = os.path.join(EXPR_DIR,'models',f'model_ex_{args.name}.pth')
