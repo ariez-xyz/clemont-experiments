@@ -15,11 +15,15 @@ from __future__ import annotations
 import argparse
 import json
 from pathlib import Path
-from typing import Optional, Dict, List
+from typing import Dict, List, Optional
 
 import matplotlib.pyplot as plt
 import numpy as np
 
+try:
+    from ._plot_utils import metadata_value, resolve_json_paths
+except ImportError:  # pragma: no cover - script-style execution
+    from _plot_utils import metadata_value, resolve_json_paths
 
 def main() -> None:
     parser = argparse.ArgumentParser(
@@ -29,7 +33,10 @@ def main() -> None:
         "json_path",
         nargs="?",
         type=Path,
-        help="Path to quant_run_*.json (defaults to all quant_run_*.json in script directory)",
+        help=(
+            "Path to quant_run_*.json or a directory containing them (defaults to "
+            "all quant_run_*.json alongside this script)."
+        ),
     )
     parser.add_argument(
         "--output",
@@ -66,7 +73,8 @@ def main() -> None:
     )
     args = parser.parse_args()
 
-    json_paths = _resolve_json_paths(args.json_path)
+    script_dir = Path(__file__).resolve().parent
+    json_paths = resolve_json_paths(args.json_path, default_dir=script_dir)
     for json_path in json_paths:
         _plot_ratio_boxplots_by_pow2_count(
             json_path,
@@ -205,17 +213,23 @@ def _plot_ratio_boxplots_by_pow2_count(
     meta = payload.get("metadata", {})
     title_parts = ["Max ratio by compared_count bins (boxplots)"]
     meta_summary = []
-    if meta.get("total_time") is not None:
+
+    total_time = metadata_value(meta, "total_time")
+    max_k = metadata_value(meta, "max_k")
+    out_metric = metadata_value(meta, "out_metric")
+    exponent = metadata_value(meta, "output_exponent", fallback_key="input_exponent")
+
+    if total_time is not None:
         try:
-            meta_summary.append(f"{round(float(meta['total_time']))}ms")
+            meta_summary.append(f"{round(float(total_time))}ms")
         except Exception:
             pass
-    if meta.get("max_k") is not None:
-        meta_summary.append(f"max_k={meta['max_k']}")
-    if meta.get("out_metric") is not None:
-        meta_summary.append(f"metric={meta['out_metric']}")
-    if meta.get("output_exponent") is not None:
-        meta_summary.append(f"exponent={meta['output_exponent']}")
+    if max_k is not None:
+        meta_summary.append(f"max_k={max_k}")
+    if out_metric is not None:
+        meta_summary.append(f"metric={out_metric}")
+    if exponent is not None:
+        meta_summary.append(f"exponent={exponent}")
     if meta_summary:
         title_parts.append(f"({', '.join(meta_summary)})")
     ax.set_title(" ".join(title_parts))
@@ -235,18 +249,6 @@ def _interval_label(j: int) -> str:
     lo = int(2 ** (j - 1))
     hi = int(2 ** j)
     return f"({lo}, {hi}]"
-
-
-def _resolve_json_paths(candidate: Optional[Path]) -> list[Path]:
-    if candidate:
-        if not candidate.is_file():
-            raise SystemExit(f"JSON file not found: {candidate}")
-        return [candidate]
-    script_dir = Path(__file__).resolve().parent
-    json_files = sorted(script_dir.glob("quant_run_*.json"))
-    if not json_files:
-        raise SystemExit("No quant_run_*.json files found in script directory")
-    return json_files
 
 
 if __name__ == "__main__":

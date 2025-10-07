@@ -10,6 +10,10 @@ from typing import Iterable, Optional
 import matplotlib.pyplot as plt
 import numpy as np
 
+try:
+    from ._plot_utils import metadata_value, resolve_json_paths
+except ImportError:  # pragma: no cover - script-style execution
+    from _plot_utils import metadata_value, resolve_json_paths
 
 RATIO_COLOR = "#1f77b4"
 BOUND_COLOR = "#ff7f0e"
@@ -29,7 +33,10 @@ def main() -> None:
         "json_path",
         nargs="?",
         type=Path,
-        help="Path to quant_run_*.json (defaults to all quant_run_*.json in script directory)",
+        help=(
+            "Path to quant_run_*.json or a directory containing them (defaults to "
+            "all quant_run_*.json alongside this script)."
+        ),
     )
     parser.add_argument(
         "--top-k",
@@ -50,7 +57,8 @@ def main() -> None:
     )
     args = parser.parse_args()
 
-    json_paths = _resolve_json_paths(args.json_path)
+    script_dir = Path(__file__).resolve().parent
+    json_paths = resolve_json_paths(args.json_path, default_dir=script_dir)
 
     for json_path in json_paths:
         _generate_plots(
@@ -249,18 +257,20 @@ def _configure_axes(
         ax.set_xscale("log")
 
     finite_mins = [val for val in (min_ratio, min_bound) if val is not None and np.isfinite(val)]
-    print(finite_mins)
     if finite_mins and min(finite_mins) > 0:
         ax.set_yscale("log")
 
-    total_time = metadata.get("total_time")
-    out_metric = metadata.get("out_metric")
-    exponent = metadata.get("output_exponent")
-    max_k = metadata.get("max_k")
+    total_time = metadata_value(metadata, "total_time")
+    out_metric = metadata_value(metadata, "out_metric")
+    exponent = metadata_value(metadata, "output_exponent", fallback_key="input_exponent")
+    max_k = metadata_value(metadata, "max_k")
 
     meta_bits = []
     if total_time is not None:
-        meta_bits.append(f"{round(float(total_time))}ms")
+        try:
+            meta_bits.append(f"{round(float(total_time))}ms")
+        except Exception:
+            pass
     if max_k is not None:
         meta_bits.append(f"max_k={max_k}")
     if out_metric is not None:
@@ -291,19 +301,6 @@ def _configure_axes(
     ax.legend(handles=legend_handles, loc="best", fontsize="small")
     ax.grid(True, which="both", alpha=0.15)
     fig.tight_layout()
-
-
-def _resolve_json_paths(candidate: Optional[Path]) -> list[Path]:
-    if candidate:
-        if not candidate.is_file():
-            raise SystemExit(f"JSON file not found: {candidate}")
-        return [candidate]
-
-    script_dir = Path(__file__).resolve().parent
-    json_files = sorted(script_dir.glob("quant_run_*.json"))
-    if not json_files:
-        raise SystemExit("No quant_run_*.json files found in script directory")
-    return json_files
 
 
 if __name__ == "__main__":
