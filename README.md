@@ -39,6 +39,10 @@ The final command should print output close to this:
 ('cifar10-Standard-adv.csv', 0.031373, 0.0037135, 'bf@1t', 2250484, 9477)
 ```
 
+### Quantitative experiments
+
+The quantitative monitor has its own runner script `experiments/quant_runner.py` that saves runs to `results/quantitative`, which contains scripts to generate various plots.
+
 
 ## Experimental procedure
 

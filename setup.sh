@@ -123,7 +123,7 @@ if [ "$DEV" = true ]; then
   git clone https://github.com/ariez-xyz/clemont
   pip install -e ./clemont
 else
-  pip install clemont==0.1.0
+  pip install clemont
 fi
 
 ###################################################

@@ -5,3 +5,4 @@ lib
 results/*/results/
 results/*/logs/
 activate.fish
+**/.DS_Store
