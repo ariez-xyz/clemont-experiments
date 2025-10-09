@@ -20,7 +20,7 @@ from typing import Iterable, List, Optional, Sequence, Tuple, Literal
 
 import numpy as np
 
-from clemont.frnn import KdTreeFRNN
+from clemont.frnn import KdTreeFRNN, FaissFRNN
 from clemont.quantitative_monitor import QuantitativeMonitor, QuantitativeResult
 
 def _csv_list(value: str) -> Tuple[str, ...]:
@@ -45,10 +45,12 @@ class Config:
     ignore_columns: Tuple[str, ...] = ("row_id",)
     frnn_metric: Literal["linf", "l1", "l2", "tv", "cosine"] = "l2"
     out_metric: Literal["linf", "l1", "l2", "tv", "cosine"] = "l2"
+    backend: Literal["kdtree", "faiss"] = "kdtree"
     display_stride: int = 1000
     frnn_threads: int = 4
     input_exponent: float = 1
     batchsize: int = 1000
+    initial_k: int = 16
     max_k: Optional[int] = None
     max_rows: Optional[int] = None
 
@@ -58,15 +60,22 @@ def main() -> None:
     inputs, probs, input_names, prob_names = load_data(cfg)
     num_points = inputs.shape[0]
 
-    backend_factory = lambda: KdTreeFRNN(
-        metric=cfg.frnn_metric,
-        batchsize=cfg.batchsize
-    )
+    if cfg.backend == "kdtree":
+        backend_factory = lambda: KdTreeFRNN(
+            metric=cfg.frnn_metric,
+            batchsize=cfg.batchsize
+        )
+    elif cfg.backend == "faiss":
+        backend_factory = lambda: FaissFRNN(
+            metric=cfg.frnn_metric,
+        )
+    else:
+        raise ValueError(f"unknown backend {cfg.backend}")
 
     monitor = QuantitativeMonitor(
         backend_factory,
         out_metric=cfg.out_metric,
-        initial_k=1,
+        initial_k=cfg.initial_k,
         max_k=cfg.max_k,
         input_exponent=cfg.input_exponent,
     )
@@ -114,6 +123,7 @@ def main() -> None:
     max_depth = max((rec[0].k_progression[-1] for rec in full_records if rec[0].k_progression), default=0)
 
     print("\n=== Summary ===")
+    print(f"completed in {round(total_time/1000, 2)}s")
     finite_mask = np.isfinite(ratios)
     if finite_mask.any():
         _print_percentiles("Ratio", ratios[finite_mask])
@@ -209,18 +219,22 @@ def parse_args() -> Config:
     )
     parser.add_argument("--display-stride", dest="display_stride", type=int, default=argparse.SUPPRESS,
                         help=f"Print every Nth observation (default: {defaults.display_stride})")
+    parser.add_argument("--backend", dest="backend", type=str, default=argparse.SUPPRESS,
+                        help=f"kNN backend to use (default: {defaults.backend})")
     parser.add_argument("--frnn-threads", dest="frnn_threads", type=int, default=argparse.SUPPRESS,
                         help=f"Thread hint for FRNN backends (default: {defaults.frnn_threads})")
     parser.add_argument("--input-exponent", dest="input_exponent", type=float, default=argparse.SUPPRESS,
                         help=f"Input exponent for monitor (default: {defaults.input_exponent})")
     parser.add_argument("--batchsize", dest="batchsize", type=int, default=argparse.SUPPRESS,
-                        help=f"Batch size for FRNN queries (default: {defaults.batchsize})")
+                        help=f"Batch size for batched kNN backends (default: {defaults.batchsize})")
+    parser.add_argument("--initial_k", dest="initial_k", type=int, default=argparse.SUPPRESS,
+                        help=f"Initial k value for repeated kNN queries (default: {defaults.initial_k})")
     parser.add_argument(
         "--max-k",
         dest="max_k",
         type=int,
         default=argparse.SUPPRESS,
-        help="Optional maximum neighbourhood size (default: no cap)",
+        help="Optional cap for repeated kNN queries (default: no cap)",
     )
     parser.add_argument(
         "--max-n",
@@ -420,6 +434,8 @@ def save_results_json(
             "frnn_threads": cfg.frnn_threads,
             "input_exponent": cfg.input_exponent,
             "batchsize": cfg.batchsize,
+            "initial_k": cfg.initial_k,
+            "backend": cfg.backend,
             "feature_columns": list(feature_names),
             "probability_columns": list(prob_names),
             "ignore_columns": list(cfg.ignore_columns),
@@ -450,6 +466,8 @@ def _print_observation(
     ratio_disp = "inf" if math.isinf(res.max_ratio) else f"{res.max_ratio:8.4f}"
     flag = "•" if res.stopped_by_bound else " "
     print(f"  [{idx:05d}] ratio={ratio_disp} compared={res.compared_count:5d} witness={witness if witness is not None else '--':>6} d_out={round(res.witness_out_distance, 4)} d_in={round(res.witness_in_distance, 4)} {flag}" if res.witness_in_distance and res.witness_out_distance else f"  [{idx:05d}] ratio={ratio_disp} compared={res.compared_count:5d} witness={witness if witness is not None else '--':>6} {flag}")
+
+    if len(x_vec) > 20: return # Don't print massive rows
 
     columns = list(prob_names) + list(feature_names)
     header = "                " + " ".join(name.rjust(10)[:10] for name in columns)
