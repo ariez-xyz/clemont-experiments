@@ -5,7 +5,7 @@ from __future__ import annotations
 import argparse
 import json
 from pathlib import Path
-from typing import Iterable, List, Optional
+from typing import Iterable, List, Optional, Tuple
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -42,22 +42,38 @@ def main() -> None:
     parser.add_argument(
         "--output",
         type=Path,
-        help="Optional output image path (default: combined histogram next to this script)",
+        help="Optional output image path (default: input path if it is a directory, else next to this script)",
+    )
+    parser.add_argument(
+        "--split",
+        type=str,
+        default=None,
+        help="Comma-separated list of indices. Ratios from each .json file will be divided into splits accordingly. Splits are assigned an individual color",
     )
     args = parser.parse_args()
 
     script_dir = Path(__file__).resolve().parent
     json_paths = _collect_json_paths(args.paths, default_dir=script_dir)
-    if len(json_paths) < 2:
+    if len(json_paths) < 2 and not args.split:
         print("Warning: fewer than two runs provided; plotting available data anyway.")
+
 
     datasets = []
     for json_path in json_paths:
-        ratios = _load_ratios(json_path)
+        ratios, kept_all = _load_ratios(json_path)
         if ratios.size == 0:
             print(f"Skipping {json_path} (no positive finite ratios)")
             continue
-        datasets.append((json_path, ratios))
+        if args.split:
+            assert kept_all, "split indices are offset by infinite or zero results!"
+            split_start = 0
+            for split_end in [int(i) for i in args.split.split(",")] + [len(ratios)]:
+                print(split_start, split_end, len(ratios[split_start:split_end]))
+                datasets.append((f'{split_start}-{split_end-1} of {json_path.stem}', ratios[split_start:split_end]))
+                split_start = split_end
+            print(len(ratios), [len(d) for l,d in datasets])
+        else:
+            datasets.append((str(json_path.stem), ratios))
 
     if not datasets:
         raise SystemExit("No usable ratio data found in the supplied runs")
@@ -82,13 +98,13 @@ def main() -> None:
     plt.figure(figsize=(10, 6))
     color_cycle = plt.rcParams["axes.prop_cycle"].by_key().get("color", [])
 
-    for idx, (json_path, ratios) in enumerate(datasets):
+    for idx, (label, ratios) in enumerate(datasets):
         color = color_cycle[idx % len(color_cycle)] if color_cycle else None
         plt.hist(
             ratios,
             bins=bins,
             alpha=args.alpha,
-            label=f"{json_path.stem} (n={len(ratios)})",
+            label=f"{label} (n={len(ratios)})",
             edgecolor="black",
             linewidth=0.6,
             color=color,
@@ -103,7 +119,7 @@ def main() -> None:
     plt.legend()
     plt.tight_layout()
 
-    output_path = _resolve_output_path(args.output, script_dir)
+    output_path = _resolve_output_path(args.output, args.paths, script_dir)
     plt.savefig(output_path, dpi=300, bbox_inches="tight")
     print(f"Saved combined ratio histogram to {output_path}")
     plt.close()
@@ -125,17 +141,20 @@ def _collect_json_paths(paths: Iterable[Path], *, default_dir: Path) -> List[Pat
     return resolved
 
 
-def _load_ratios(json_path: Path) -> np.ndarray:
+def _load_ratios(json_path: Path) -> Tuple[np.ndarray, bool]:
     with json_path.open("r", encoding="utf-8") as fh:
         payload = json.load(fh)
     ratios = np.array([record.get("max_ratio") for record in payload.get("records", [])], dtype=float)
     mask = np.isfinite(ratios) & (ratios > 0)
-    return ratios[mask]
+    return ratios[mask], all(mask[1:])
 
 
-def _resolve_output_path(candidate: Optional[Path], script_dir: Path) -> Path:
+def _resolve_output_path(candidate: Optional[Path], input_paths: Iterable[Path], script_dir: Path) -> Path:
     if candidate is None:
-        return script_dir / "quant_run_combined_ratios.png"
+        input_paths_list = list(input_paths)
+        if len(input_paths_list) > 1 or not input_paths_list[0].is_dir():
+            return script_dir / "quant_run_combined_ratios.png"
+        return input_paths_list[0] / "quant_run_combined_ratios.png"
     candidate = candidate.expanduser()
     if candidate.is_dir():
         return candidate / "quant_run_combined_ratios.png"
