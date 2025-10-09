@@ -1,2 +1,2 @@
-inputs_numeric.csv
-predictions_with_probs.csv
+*.csv
+!adult.csv
