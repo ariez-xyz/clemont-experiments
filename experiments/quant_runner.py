@@ -467,22 +467,24 @@ def _print_observation(
     prob_names: Sequence[str],
     feature_names: Sequence[str],
 ) -> None:
+    TRUNCATE = 200
+
     witness = res.witness_id if res.witness_id is not None else None
     ratio_disp = "inf" if math.isinf(res.max_ratio) else f"{res.max_ratio:8.4f}"
     flag = "•" if res.stopped_by_bound else " "
     print(f"  [{idx:05d}] ratio={ratio_disp} compared={res.compared_count:5d} witness={witness if witness is not None else '--':>6} d_out={round(res.witness_out_distance, 4)} d_in={round(res.witness_in_distance, 4)} {flag}" if res.witness_in_distance and res.witness_out_distance else f"  [{idx:05d}] ratio={ratio_disp} compared={res.compared_count:5d} witness={witness if witness is not None else '--':>6} {flag}")
 
-    if len(x_vec) > 20: return # Don't print massive rows
+    if len(x_vec) > 40: return # Don't print high-dimensional data
 
     columns = list(prob_names) + list(feature_names)
-    header = "                " + " ".join(name.rjust(10)[:10] for name in columns)
+    header = "                " + " ".join((name.rjust(10) + "  " * 10)[:10] for name in columns)
     point_row = _format_row(np.concatenate([p_vec, x_vec]))
-    print(header)
-    print(f"      point   {point_row}")
+    print(header[:TRUNCATE + 20]) # Some extra to align with rows
+    print(f"      point   {point_row[:TRUNCATE]}")
 
     if witness is not None and 0 <= witness < inputs.shape[0]:
         witness_row = _format_row(np.concatenate([probs[witness], inputs[witness]]))
-        print(f"      witness {witness_row}")
+        print(f"      witness {witness_row[:TRUNCATE]}")
     else:
         print("      witness --")
 
