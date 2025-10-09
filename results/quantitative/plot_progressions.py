@@ -55,10 +55,17 @@ def main() -> None:
         type=Path,
         help="Optional directory for output images (defaults to the JSON file's directory)",
     )
+    parser.add_argument(
+        "--point-ids",
+        type=str,
+        help="Comma-separated point IDs to plot instead of automatic top selections",
+    )
     args = parser.parse_args()
 
     script_dir = Path(__file__).resolve().parent
     json_paths = resolve_json_paths(args.json_path, default_dir=script_dir)
+
+    point_ids = _parse_point_ids(args.point_ids)
 
     for json_path in json_paths:
         _generate_plots(
@@ -66,6 +73,7 @@ def main() -> None:
             top_k=args.top_k,
             alpha=args.alpha,
             output_dir=args.output_dir,
+            point_ids=point_ids,
         )
 
 
@@ -75,6 +83,7 @@ def _generate_plots(
     top_k: int,
     alpha: float,
     output_dir: Optional[Path],
+    point_ids: Optional[list[int]],
 ) -> None:
     with json_path.open("r", encoding="utf-8") as fh:
         payload = json.load(fh)
@@ -85,6 +94,63 @@ def _generate_plots(
         return
 
     metadata = payload.get("metadata", {})
+
+    if point_ids:
+        records_by_id = {}
+        for record in records:
+            pid = record.get("point_id")
+            if pid is None:
+                continue
+            try:
+                pid_int = int(pid)
+            except (TypeError, ValueError):
+                continue
+            records_by_id[pid_int] = record
+
+        missing: list[int] = []
+        for pid in point_ids:
+            if pid not in records_by_id:
+                missing.append(pid)
+
+        if len(missing) == len(point_ids):
+            print(f"No matching point_ids found in {json_path} for {point_ids}")
+            return
+        if missing:
+            print(
+                f"Warning: the following point_ids were not present in {json_path}: {missing}"
+            )
+
+        # Preserve requested order but drop duplicates while keeping first occurrence.
+        seen: set[int] = set()
+        ordered_records: list[dict] = []
+        plotted_ids: list[int] = []
+        for pid in point_ids:
+            if pid in seen:
+                continue
+            record = records_by_id.get(pid)
+            if record is None:
+                continue
+            seen.add(pid)
+            ordered_records.append(record)
+            plotted_ids.append(pid)
+
+        if not ordered_records:
+            print(f"No matching point_ids found in {json_path} for {point_ids}")
+            return
+
+        output_base = output_dir or json_path.parent
+        id_label = ",".join(str(pid) for pid in plotted_ids)
+        description = f"point_ids={id_label}"
+        output_path = output_base / f"{json_path.stem}_progressions_point_ids.png"
+        _render_overlay(
+            json_path,
+            ordered_records,
+            metadata,
+            description=description,
+            output_path=output_path,
+            alpha=alpha,
+        )
+        return
 
     top_by_compared = _select_top(records, key="compared_count", limit=top_k)
     top_by_ratio = _select_top(records, key="max_ratio", limit=top_k)
@@ -161,8 +227,9 @@ def _render_overlay(
 
     for record in records:
         k_vals = np.asarray(record["k_progression"], dtype=float)
-        ratio_vals = np.asarray(record["ratio_progression"], dtype=float)
-        bound_vals = np.asarray(record["bound_progression"], dtype=float)
+        k_vals = list(filter(lambda v: v >= 16, k_vals))
+        ratio_vals = np.asarray(record["ratio_progression"], dtype=float)[-len(k_vals):]
+        bound_vals = np.asarray(record["bound_progression"], dtype=float)[-len(k_vals):]
 
         ratio_min = float(np.nanmin(ratio_vals))
         bound_min = float(np.nanmin(bound_vals))
@@ -301,6 +368,23 @@ def _configure_axes(
     ax.legend(handles=legend_handles, loc="best", fontsize="small")
     ax.grid(True, which="both", alpha=0.15)
     fig.tight_layout()
+
+
+def _parse_point_ids(raw: Optional[str]) -> Optional[list[int]]:
+    if raw is None:
+        return None
+    tokens = [token.strip() for token in raw.split(",")]
+    ids: list[int] = []
+    for token in tokens:
+        if not token:
+            continue
+        try:
+            ids.append(int(token))
+        except ValueError as exc:
+            raise SystemExit(f"Invalid point id '{token}' for --point-ids") from exc
+    if not ids:
+        raise SystemExit("--point-ids provided but no valid IDs parsed")
+    return ids
 
 
 if __name__ == "__main__":

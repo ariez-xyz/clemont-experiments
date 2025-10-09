@@ -1,0 +1,526 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>Quantitative Monitor Records Viewer</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      margin: 20px;
+      background: #f7f7f7;
+      color: #222;
+    }
+    h1 {
+      font-size: 1.6rem;
+      margin-bottom: 0.5rem;
+    }
+    #drop-zone {
+      border: 2px dashed #999;
+      background: #fff;
+      border-radius: 8px;
+      padding: 30px;
+      text-align: center;
+      font-size: 1rem;
+      color: #555;
+      cursor: pointer;
+      transition: border-color 0.2s ease, background 0.2s ease;
+    }
+    #drop-zone.dragover {
+      border-color: #007acc;
+      background: #e8f3ff;
+      color: #005a9c;
+    }
+    #file-input {
+      display: none;
+    }
+    #meta-summary {
+      margin-top: 1rem;
+      padding: 0.75rem 1rem;
+      background: #fff;
+      border-radius: 6px;
+      box-shadow: 0 1px 2px rgba(0, 0, 0, 0.08);
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 1.5rem;
+      background: #fff;
+      border-radius: 6px;
+      overflow: hidden;
+      box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+    }
+    thead {
+      position: sticky;
+      top: 0;
+      background: #f0f4f8;
+      z-index: 1;
+    }
+    th, td {
+      border-bottom: 1px solid #e3e7eb;
+      padding: 0.5rem 0.65rem;
+      text-align: left;
+      vertical-align: top;
+      font-size: 0.9rem;
+      white-space: nowrap;
+    }
+    th.sortable {
+      cursor: pointer;
+      user-select: none;
+    }
+    th.sortable[data-sort="asc"]::after {
+      content: " \25B2";
+      color: #007acc;
+    }
+    th.sortable[data-sort="desc"]::after {
+      content: " \25BC";
+      color: #007acc;
+    }
+    tbody tr:nth-child(odd) {
+      background: #fafbfc;
+    }
+    tbody tr:hover {
+      background: #f2f9ff;
+    }
+    .table-wrapper {
+      max-height: 70vh;
+      overflow: auto;
+      border-radius: 6px;
+    }
+    .error {
+      color: #c80000;
+      margin-top: 1rem;
+    }
+    .hidden {
+      display: none;
+    }
+    code {
+      font-size: 0.9rem;
+    }
+  </style>
+</head>
+<body>
+  <h1>Quantitative Monitor Records Viewer</h1>
+  <p>Drop a <code>quant_run_*.json</code> file here to inspect its records in a table.</p>
+  <div id="drop-zone">Drag &amp; drop JSON here, or click to choose a file</div>
+  <input id="file-input" type="file" accept="application/json" />
+
+  <div id="meta-summary" class="hidden"></div>
+  <div id="error" class="error hidden"></div>
+  <div class="table-wrapper hidden" id="table-wrapper">
+    <table id="results-table">
+      <thead></thead>
+      <tbody></tbody>
+    </table>
+  </div>
+
+  <script>
+    const dropZone = document.getElementById('drop-zone');
+    const fileInput = document.getElementById('file-input');
+    const errorBox = document.getElementById('error');
+    const metaSummary = document.getElementById('meta-summary');
+    const tableWrapper = document.getElementById('table-wrapper');
+    const tableHead = document.querySelector('#results-table thead');
+    const tableBody = document.querySelector('#results-table tbody');
+
+    let currentColumnTypes = [];
+    let sortState = { index: null, direction: 'asc' };
+
+    const clean = () => {
+      errorBox.classList.add('hidden');
+      errorBox.textContent = '';
+      metaSummary.classList.add('hidden');
+      metaSummary.textContent = '';
+      tableWrapper.classList.add('hidden');
+      tableHead.innerHTML = '';
+      tableBody.innerHTML = '';
+      currentColumnTypes = [];
+      sortState = { index: null, direction: 'asc' };
+    };
+
+    const handleFiles = (files) => {
+      clean();
+      if (!files || !files.length) {
+        return;
+      }
+      const file = files[0];
+      const reader = new FileReader();
+      reader.onload = (event) => {
+        try {
+          const parsed = JSON.parse(event.target.result);
+          renderData(parsed, file.name);
+        } catch (err) {
+          showError(`Failed to parse JSON: ${err.message}`);
+        }
+      };
+      reader.onerror = () => {
+        showError('Unable to read file.');
+      };
+      reader.readAsText(file);
+    };
+
+    const showError = (message) => {
+      errorBox.textContent = message;
+      errorBox.classList.remove('hidden');
+    };
+
+    const renderData = (payload, filename) => {
+      if (!payload || typeof payload !== 'object') {
+        showError('JSON root must be an object.');
+        return;
+      }
+      const records = Array.isArray(payload.records) ? payload.records : null;
+      if (!records || !records.length) {
+        showError('No records array found in the JSON.');
+        return;
+      }
+
+      const { powers: powersOfTwo, maxK } = collectPowersOfTwo(records);
+      const baseColumns = collectBaseColumns(records);
+      const baseColumnTypes = inferColumnTypes(records, baseColumns);
+
+      currentColumnTypes = [];
+      for (const col of baseColumns) {
+        currentColumnTypes.push(baseColumnTypes[col] || 'text');
+      }
+      for (let i = 0; i < powersOfTwo.length; i += 1) {
+        currentColumnTypes.push('number', 'number');
+      }
+
+      buildHeader(baseColumns, powersOfTwo, currentColumnTypes);
+      buildBody(records, baseColumns, powersOfTwo, currentColumnTypes);
+
+      clearSortIndicators();
+      sortState = { index: null, direction: 'asc' };
+
+      writeSummary(payload.metadata, filename, records.length, maxK);
+      tableWrapper.classList.remove('hidden');
+    };
+
+    const collectBaseColumns = (records) => {
+      const ignore = new Set(['ratio_progression', 'bound_progression']);
+      const columns = new Set();
+      for (const record of records) {
+        if (!record || typeof record !== 'object') continue;
+        for (const key of Object.keys(record)) {
+          if (!ignore.has(key)) {
+            columns.add(key);
+          }
+        }
+      }
+      return Array.from(columns).sort();
+    };
+
+    const collectPowersOfTwo = (records) => {
+      let maxK = 0;
+      for (const record of records) {
+        const ks = Array.isArray(record?.k_progression) ? record.k_progression : [];
+        for (const raw of ks) {
+          const k = Number(raw);
+          if (Number.isFinite(k) && k > maxK) {
+            maxK = k;
+          }
+        }
+      }
+      if (!maxK) {
+        return { powers: [], maxK: 0 };
+      }
+      const powers = [];
+      for (let k = 1; k <= maxK; k *= 2) {
+        powers.push(k);
+      }
+      if (powers[powers.length - 1] !== maxK) {
+        powers.push(maxK);
+      }
+      const unique = Array.from(new Set(powers)).sort((a, b) => a - b);
+      return { powers: unique, maxK };
+    };
+
+    const inferColumnTypes = (records, baseColumns) => {
+      const types = {};
+      for (const col of baseColumns) {
+        let inferred = 'text';
+        for (const record of records) {
+          if (!record || typeof record !== 'object') continue;
+          const value = record[col];
+          if (value === null || value === undefined) {
+            continue;
+          }
+          if (typeof value === 'number') {
+            inferred = 'number';
+            break;
+          }
+          const numeric = toNumeric(value);
+          if (numeric !== null) {
+            inferred = 'number';
+            break;
+          }
+          inferred = 'text';
+          break;
+        }
+        types[col] = inferred;
+      }
+      return types;
+    };
+
+    const buildHeader = (baseColumns, powers, columnTypes) => {
+      const headerRow = document.createElement('tr');
+      let columnIndex = 0;
+      for (const col of baseColumns) {
+        headerRow.appendChild(makeHeaderCell(col, columnIndex, columnTypes[columnIndex]));
+        columnIndex += 1;
+      }
+      for (const k of powers) {
+        headerRow.appendChild(makeHeaderCell(`ratio k=${k}`, columnIndex, columnTypes[columnIndex]));
+        columnIndex += 1;
+        headerRow.appendChild(makeHeaderCell(`bound k=${k}`, columnIndex, columnTypes[columnIndex]));
+        columnIndex += 1;
+      }
+      tableHead.appendChild(headerRow);
+    };
+
+    const makeHeaderCell = (label, index, type) => {
+      const th = document.createElement('th');
+      th.textContent = label;
+      th.classList.add('sortable');
+      th.dataset.index = String(index);
+      th.dataset.type = type;
+      return th;
+    };
+
+    const buildBody = (records, baseColumns, powers, columnTypes) => {
+      const docFrag = document.createDocumentFragment();
+      for (const record of records) {
+        const row = document.createElement('tr');
+        let columnIndex = 0;
+        for (const col of baseColumns) {
+          const cell = document.createElement('td');
+          const val = record[col];
+          const type = columnTypes[columnIndex] || 'text';
+          cell.textContent = formatCellValue(val, type);
+          if (type === 'number') {
+            const numeric = toNumeric(val);
+            if (numeric !== null) {
+              cell.dataset.value = String(numeric);
+            }
+          }
+          row.appendChild(cell);
+          columnIndex += 1;
+        }
+        const lookup = buildProgressionLookup(record);
+        for (const k of powers) {
+          const ratioCell = document.createElement('td');
+          const boundCell = document.createElement('td');
+          const pair = lookup.get(k);
+          const ratioType = columnTypes[columnIndex] || 'number';
+          const ratioVal = pair ? pair.ratio : null;
+          ratioCell.textContent = formatCellValue(ratioVal, ratioType);
+          if (ratioType === 'number') {
+            const numeric = toNumeric(ratioVal);
+            if (numeric !== null) {
+              ratioCell.dataset.value = String(numeric);
+            }
+          }
+          row.appendChild(ratioCell);
+          columnIndex += 1;
+
+          const boundType = columnTypes[columnIndex] || 'number';
+          const boundVal = pair ? pair.bound : null;
+          boundCell.textContent = formatCellValue(boundVal, boundType);
+          if (boundType === 'number') {
+            const numeric = toNumeric(boundVal);
+            if (numeric !== null) {
+              boundCell.dataset.value = String(numeric);
+            }
+          }
+          row.appendChild(boundCell);
+          columnIndex += 1;
+        }
+        docFrag.appendChild(row);
+      }
+      tableBody.appendChild(docFrag);
+    };
+
+    const buildProgressionLookup = (record) => {
+      const ks = Array.isArray(record?.k_progression) ? record.k_progression : [];
+      const ratios = Array.isArray(record?.ratio_progression) ? record.ratio_progression : [];
+      const bounds = Array.isArray(record?.bound_progression) ? record.bound_progression : [];
+      const limit = Math.min(ks.length, ratios.length, bounds.length);
+      const map = new Map();
+      for (let i = 0; i < limit; i++) {
+        const k = Number(ks[i]);
+        if (!Number.isFinite(k) || k <= 0) continue;
+        const ratioVal = toNumeric(ratios[i]);
+        const boundVal = toNumeric(bounds[i]);
+        if (ratioVal === null && boundVal === null) {
+          continue;
+        }
+        map.set(k, {
+          ratio: ratioVal,
+          bound: boundVal,
+        });
+      }
+      return map;
+    };
+
+    const toNumeric = (value) => {
+      if (typeof value === 'number') {
+        return Number.isFinite(value) ? value : null;
+      }
+      if (typeof value === 'string' && value.trim() === '') {
+        return null;
+      }
+      const numeric = Number(value);
+      return Number.isFinite(numeric) ? numeric : null;
+    };
+
+    const formatCellValue = (value, type = 'text') => {
+      if (value === null || value === undefined) return '';
+      if (type === 'number') {
+        const numeric = toNumeric(value);
+        if (numeric !== null) {
+          return formatNumber(numeric);
+        }
+      }
+      if (typeof value === 'number') return formatNumber(value);
+      if (typeof value === 'string') return value;
+      return JSON.stringify(value);
+    };
+
+    const formatNumber = (value) => {
+      if (!Number.isFinite(value)) return '';
+      const rounded = Math.round(value);
+      if (Math.abs(value - rounded) < 1e-9) {
+        return String(rounded);
+      }
+      if (Math.abs(value) >= 1000 || Math.abs(value) < 0.001) {
+        return value.toExponential(4);
+      }
+      return value.toFixed(6);
+    };
+
+    const writeSummary = (metadata, filename, count, maxK) => {
+      const bits = [];
+      bits.push(`<strong>File:</strong> ${filename}`);
+      bits.push(`<strong>Records:</strong> ${count}`);
+      if (maxK) bits.push(`<strong>Largest k observed:</strong> ${maxK}`);
+      if (metadata && typeof metadata === 'object') {
+        const metaItems = [];
+        for (const key of Object.keys(metadata)) {
+          const value = metadata[key];
+          if (value === null || value === undefined) continue;
+          metaItems.push(`${key}: ${typeof value === 'object' ? JSON.stringify(value) : value}`);
+        }
+        if (metaItems.length) {
+          bits.push(`<strong>Metadata:</strong> ${metaItems.join(' | ')}`);
+        }
+      }
+      metaSummary.innerHTML = bits.join('<br />');
+      metaSummary.classList.remove('hidden');
+    };
+
+    dropZone.addEventListener('click', () => fileInput.click());
+
+    fileInput.addEventListener('change', (event) => {
+      if (event.target.files) {
+        handleFiles(event.target.files);
+      }
+    });
+
+    dropZone.addEventListener('dragenter', (event) => {
+      event.preventDefault();
+      dropZone.classList.add('dragover');
+    });
+
+    dropZone.addEventListener('dragover', (event) => {
+      event.preventDefault();
+    });
+
+    dropZone.addEventListener('dragleave', () => {
+      dropZone.classList.remove('dragover');
+    });
+
+    dropZone.addEventListener('drop', (event) => {
+      event.preventDefault();
+      dropZone.classList.remove('dragover');
+      const dt = event.dataTransfer;
+      if (dt?.files && dt.files.length) {
+        handleFiles(dt.files);
+      }
+    });
+
+    const clearSortIndicators = () => {
+      tableHead.querySelectorAll('th').forEach((th) => {
+        delete th.dataset.sort;
+      });
+    };
+
+    const updateSortIndicators = () => {
+      tableHead.querySelectorAll('th').forEach((th) => {
+        const idx = Number(th.dataset.index);
+        if (Number.isFinite(idx) && idx === sortState.index) {
+          th.dataset.sort = sortState.direction;
+        } else {
+          delete th.dataset.sort;
+        }
+      });
+    };
+
+    const getCellSortValue = (cell, type) => {
+      if (type === 'number') {
+        const raw = cell.dataset.value;
+        if (raw !== undefined) {
+          const num = Number(raw);
+          if (!Number.isNaN(num)) {
+            return num;
+          }
+        }
+        const text = cell.textContent.trim();
+        if (!text) return null;
+        const num = Number(text);
+        return Number.isFinite(num) ? num : null;
+      }
+      const text = cell.textContent.trim();
+      return text || null;
+    };
+
+    const sortRows = (columnIndex, type, direction) => {
+      const rows = Array.from(tableBody.querySelectorAll('tr'));
+      rows.sort((rowA, rowB) => {
+        const cellA = rowA.cells[columnIndex];
+        const cellB = rowB.cells[columnIndex];
+        const valueA = cellA ? getCellSortValue(cellA, type) : null;
+        const valueB = cellB ? getCellSortValue(cellB, type) : null;
+
+        if (valueA === null && valueB === null) return 0;
+        if (valueA === null) return direction === 'asc' ? 1 : -1;
+        if (valueB === null) return direction === 'asc' ? -1 : 1;
+
+        if (type === 'number') {
+          return direction === 'asc' ? valueA - valueB : valueB - valueA;
+        }
+
+        const comparison = String(valueA).localeCompare(String(valueB), undefined, { numeric: true, sensitivity: 'base' });
+        return direction === 'asc' ? comparison : -comparison;
+      });
+
+      tableBody.append(...rows);
+    };
+
+    tableHead.addEventListener('click', (event) => {
+      const th = event.target.closest('th.sortable');
+      if (!th) return;
+      const index = Number(th.dataset.index);
+      const type = th.dataset.type || 'text';
+      if (!Number.isFinite(index) || !currentColumnTypes[index]) {
+        return;
+      }
+
+      const isSameColumn = sortState.index === index;
+      const newDirection = isSameColumn && sortState.direction === 'asc' ? 'desc' : 'asc';
+      sortState = { index, direction: newDirection };
+      updateSortIndicators();
+      sortRows(index, type, newDirection);
+    });
+  </script>
+</body>
+</html>
