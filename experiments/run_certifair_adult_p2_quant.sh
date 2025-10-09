@@ -23,5 +23,6 @@ for dataset in "${DATASETS[@]}"; do
     --pred-cols "p1(>50K),p0(<=50K)" \
     --ignore-cols "row_id,pred,label" \
     --results-dir "$RESULTS_DIR" \
+    --max-k 1024 \
     "$@"
 done

@@ -20,5 +20,6 @@ python "$SCRIPT_DIR/quant_runner.py" \
   --ignore-cols "$IGNORE_COLS" \
   --results-dir "$RESULTS_DIR" \
   --frnn-metric linf \
-  --backend faiss
+  --out-metric tv \
+  --backend faiss \
   "$@"
