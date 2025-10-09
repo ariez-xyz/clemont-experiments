@@ -53,6 +53,7 @@ class Config:
     initial_k: int = 16
     max_k: Optional[int] = None
     max_rows: Optional[int] = None
+    save_points: bool = False
 
 
 def main() -> None:
@@ -229,6 +230,8 @@ def parse_args() -> Config:
                         help=f"Batch size for batched kNN backends (default: {defaults.batchsize})")
     parser.add_argument("--initial_k", dest="initial_k", type=int, default=argparse.SUPPRESS,
                         help=f"Initial k value for repeated kNN queries (default: {defaults.initial_k})")
+    parser.add_argument("--save_points", dest="save_points", type=bool, default=argparse.SUPPRESS,
+                        help=f"Whether to write raw input and output points to .json log (default: {defaults.save_points})")
     parser.add_argument(
         "--max-k",
         dest="max_k",
@@ -408,17 +411,19 @@ def save_results_json(
     for idx, (result, point_vec, prob_vec, time) in enumerate(records):
         record_dict = asdict(result)
         record_dict["k_progression"] = list(result.k_progression)
-        record_dict["point_vector"] = [float(v) for v in point_vec]
-        record_dict["prob_vector"] = [float(v) for v in prob_vec]
         record_dict["time"] = time
 
-        witness_id = result.witness_id
-        if witness_id is not None and 0 <= witness_id < inputs.shape[0]:
-            record_dict["witness_point_vector"] = [float(v) for v in inputs[witness_id]]
-            record_dict["witness_prob_vector"] = [float(v) for v in probs[witness_id]]
-        else:
-            record_dict["witness_point_vector"] = None
-            record_dict["witness_prob_vector"] = None
+
+        if cfg.save_points:
+            record_dict["point_vector"] = [float(v) for v in point_vec]
+            record_dict["prob_vector"] = [float(v) for v in prob_vec]
+            witness_id = result.witness_id
+            if witness_id is not None and 0 <= witness_id < inputs.shape[0]:
+                record_dict["witness_point_vector"] = [float(v) for v in inputs[witness_id]]
+                record_dict["witness_prob_vector"] = [float(v) for v in probs[witness_id]]
+            else:
+                record_dict["witness_point_vector"] = None
+                record_dict["witness_prob_vector"] = None
 
         record_dict["index"] = idx
         serializable_records.append(record_dict)
