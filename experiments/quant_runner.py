@@ -113,6 +113,7 @@ class Config:
     static: bool = False
     epsilon: Optional[float] = None
     row_ids: Optional[set[int]] = None
+    k_grow_factor: Optional[float] = None
     walltime_seconds: Optional[float] = None
 
 
@@ -141,6 +142,7 @@ def main() -> None:
         initial_k=cfg.initial_k,
         max_k=cfg.max_k,
         input_exponent=cfg.input_exponent,
+        k_grow_factor=cfg.k_grow_factor,
     )
 
     epsilon_monitor: Optional[Monitor] = None
@@ -354,7 +356,9 @@ def parse_args() -> Config:
     parser.add_argument("--static", dest="static", action="store_true",
                         help=f"preloads the data before run to compute (default: {defaults.save_points})")
     parser.add_argument("--epsilon", dest="epsilon", type=float, default=argparse.SUPPRESS,
-                        help=f"epsilon value. If set, also computes epsilon-monitor results (default: {defaults.save_points})")
+                        help=f"epsilon value. If not None, also computes epsilon-monitor results (default: {defaults.epsilon})")
+    parser.add_argument("--k-grow-factor", dest="k_grow_factor", type=float, default=argparse.SUPPRESS,
+                        help=f"Grow factor for k on repeated kNN queries (default: {defaults.k_grow_factor})")
     parser.add_argument(
         "--row-ids",
         dest="row_ids",
