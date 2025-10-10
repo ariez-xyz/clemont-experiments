@@ -12,6 +12,7 @@ import argparse
 import csv
 import json
 import math
+import random
 import time
 from dataclasses import asdict, dataclass, fields
 from datetime import datetime
@@ -161,6 +162,36 @@ def main() -> None:
             input_names,
         )
 
+    # Random sample from high-ratio tail (>= 90th percentile)
+    high_ratio_candidates: List[int] = []
+    if finite_mask.any():
+        ratio_threshold = float(np.percentile(ratios[finite_mask], 90))
+        for idx, value in enumerate(ratios):
+            if value >= ratio_threshold:
+                high_ratio_candidates.append(idx)
+    else:
+        # All ratios are infinite; include every observation
+        high_ratio_candidates = list(range(len(ratios)))
+
+    if high_ratio_candidates:
+        print("\nRandom sample of high-ratio observations (>= 90th percentile):")
+        sample_size = min(3, len(high_ratio_candidates))
+        sampled_indices = sorted(random.sample(high_ratio_candidates, sample_size))
+        for idx in sampled_indices:
+            res, x_vec, p_vec, iter_time = full_records[idx]
+            _print_observation(
+                idx,
+                res,
+                x_vec,
+                p_vec,
+                inputs,
+                probs,
+                prob_names,
+                input_names,
+            )
+    else:
+        print("\nNo observations qualified for the high-ratio sample.")
+
     output_path = save_results_json(cfg, inputs, probs, full_records, input_names, prob_names, total_time)
     print(f"\nSaved run to {output_path}")
 
@@ -228,9 +259,9 @@ def parse_args() -> Config:
                         help=f"Input exponent for monitor (default: {defaults.input_exponent})")
     parser.add_argument("--batchsize", dest="batchsize", type=int, default=argparse.SUPPRESS,
                         help=f"Batch size for batched kNN backends (default: {defaults.batchsize})")
-    parser.add_argument("--initial_k", dest="initial_k", type=int, default=argparse.SUPPRESS,
+    parser.add_argument("--initial-k", dest="initial_k", type=int, default=argparse.SUPPRESS,
                         help=f"Initial k value for repeated kNN queries (default: {defaults.initial_k})")
-    parser.add_argument("--save_points", dest="save_points", type=bool, default=argparse.SUPPRESS,
+    parser.add_argument("--save-points", dest="save_points", action="store_true",
                         help=f"Whether to write raw input and output points to .json log (default: {defaults.save_points})")
     parser.add_argument(
         "--max-k",
