@@ -55,6 +55,7 @@ class Config:
     max_k: Optional[int] = None
     max_rows: Optional[int] = None
     save_points: bool = False
+    static: bool = False
 
 
 def main() -> None:
@@ -82,6 +83,8 @@ def main() -> None:
         input_exponent=cfg.input_exponent,
     )
 
+    if cfg.static: monitor.batch_add(zip(inputs, probs))
+
     full_records: List[Tuple[QuantitativeResult, np.ndarray, np.ndarray, float]] = []
 
     print("=== Streaming quantitative monitoring demo ===")
@@ -99,7 +102,7 @@ def main() -> None:
     try:
         for idx, (x_vec, p_vec) in enumerate(zip(inputs, probs)):
             start_time = time.time()
-            res = monitor.observe(x_vec, p_vec)
+            res = monitor.observe(x_vec, p_vec, dry_run=cfg.static)
             iter_time = (time.time() - start_time) * 1000
 
             full_records.append((res, x_vec, p_vec, iter_time))
@@ -263,6 +266,8 @@ def parse_args() -> Config:
                         help=f"Initial k value for repeated kNN queries (default: {defaults.initial_k})")
     parser.add_argument("--save-points", dest="save_points", action="store_true",
                         help=f"Whether to write raw input and output points to .json log (default: {defaults.save_points})")
+    parser.add_argument("--static", dest="static", action="store_true",
+                        help=f"preloads the data before run to compute  (default: {defaults.save_points})")
     parser.add_argument(
         "--max-k",
         dest="max_k",
@@ -478,6 +483,8 @@ def save_results_json(
             "total_time": total_time,
             "max_k": cfg.max_k,
             "max_rows": cfg.max_rows,
+            "save_points": cfg.save_points,
+            "static": cfg.static,
         },
         "records": serializable_records,
     }

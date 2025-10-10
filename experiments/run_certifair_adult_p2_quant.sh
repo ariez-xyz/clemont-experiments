@@ -24,5 +24,6 @@ for dataset in "${DATASETS[@]}"; do
     --ignore-cols "row_id,pred,label" \
     --results-dir "$RESULTS_DIR" \
     --max-k 1024 \
+    --static \
     "$@"
 done
