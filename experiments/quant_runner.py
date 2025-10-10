@@ -23,6 +23,7 @@ import numpy as np
 
 from clemont.frnn import KdTreeFRNN, FaissFRNN
 from clemont.quantitative_monitor import QuantitativeMonitor, QuantitativeResult
+from clemont.monitor import Monitor, ObservationResult
 
 def _csv_list(value: str) -> Tuple[str, ...]:
     items = [item.strip() for item in value.split(",")]
@@ -56,6 +57,7 @@ class Config:
     max_rows: Optional[int] = None
     save_points: bool = False
     static: bool = False
+    epsilon: Optional[float] = None
 
 
 def main() -> None:
@@ -66,11 +68,13 @@ def main() -> None:
     if cfg.backend == "kdtree":
         backend_factory = lambda: KdTreeFRNN(
             metric=cfg.frnn_metric,
-            batchsize=cfg.batchsize
+            batchsize=cfg.batchsize,
+            epsilon=cfg.epsilon,
         )
     elif cfg.backend == "faiss":
         backend_factory = lambda: FaissFRNN(
             metric=cfg.frnn_metric,
+            epsilon=cfg.epsilon,
         )
     else:
         raise ValueError(f"unknown backend {cfg.backend}")
@@ -83,9 +87,13 @@ def main() -> None:
         input_exponent=cfg.input_exponent,
     )
 
+    epsilon_monitor: Optional[Monitor] = None
+    if cfg.epsilon:
+        epsilon_monitor = Monitor(backend_factory)
+
     if cfg.static: monitor.batch_add(zip(inputs, probs))
 
-    full_records: List[Tuple[QuantitativeResult, np.ndarray, np.ndarray, float]] = []
+    full_records: List[Tuple[QuantitativeResult, np.ndarray, np.ndarray, float, Optional[ObservationResult]]] = []
 
     print("=== Streaming quantitative monitoring demo ===")
     print(
@@ -105,7 +113,9 @@ def main() -> None:
             res = monitor.observe(x_vec, p_vec, dry_run=cfg.static)
             iter_time = (time.time() - start_time) * 1000
 
-            full_records.append((res, x_vec, p_vec, iter_time))
+            eps_res: Optional[ObservationResult] = None if not epsilon_monitor else epsilon_monitor.observe(x_vec, np.argmax(p_vec))
+
+            full_records.append((res, x_vec, p_vec, iter_time, eps_res))
             total_time += iter_time
 
             if idx in display_indices:
@@ -152,7 +162,7 @@ def main() -> None:
         if idx in seen:
             continue
         seen.add(idx)
-        res, x_vec, p_vec, iter_time = full_records[idx]
+        res, x_vec, p_vec, iter_time, eps_res = full_records[idx]
         print(f"-- {label} (index {idx}, compared={res.compared_count} in {iter_time})")
         _print_observation(
             idx,
@@ -181,7 +191,7 @@ def main() -> None:
         sample_size = min(3, len(high_ratio_candidates))
         sampled_indices = sorted(random.sample(high_ratio_candidates, sample_size))
         for idx in sampled_indices:
-            res, x_vec, p_vec, iter_time = full_records[idx]
+            res, x_vec, p_vec, iter_time, eps_res = full_records[idx]
             _print_observation(
                 idx,
                 res,
@@ -267,7 +277,9 @@ def parse_args() -> Config:
     parser.add_argument("--save-points", dest="save_points", action="store_true",
                         help=f"Whether to write raw input and output points to .json log (default: {defaults.save_points})")
     parser.add_argument("--static", dest="static", action="store_true",
-                        help=f"preloads the data before run to compute  (default: {defaults.save_points})")
+                        help=f"preloads the data before run to compute (default: {defaults.save_points})")
+    parser.add_argument("--epsilon", dest="epsilon", type=float, default=argparse.SUPPRESS,
+                        help=f"epsilon value. If set, also computes epsilon-monitor results (default: {defaults.save_points})")
     parser.add_argument(
         "--max-k",
         dest="max_k",
@@ -432,7 +444,7 @@ def save_results_json(
     cfg: Config,
     inputs: np.ndarray,
     probs: np.ndarray,
-    records: Sequence[Tuple[QuantitativeResult, np.ndarray, np.ndarray, float]],
+    records: Sequence[Tuple[QuantitativeResult, np.ndarray, np.ndarray, float, Optional[ObservationResult]]],
     feature_names: Sequence[str],
     prob_names: Sequence[str],
     total_time: float,
@@ -444,11 +456,12 @@ def save_results_json(
     cfg.results_dir.mkdir(parents=True, exist_ok=True)
 
     serializable_records = []
-    for idx, (result, point_vec, prob_vec, time) in enumerate(records):
+    for idx, (result, point_vec, prob_vec, time, eps_res) in enumerate(records):
         record_dict = asdict(result)
         record_dict["k_progression"] = list(result.k_progression)
         record_dict["time"] = time
 
+        if eps_res: record_dict["epsilon_monitor_result"] = asdict(eps_res)
 
         if cfg.save_points:
             record_dict["point_vector"] = [float(v) for v in point_vec]

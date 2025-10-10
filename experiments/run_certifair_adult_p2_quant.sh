@@ -19,11 +19,9 @@ for dataset in "${DATASETS[@]}"; do
   echo "[quant-runner] processing $INPUT_PATH"
   python "$SCRIPT_DIR/quant_runner.py" \
     --input-csv "$INPUT_PATH" \
-    --preds-csv none \
     --pred-cols "p1(>50K),p0(<=50K)" \
     --ignore-cols "row_id,pred,label" \
     --results-dir "$RESULTS_DIR" \
     --max-k 1024 \
-    --static \
     "$@"
 done
