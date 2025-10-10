@@ -31,11 +31,64 @@ def _csv_list(value: str) -> Tuple[str, ...]:
     return tuple(item for item in items if item)
 
 
+def _csv_int_set(value: str) -> Optional[set[int]]:
+    stripped = value.strip()
+    if not stripped:
+        return None
+    selected: set[int] = set()
+    for token in stripped.split(","):
+        cleaned = token.strip()
+        if not cleaned:
+            continue
+        try:
+            selected.add(int(cleaned))
+        except ValueError as exc:
+            raise argparse.ArgumentTypeError(f"Invalid row id '{cleaned}' in --row-ids") from exc
+    if not selected:
+        raise argparse.ArgumentTypeError("--row-ids parsed to an empty set of ids")
+    return selected
+
+
 def _optional_path(value: str) -> Optional[Path]:
     lowered = value.strip().lower()
     if lowered in {"", "none", "null"}:
         return None
     return Path(value)
+
+
+def _parse_walltime(value: str) -> float:
+    stripped = value.strip()
+    if not stripped:
+        raise argparse.ArgumentTypeError("--walltime expects HH:MM:SS, MM:SS, or SS format")
+    parts = stripped.split(":")
+    if len(parts) > 3:
+        raise argparse.ArgumentTypeError("--walltime accepts at most three colon-separated components")
+    try:
+        components = [int(part) for part in parts]
+    except ValueError as exc:
+        raise argparse.ArgumentTypeError(f"Invalid numeric value in --walltime: '{value}'") from exc
+    if any(component < 0 for component in components):
+        raise argparse.ArgumentTypeError("--walltime components must be non-negative")
+    if len(components) == 1:
+        total_seconds = components[0]
+    elif len(components) == 2:
+        minutes, seconds = components
+        total_seconds = minutes * 60 + seconds
+    else:
+        hours, minutes, seconds = components
+        total_seconds = hours * 3600 + minutes * 60 + seconds
+    if total_seconds <= 0:
+        raise argparse.ArgumentTypeError("--walltime must be greater than zero")
+    return float(total_seconds)
+
+
+def _format_seconds(total_seconds: float) -> str:
+    total = int(total_seconds)
+    hours, rem = divmod(total, 3600)
+    minutes, seconds = divmod(rem, 60)
+    if hours:
+        return f"{hours:02d}:{minutes:02d}:{seconds:02d}"
+    return f"{minutes:02d}:{seconds:02d}"
 
 
 @dataclass
@@ -59,6 +112,8 @@ class Config:
     save_points: bool = False
     static: bool = False
     epsilon: Optional[float] = None
+    row_ids: Optional[set[int]] = None
+    walltime_seconds: Optional[float] = None
 
 
 def main() -> None:
@@ -95,6 +150,10 @@ def main() -> None:
     if cfg.static: monitor.batch_add(zip(inputs, probs))
 
     full_records: List[Tuple[QuantitativeResult, np.ndarray, np.ndarray, float, Optional[ObservationResult]]] = []
+    walltime_reached = False
+    walltime_deadline = None
+    if cfg.walltime_seconds is not None:
+        walltime_deadline = time.time() + cfg.walltime_seconds
 
     print("=== Streaming quantitative monitoring demo ===")
     print(
@@ -130,16 +189,31 @@ def main() -> None:
                     prob_names,
                     input_names,
                 )
+
+            if walltime_deadline is not None and time.time() >= walltime_deadline:
+                walltime_reached = True
+                print(
+                    f"\nReached walltime limit ({_format_seconds(cfg.walltime_seconds)}) after processing {idx + 1} rows."
+                )
+                break
     except KeyboardInterrupt:
         pass
 
     ratios = np.array([rec[0].max_ratio for rec in full_records], dtype=float)
     compared = np.array([rec[0].compared_count for rec in full_records], dtype=int)
+
+    if len(full_records) == 0:
+        print("No records processed; exiting early.")
+        return
+
     early_stop = sum(rec[0].stopped_by_bound for rec in full_records)
     max_depth = max((rec[0].k_progression[-1] for rec in full_records if rec[0].k_progression), default=0)
 
     print("\n=== Summary ===")
     print(f"completed in {round(total_time/1000, 2)}s")
+    print(f"Processed {len(full_records)} / {num_points} rows")
+    if walltime_reached and cfg.walltime_seconds is not None:
+        print(f"Stopped early due to walltime limit of {_format_seconds(cfg.walltime_seconds)}")
     finite_mask = np.isfinite(ratios)
     if finite_mask.any():
         _print_percentiles("Ratio", ratios[finite_mask])
@@ -282,6 +356,20 @@ def parse_args() -> Config:
     parser.add_argument("--epsilon", dest="epsilon", type=float, default=argparse.SUPPRESS,
                         help=f"epsilon value. If set, also computes epsilon-monitor results (default: {defaults.save_points})")
     parser.add_argument(
+        "--row-ids",
+        dest="row_ids",
+        type=_csv_int_set,
+        default=argparse.SUPPRESS,
+        help="Comma-separated row identifiers to include (1-based). When provided, only matching rows are loaded.",
+    )
+    parser.add_argument(
+        "--walltime",
+        dest="walltime_seconds",
+        type=_parse_walltime,
+        default=argparse.SUPPRESS,
+        help="Stop after the given HH:MM:SS, MM:SS, or SS duration (graceful early exit).",
+    )
+    parser.add_argument(
         "--max-k",
         dest="max_k",
         type=int,
@@ -335,6 +423,7 @@ def load_data(cfg: Config) -> Tuple[np.ndarray, np.ndarray, List[str], List[str]
         preds_path = _ensure_exists(preds_path)
 
     ignore = set(cfg.ignore_columns)
+    seen_input_ids: set[int] = set()
 
     if preds_path is None or preds_path == cfg.input_csv:
         with input_path.open(newline="") as fh:
@@ -375,9 +464,12 @@ def load_data(cfg: Config) -> Tuple[np.ndarray, np.ndarray, List[str], List[str]
 
             inputs: List[List[float]] = []
             probs: List[List[float]] = []
-            for row in reader:
+            for idx, row in enumerate(reader, start=1):
+                if cfg.row_ids and idx not in cfg.row_ids:
+                    continue
                 inputs.append([float(row[col]) for col in feature_columns])
                 probs.append([float(row[col]) for col in pred_cols])
+                seen_input_ids.add(idx)
 
         prob_names = _clean_prob_names(pred_cols)
     else:
@@ -395,7 +487,12 @@ def load_data(cfg: Config) -> Tuple[np.ndarray, np.ndarray, List[str], List[str]
                     f"Columns {missing_features} missing in {input_path}. Available: {fieldnames}"
                 )
 
-            inputs = [[float(row[col]) for col in feature_columns] for row in reader]
+            inputs = []
+            for idx, row in enumerate(reader, start=1):
+                if cfg.row_ids and idx not in cfg.row_ids:
+                    continue
+                inputs.append([float(row[col]) for col in feature_columns])
+                seen_input_ids.add(idx)
 
         with preds_path.open(newline="") as fh:
             reader = csv.DictReader(fh)
@@ -415,11 +512,44 @@ def load_data(cfg: Config) -> Tuple[np.ndarray, np.ndarray, List[str], List[str]
                     "Could not identify probability columns; provide them explicitly via --pred-cols"
                 )
 
-            probs = [[float(row[col]) for col in prob_cols] for row in reader]
+            probs = []
+            pred_seen_ids: set[int] = set()
+            for idx, row in enumerate(reader, start=1):
+                if cfg.row_ids and idx not in cfg.row_ids:
+                    continue
+                probs.append([float(row[col]) for col in prob_cols])
+                pred_seen_ids.add(idx)
+
+        if cfg.row_ids:
+            missing_inputs = sorted(cfg.row_ids - seen_input_ids)
+            missing_probs = sorted(cfg.row_ids - pred_seen_ids)
+            if missing_inputs or missing_probs:
+                raise ValueError(
+                    "Rows requested via --row-ids not found in CSV(s): "
+                    + ", ".join(
+                        filter(
+                            None,
+                            [
+                                f"input CSV missing {missing_inputs}" if missing_inputs else "",
+                                f"preds CSV missing {missing_probs}" if missing_probs else "",
+                            ],
+                        )
+                    ).strip(', ')
+                )
 
         prob_names = _clean_prob_names(prob_cols)
 
     overlap = min(len(inputs), len(probs))
+    if cfg.row_ids:
+        missing_inputs = sorted(cfg.row_ids - seen_input_ids)
+        if missing_inputs:
+            raise ValueError(
+                f"Rows requested via --row-ids not found in input CSV: {missing_inputs}"
+            )
+    if cfg.row_ids and overlap == 0:
+        raise ValueError(
+            "--row-ids filtering removed all rows; verify the ids and the CSV contents"
+        )
     if overlap == 0:
         raise ValueError("No overlapping rows between feature and probability files")
     if len(inputs) != len(probs):
@@ -500,6 +630,7 @@ def save_results_json(
             "max_rows": cfg.max_rows,
             "save_points": cfg.save_points,
             "static": cfg.static,
+            "walltime_seconds": cfg.walltime_seconds,
         },
         "records": serializable_records,
     }
