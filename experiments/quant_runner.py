@@ -93,9 +93,9 @@ def _format_seconds(total_seconds: float) -> str:
 
 @dataclass
 class Config:
-    input_csv: Path = Path("..") / "data" / "toydata" / "inputs_numeric.csv"
-    preds_csv: Optional[Path] = Path("..") / "data" / "toydata" / "predictions_with_probs.csv"
-    results_dir: Path = Path("..") / "results" / "quantitative"
+    input_csv: Path = Path(__file__).parent.parent / "data" / "toydata" / "inputs_numeric.csv"
+    preds_csv: Optional[Path] = Path(__file__).parent.parent / "data" / "toydata" / "predictions_with_probs.csv"
+    results_dir: Path = Path(__file__).parent.parent / "results" / "quantitative"
     input_columns: Tuple[str, ...] | None = None
     pred_columns: Tuple[str, ...] | None = None
     ignore_columns: Tuple[str, ...] = ("row_id",)
@@ -175,7 +175,9 @@ def main() -> None:
             res = monitor.observe(x_vec, p_vec, dry_run=cfg.static)
             iter_time = (time.time() - start_time) * 1000
 
-            eps_res: Optional[ObservationResult] = None if not epsilon_monitor else epsilon_monitor.observe(x_vec, np.argmax(p_vec))
+            eps_res: Optional[ObservationResult] = None 
+            if epsilon_monitor:
+                eps_res = epsilon_monitor.observe(x_vec, np.argmax(p_vec))
 
             full_records.append((res, x_vec, p_vec, iter_time, eps_res))
             total_time += iter_time
