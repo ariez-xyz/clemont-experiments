@@ -14,6 +14,7 @@ import json
 import math
 import random
 import time
+import sys
 from dataclasses import asdict, dataclass, fields
 from datetime import datetime
 from pathlib import Path
@@ -479,6 +480,7 @@ def save_results_json(
 
     payload = {
         "metadata": {
+            "commandline": " ".join(sys.argv),
             "timestamp": timestamp,
             "input_csv": str(cfg.input_csv),
             "preds_csv": str(cfg.preds_csv) if cfg.preds_csv is not None else None,
