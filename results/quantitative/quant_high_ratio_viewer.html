@@ -1,0 +1,477 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>High-Ratio Quantitative Records</title>
+  <style>
+    :root {
+      color-scheme: light dark;
+    }
+    body {
+      font-family: Arial, sans-serif;
+      margin: 20px;
+      background: #f4f6f8;
+      color: #1f1f1f;
+      line-height: 1.45;
+    }
+    h1 {
+      font-size: 1.7rem;
+      margin-bottom: 0.5rem;
+    }
+    #controls {
+      display: flex;
+      gap: 1rem;
+      flex-wrap: wrap;
+      align-items: center;
+      margin-bottom: 1rem;
+      background: #fff;
+      padding: 1rem;
+      border-radius: 8px;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+    }
+    #drop-zone {
+      border: 2px dashed #9aa3ad;
+      border-radius: 8px;
+      padding: 30px;
+      text-align: center;
+      background: #fff;
+      color: #4d5660;
+      transition: border-color 0.2s ease, background 0.2s ease, color 0.2s ease;
+      cursor: pointer;
+      flex: 1 1 260px;
+    }
+    #drop-zone.dragover {
+      border-color: #006edc;
+      background: #e8f1ff;
+      color: #004a9f;
+    }
+    #file-input { display: none; }
+    label { font-weight: 600; }
+    input[type="number"] {
+      width: 80px;
+      padding: 0.35rem 0.5rem;
+      border-radius: 4px;
+      border: 1px solid #c0c7d1;
+      font-size: 0.95rem;
+    }
+    button {
+      padding: 0.4rem 0.85rem;
+      border: none;
+      border-radius: 4px;
+      background: #006edc;
+      color: #fff;
+      font-weight: 600;
+      cursor: pointer;
+    }
+    button:disabled {
+      background: #9aa3ad;
+      cursor: not-allowed;
+    }
+    #error {
+      color: #c20000;
+      margin-top: 1rem;
+      font-weight: 600;
+    }
+    #summary {
+      margin-top: 1rem;
+      padding: 0.75rem 1rem;
+      background: #fff;
+      border-radius: 8px;
+      box-shadow: 0 1px 2px rgba(0,0,0,0.06);
+      display: none;
+    }
+    #records-container {
+      margin-top: 1.5rem;
+      display: grid;
+      gap: 1.25rem;
+    }
+    .record-card {
+      background: #fff;
+      border-radius: 10px;
+      box-shadow: 0 1px 4px rgba(0,0,0,0.08);
+      padding: 1rem 1.25rem;
+    }
+    .record-header {
+      font-family: "Roboto Mono", Menlo, Consolas, monospace;
+      font-size: 0.92rem;
+      margin-bottom: 0.75rem;
+      white-space: nowrap;
+      overflow-x: auto;
+    }
+    .record-header span {
+      margin-right: 1.1rem;
+    }
+    table.vector-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.85rem;
+    }
+    table.vector-table thead {
+      background: #f0f4f8;
+      position: sticky;
+      top: 0;
+      z-index: 1;
+    }
+    table.vector-table th,
+    table.vector-table td {
+      border: 1px solid #d8dee7;
+      padding: 0.35rem 0.55rem;
+      text-align: right;
+      font-variant-numeric: tabular-nums;
+      white-space: nowrap;
+    }
+    table.vector-table th:first-child,
+    table.vector-table td:first-child {
+      text-align: left;
+      font-weight: 600;
+      background: #f9fbfd;
+    }
+    .meta {
+      color: #58606a;
+      font-size: 0.85rem;
+    }
+  </style>
+</head>
+<body>
+  <h1>High-Ratio Quantitative Records</h1>
+  <p>Drop a <code>quant_run_*.json</code> file, then choose percentile bounds to inspect the highest-ratio points along with their witnesses.</p>
+
+  <div id="controls">
+    <div id="drop-zone">Drag &amp; drop JSON here, or click to choose a file</div>
+    <input id="file-input" type="file" accept="application/json" />
+    <div>
+      <label for="min-percentile">Min percentile</label><br />
+      <input id="min-percentile" type="number" value="95" min="0" max="100" />
+    </div>
+    <div>
+      <label for="max-percentile">Max percentile</label><br />
+      <input id="max-percentile" type="number" value="100" min="0" max="100" />
+    </div>
+    <div>
+      <button id="apply" disabled>Apply filter</button>
+    </div>
+  </div>
+
+  <div id="error"></div>
+  <div id="summary"></div>
+  <div id="records-container"></div>
+
+  <script>
+    const dropZone = document.getElementById('drop-zone');
+    const fileInput = document.getElementById('file-input');
+    const errorBox = document.getElementById('error');
+    const summaryBox = document.getElementById('summary');
+    const recordsContainer = document.getElementById('records-container');
+    const minPctInput = document.getElementById('min-percentile');
+    const maxPctInput = document.getElementById('max-percentile');
+    const applyBtn = document.getElementById('apply');
+
+    let currentPayload = null;
+    let probColumnNames = [];
+    let featureColumnNames = [];
+    let vectorEligibleIndices = new Set();
+
+    const resetView = () => {
+      errorBox.textContent = '';
+      summaryBox.textContent = '';
+      summaryBox.style.display = 'none';
+      recordsContainer.innerHTML = '';
+      currentPayload = null;
+      probColumnNames = [];
+      featureColumnNames = [];
+      vectorEligibleIndices = new Set();
+      applyBtn.disabled = true;
+    };
+
+    const showError = (message) => {
+      errorBox.textContent = message;
+      summaryBox.style.display = 'none';
+      recordsContainer.innerHTML = '';
+      applyBtn.disabled = true;
+    };
+
+    const clearError = () => {
+      errorBox.textContent = '';
+    };
+
+    const handleFiles = (files) => {
+      resetView();
+      if (!files || !files.length) {
+        return;
+      }
+      const file = files[0];
+      const reader = new FileReader();
+      reader.onload = (event) => {
+        try {
+          const parsed = JSON.parse(event.target.result);
+          initializeWithPayload(parsed, file.name);
+        } catch (err) {
+          showError(`Failed to parse JSON: ${err.message}`);
+        }
+      };
+      reader.onerror = () => showError('Unable to read file.');
+      reader.readAsText(file);
+    };
+
+    const initializeWithPayload = (payload, filename) => {
+      if (!payload || typeof payload !== 'object') {
+        showError('JSON root must be an object.');
+        return;
+      }
+      const records = Array.isArray(payload.records) ? payload.records : null;
+      if (!records || !records.length) {
+        showError('No records array found in the JSON.');
+        return;
+      }
+
+      const metadata = payload.metadata || {};
+      probColumnNames = Array.isArray(metadata.probability_columns) ? metadata.probability_columns : null;
+      featureColumnNames = Array.isArray(metadata.feature_columns) ? metadata.feature_columns : null;
+      if (!probColumnNames || !featureColumnNames) {
+        showError('Metadata is missing probability_columns or feature_columns.');
+        return;
+      }
+
+      const eligibleIndices = new Set();
+      records.forEach((rec, idx) => {
+        if (hasFullVectors(rec)) {
+          eligibleIndices.add(idx);
+        }
+      });
+
+      if (!eligibleIndices.size) {
+        showError('No records contain full point and witness vectors.');
+        return;
+      }
+
+      currentPayload = { payload, filename };
+      vectorEligibleIndices = eligibleIndices;
+      clearError();
+      applyBtn.disabled = false;
+      applyFilter();
+    };
+
+    const applyFilter = () => {
+      if (!currentPayload) return;
+      const minPct = clamp(Number(minPctInput.value), 0, 100);
+      const maxPct = clamp(Number(maxPctInput.value), 0, 100);
+      if (Number.isNaN(minPct) || Number.isNaN(maxPct) || minPct > maxPct) {
+        showError('Percentile bounds must be numbers between 0 and 100 (min ≤ max).');
+        return;
+      }
+      clearError();
+      renderRecords(currentPayload.payload, currentPayload.filename, minPct, maxPct);
+    };
+
+    const clamp = (value, min, max) => Math.min(Math.max(value, min), max);
+
+    const percentileThreshold = (values, percentile) => {
+      if (!values.length) return NaN;
+      const sorted = [...values].sort((a, b) => a - b);
+      const rank = (percentile / 100) * (sorted.length - 1);
+      const lower = Math.floor(rank);
+      const upper = Math.ceil(rank);
+      if (lower === upper) {
+        return sorted[lower];
+      }
+      const weight = rank - lower;
+      return sorted[lower] * (1 - weight) + sorted[upper] * weight;
+    };
+
+    const renderRecords = (payload, filename, minPct, maxPct) => {
+      const records = payload.records;
+      const ratios = [];
+      const ratioValues = [];
+      for (let idx = 0; idx < records.length; idx += 1) {
+        const record = records[idx];
+        const ratio = toNumeric(record.max_ratio);
+        if (ratio === null) continue;
+        ratios.push({ index: idx, ratio, record });
+        ratioValues.push(ratio);
+      }
+
+      if (!ratioValues.length) {
+        showError('No finite max_ratio values found in the JSON.');
+        return;
+      }
+
+      const lowerThreshold = percentileThreshold(ratioValues, minPct);
+      const upperThreshold = percentileThreshold(ratioValues, maxPct);
+
+      const selected = ratios.filter(({ index, ratio }) => {
+        if (!vectorEligibleIndices.has(index)) return false;
+        return ratio >= lowerThreshold && ratio <= upperThreshold;
+      });
+      if (!selected.length) {
+        summaryBox.textContent = `No records found between percentiles ${minPct} and ${maxPct}.`;
+        summaryBox.style.display = 'block';
+        recordsContainer.innerHTML = '';
+        return;
+      }
+
+      selected.sort((a, b) => b.ratio - a.ratio || a.index - b.index);
+
+      const { filename: fileLabel } = currentPayload;
+      summaryBox.innerHTML = `
+        <strong>${selected.length}</strong> records selected from <code>${fileLabel}</code><br />
+        Percentile range: <strong>${formatNumber(lowerThreshold)}</strong> – <strong>${formatNumber(upperThreshold)}</strong>
+      `;
+      summaryBox.style.display = 'block';
+
+      recordsContainer.innerHTML = '';
+      const fragment = document.createDocumentFragment();
+      for (const item of selected) {
+        const card = buildRecordCard(item.record, item.index, item.ratio);
+        fragment.appendChild(card);
+      }
+      recordsContainer.appendChild(fragment);
+    };
+
+    const buildRecordCard = (record, index, ratio) => {
+      const card = document.createElement('div');
+      card.className = 'record-card';
+
+      const header = document.createElement('div');
+      header.className = 'record-header';
+
+      const compared = toNumeric(record.compared_count);
+      const witness = record.witness_id ?? '--';
+      const dOut = toNumeric(record.witness_out_distance);
+      const dIn = toNumeric(record.witness_in_distance);
+      const earlyStop = record.stopped_by_bound ? '•' : '';
+      const timeMs = toNumeric(record.time);
+
+      header.innerHTML = `
+        <span>[${String(index).padStart(5, '0')}]</span>
+        <span>ratio=${formatNumber(ratio)}</span>
+        <span>compared=${compared !== null ? compared : '--'}</span>
+        <span>witness=${witness !== null ? witness : '--'}</span>
+        <span>d_out=${dOut !== null ? formatNumber(dOut) : '--'}</span>
+        <span>d_in=${dIn !== null ? formatNumber(dIn) : '--'}</span>
+        <span>${earlyStop}</span>
+        <span class="meta">time=${timeMs !== null ? formatNumber(timeMs) + 'ms' : '--'}</span>
+      `;
+      card.appendChild(header);
+
+      const vectorTable = document.createElement('table');
+      vectorTable.className = 'vector-table';
+      const thead = document.createElement('thead');
+      const headerRow = document.createElement('tr');
+      headerRow.appendChild(createHeaderCell(''));
+      const columnLabels = [...probColumnNames, ...featureColumnNames];
+      for (const label of columnLabels) {
+        headerRow.appendChild(createHeaderCell(label));
+      }
+      thead.appendChild(headerRow);
+      vectorTable.appendChild(thead);
+
+      const tbody = document.createElement('tbody');
+      tbody.appendChild(buildVectorRow('point', record.prob_vector, record.point_vector));
+      tbody.appendChild(buildVectorRow('witness', record.witness_prob_vector, record.witness_point_vector));
+      vectorTable.appendChild(tbody);
+
+      card.appendChild(vectorTable);
+
+      if (Array.isArray(record.k_progression) && Array.isArray(record.ratio_progression) && Array.isArray(record.bound_progression)) {
+        const extra = document.createElement('div');
+        extra.className = 'meta';
+        extra.textContent = `k progression: ${record.k_progression.join(', ')} | ratio progression: ${sliceProgression(record.ratio_progression)} | bound progression: ${sliceProgression(record.bound_progression)}`;
+        extra.style.marginTop = '0.65rem';
+        card.appendChild(extra);
+      }
+
+      return card;
+    };
+
+    const sliceProgression = (values) => {
+      if (!Array.isArray(values)) return '--';
+      const display = values.slice(0, 10).map((v) => formatNumber(v));
+      if (values.length > 10) display.push('…');
+      return display.join(', ');
+    };
+
+    const createHeaderCell = (label) => {
+      const th = document.createElement('th');
+      th.textContent = label;
+      return th;
+    };
+
+    const buildVectorRow = (label, probVector, featureVector) => {
+      if (!Array.isArray(probVector) || !Array.isArray(featureVector)) {
+        throw new Error('Record is missing probability or feature vectors.');
+      }
+      const row = document.createElement('tr');
+      const labelCell = document.createElement('td');
+      labelCell.textContent = label;
+      row.appendChild(labelCell);
+
+      const combined = [...probVector, ...featureVector];
+      if (combined.length !== probColumnNames.length + featureColumnNames.length) {
+        throw new Error('Vector length mismatch with metadata columns.');
+      }
+
+      for (const value of combined) {
+        const cell = document.createElement('td');
+        const numeric = toNumeric(value);
+        cell.textContent = numeric !== null ? formatNumber(numeric) : '';
+        row.appendChild(cell);
+      }
+      return row;
+    };
+
+    const hasFullVectors = (record) => {
+      return (
+        Array.isArray(record?.prob_vector) &&
+        Array.isArray(record?.point_vector) &&
+        Array.isArray(record?.witness_prob_vector) &&
+        Array.isArray(record?.witness_point_vector)
+      );
+    };
+
+    const toNumeric = (value) => {
+      if (typeof value === 'number') {
+        return Number.isFinite(value) ? value : null;
+      }
+      if (typeof value === 'string' && value.trim() !== '') {
+        const asNumber = Number(value);
+        return Number.isFinite(asNumber) ? asNumber : null;
+      }
+      return null;
+    };
+
+    const formatNumber = (value) => {
+      if (value === null || Number.isNaN(value)) return '';
+      const rounded = Math.round(value);
+      if (Math.abs(value - rounded) < 1e-9) {
+        return String(rounded);
+      }
+      if (Math.abs(value) >= 1000 || Math.abs(value) < 0.001) {
+        return value.toExponential(4);
+      }
+      return value.toFixed(4);
+    };
+
+    dropZone.addEventListener('click', () => fileInput.click());
+    fileInput.addEventListener('change', (event) => handleFiles(event.target.files));
+
+    dropZone.addEventListener('dragenter', (event) => {
+      event.preventDefault();
+      dropZone.classList.add('dragover');
+    });
+    dropZone.addEventListener('dragover', (event) => {
+      event.preventDefault();
+    });
+    dropZone.addEventListener('dragleave', () => dropZone.classList.remove('dragover'));
+    dropZone.addEventListener('drop', (event) => {
+      event.preventDefault();
+      dropZone.classList.remove('dragover');
+      const dt = event.dataTransfer;
+      if (dt?.files && dt.files.length) {
+        handleFiles(dt.files);
+      }
+    });
+
+    applyBtn.addEventListener('click', applyFilter);
+  </script>
+</body>
+</html>
