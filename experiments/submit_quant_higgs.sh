@@ -14,7 +14,7 @@ export RESULTS_BASE
 export RESULTS_DIR="${RESULTS_BASE}/results"
 export LOGS_DIR="${RESULTS_BASE}/logs"
 export BATCH_SIZES="10000,50000,100000"
-export WALLTIMES="06:00:00,48:00:00"
+export WALLTIMES="03:00:00,48:00:00"
 export EPSILONS="0.01,0.025,0.05,0.1"
 export MAX_K_VALUES=",1024"
 export WORK_SCRIPT="slurm_quant_higgs_work.sh"
