@@ -149,9 +149,19 @@ def main() -> None:
     if cfg.epsilon:
         epsilon_monitor = Monitor(backend_factory)
 
-    if cfg.static: monitor.batch_add(zip(inputs, probs))
+    if cfg.static:
+        monitor.batch_add(zip(inputs, probs))
 
-    full_records: List[Tuple[QuantitativeResult, np.ndarray, np.ndarray, float, Optional[ObservationResult]]] = []
+    full_records: List[
+        Tuple[
+            QuantitativeResult,
+            np.ndarray,
+            np.ndarray,
+            float,
+            Optional[ObservationResult],
+            Optional[float],
+        ]
+    ] = []
     walltime_reached = False
     walltime_deadline = None
     if cfg.walltime_seconds is not None:
@@ -168,6 +178,8 @@ def main() -> None:
     display_indices.add(num_points - 1)
 
     total_time = 0
+    total_epsilon_time = 0.0
+    epsilon_timings: List[float] = []
 
     try:
         for idx, (x_vec, p_vec) in enumerate(zip(inputs, probs)):
@@ -175,11 +187,16 @@ def main() -> None:
             res = monitor.observe(x_vec, p_vec, dry_run=cfg.static)
             iter_time = (time.time() - start_time) * 1000
 
-            eps_res: Optional[ObservationResult] = None 
+            eps_res: Optional[ObservationResult] = None
+            eps_time_ms: Optional[float] = None
             if epsilon_monitor:
-                eps_res = epsilon_monitor.observe(x_vec, np.argmax(p_vec))
+                eps_start = time.time()
+                eps_res = epsilon_monitor.observe(x_vec, int(np.argmax(p_vec)))
+                eps_time_ms = (time.time() - eps_start) * 1000
+                total_epsilon_time += eps_time_ms
+                epsilon_timings.append(eps_time_ms)
 
-            full_records.append((res, x_vec, p_vec, iter_time, eps_res))
+            full_records.append((res, x_vec, p_vec, iter_time, eps_res, eps_time_ms))
             total_time += iter_time
 
             if idx in display_indices:
@@ -218,6 +235,12 @@ def main() -> None:
     print(f"Processed {len(full_records)} / {num_points} rows")
     if walltime_reached and cfg.walltime_seconds is not None:
         print(f"Stopped early due to walltime limit of {_format_seconds(cfg.walltime_seconds)}")
+    if epsilon_monitor and epsilon_timings:
+        avg_eps = total_epsilon_time / len(epsilon_timings)
+        print(
+            f"Epsilon monitor: total {round(total_epsilon_time/1000, 2)}s, "
+            f"avg {round(avg_eps, 3)}ms over {len(epsilon_timings)} observations"
+        )
     finite_mask = np.isfinite(ratios)
     if finite_mask.any():
         _print_percentiles("Ratio", ratios[finite_mask])
@@ -241,7 +264,7 @@ def main() -> None:
         if idx in seen:
             continue
         seen.add(idx)
-        res, x_vec, p_vec, iter_time, eps_res = full_records[idx]
+        res, x_vec, p_vec, iter_time, eps_res, eps_time = full_records[idx]
         print(f"-- {label} (index {idx}, compared={res.compared_count} in {iter_time})")
         _print_observation(
             idx,
@@ -270,7 +293,7 @@ def main() -> None:
         sample_size = min(3, len(high_ratio_candidates))
         sampled_indices = sorted(random.sample(high_ratio_candidates, sample_size))
         for idx in sampled_indices:
-            res, x_vec, p_vec, iter_time, eps_res = full_records[idx]
+            res, x_vec, p_vec, iter_time, eps_res, eps_time = full_records[idx]
             _print_observation(
                 idx,
                 res,
@@ -284,7 +307,17 @@ def main() -> None:
     else:
         print("\nNo observations qualified for the high-ratio sample.")
 
-    output_path = save_results_json(cfg, inputs, probs, full_records, input_names, prob_names, total_time)
+    output_path = save_results_json(
+        cfg,
+        inputs,
+        probs,
+        full_records,
+        input_names,
+        prob_names,
+        total_time,
+        total_epsilon_time,
+        len(epsilon_timings),
+    )
     print(f"\nSaved run to {output_path}")
 
 
@@ -581,10 +614,14 @@ def save_results_json(
     cfg: Config,
     inputs: np.ndarray,
     probs: np.ndarray,
-    records: Sequence[Tuple[QuantitativeResult, np.ndarray, np.ndarray, float, Optional[ObservationResult]]],
+    records: Sequence[
+        Tuple[QuantitativeResult, np.ndarray, np.ndarray, float, Optional[ObservationResult], Optional[float]]
+    ],
     feature_names: Sequence[str],
     prob_names: Sequence[str],
     total_time: float,
+    total_epsilon_time: float,
+    epsilon_count: int,
 ) -> Path:
     """Serialize the run into experiments/<timestamp>.json."""
 
@@ -593,12 +630,17 @@ def save_results_json(
     cfg.results_dir.mkdir(parents=True, exist_ok=True)
 
     serializable_records = []
-    for idx, (result, point_vec, prob_vec, time, eps_res) in enumerate(records):
+    for idx, (result, point_vec, prob_vec, time, eps_res, eps_time) in enumerate(records):
         record_dict = asdict(result)
         record_dict["k_progression"] = list(result.k_progression)
         record_dict["time"] = time
 
-        if eps_res: record_dict["epsilon_monitor_result"] = asdict(eps_res)
+        if eps_res:
+            record_dict["epsilon_monitor_result"] = asdict(eps_res)
+        else:
+            record_dict["epsilon_monitor_result"] = None
+
+        record_dict["epsilon_monitor_time_ms"] = eps_time
 
         if cfg.save_points:
             record_dict["point_vector"] = [float(v) for v in point_vec]
@@ -637,6 +679,9 @@ def save_results_json(
             "save_points": cfg.save_points,
             "static": cfg.static,
             "walltime_seconds": cfg.walltime_seconds,
+            "epsilon_monitor_total_time_ms": total_epsilon_time if epsilon_count else None,
+            "epsilon_monitor_avg_time_ms": (total_epsilon_time / epsilon_count) if epsilon_count else None,
+            "epsilon_monitor_observations": epsilon_count if epsilon_count else None,
         },
         "records": serializable_records,
     }
