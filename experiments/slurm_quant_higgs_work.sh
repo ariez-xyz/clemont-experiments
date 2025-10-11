@@ -1,9 +1,6 @@
 #!/bin/bash
 set -euo pipefail
 
-SCRIPT_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
-cd "${SCRIPT_DIR}"
-
 export OMP_NUM_THREADS=7
 export MKL_NUM_THREADS=7
 export OPENBLAS_NUM_THREADS=7
@@ -48,7 +45,7 @@ echo "Running quant_runner on ${INPUT_CSV}" >&2
 echo "Batch size: ${batch_size}, walltime: ${walltime}, epsilon: ${epsilon}, max_k: ${max_k_value:-<unset>}" >&2
 
 cmd=(
-  python "${SCRIPT_DIR}/quant_runner.py"
+  python quant_runner.py
   --input-csv "${INPUT_CSV}"
   --preds-csv none
   --ignore-cols "pred,label"
@@ -62,11 +59,10 @@ cmd=(
   --walltime "${walltime}"
   --results-dir "${results_dir_combined}"
   --display-stride 5000
-  --save-points
 )
 
 if [[ -n "${max_k_value}" ]]; then
   cmd+=(--max-k "${max_k_value}")
 fi
 
-srun --chdir="${SCRIPT_DIR}" "${cmd[@]}"
+srun "${cmd[@]}"
