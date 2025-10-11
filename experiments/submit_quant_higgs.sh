@@ -3,8 +3,14 @@ set -euo pipefail
 
 cd "$(dirname "${BASH_SOURCE[0]}")"
 
-export INPUT_CSV="../data/RobustTrees/predictions/higgs/train_pred.csv"
-export RESULTS_BASE="../results/quantitative/robusttrees_higgs"
+INPUT_CSV="../data/RobustTrees/predictions/higgs/train_pred.csv"
+RESULTS_BASE="../results/quantitative/robusttrees_higgs"
+
+INPUT_CSV=$(realpath "${INPUT_CSV}")
+RESULTS_BASE=$(realpath -m "${RESULTS_BASE}")
+
+export INPUT_CSV
+export RESULTS_BASE
 export RESULTS_DIR="${RESULTS_BASE}/results"
 export LOGS_DIR="${RESULTS_BASE}/logs"
 export BATCH_SIZES="10000,50000,100000"
