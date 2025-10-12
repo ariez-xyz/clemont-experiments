@@ -1,5 +1,11 @@
 # RobustBench
 
+Prerequisites:
+
+* Download `ILSVRC2012_img_val.tar` into folder ./data/val following the instructions [here](https://github.com/soumith/imagenet-multiGPU.torch#data-processing)
+* Download ImageNet3dCC into folder `./data/ImageNet3dCC` following the instructions [here](https://github.com/EPFL-VILAB/3DCommonCorruptions?tab=readme-ov-file#3dcc-data)
+* Install RobustBench in the micromamba venv via `pip install git+https://github.com/RobustBench/robustbench.git`
+
 Usage: 
 
 ```
