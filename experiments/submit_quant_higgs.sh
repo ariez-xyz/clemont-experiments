@@ -16,7 +16,7 @@ export LOGS_DIR="${RESULTS_BASE}/logs"
 export BATCH_SIZES="50000,100000"
 export WALLTIMES="03:00:00,72:00:00"
 export EPSILONS="0.01,0.025,0.05"
-export MAX_K_VALUES=",1024"
+export MAX_K_VALUES="128,256,512,1024,"
 export WORK_SCRIPT="slurm_quant_higgs_work.sh"
 
 mkdir -p "${RESULTS_DIR}" "${LOGS_DIR}"
