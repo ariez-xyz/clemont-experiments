@@ -59,6 +59,7 @@ cmd=(
   --walltime "${walltime}"
   --results-dir "${results_dir_combined}"
   --display-stride 5000
+  --initial-k 64
 )
 
 if [[ -n "${max_k_value}" ]]; then
