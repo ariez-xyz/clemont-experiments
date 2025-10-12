@@ -636,6 +636,7 @@ def save_results_json(
         record_dict["time"] = time
 
         if eps_res:
+            record_dict["epsilon_monitor_flag"] = True if eps_res.counterexamples else False
             record_dict["epsilon_monitor_result"] = asdict(eps_res)
         else:
             record_dict["epsilon_monitor_result"] = None
@@ -662,26 +663,29 @@ def save_results_json(
             "timestamp": timestamp,
             "input_csv": str(cfg.input_csv),
             "preds_csv": str(cfg.preds_csv) if cfg.preds_csv is not None else None,
+            "input_exponent": cfg.input_exponent,
             "frnn_metric": cfg.frnn_metric,
             "out_metric": cfg.out_metric,
             "display_stride": cfg.display_stride,
-            "frnn_threads": cfg.frnn_threads,
-            "input_exponent": cfg.input_exponent,
-            "batchsize": cfg.batchsize,
-            "initial_k": cfg.initial_k,
             "backend": cfg.backend,
-            "feature_columns": list(feature_names),
-            "probability_columns": list(prob_names),
-            "ignore_columns": list(cfg.ignore_columns),
-            "total_time": total_time,
+            "batchsize": cfg.batchsize,
+            "frnn_threads": cfg.frnn_threads,
+            "initial_k": cfg.initial_k,
             "max_k": cfg.max_k,
+            "k_grow_factor": cfg.k_grow_factor,
+            "total_time": total_time,
             "max_rows": cfg.max_rows,
+            "row_ids": cfg.row_ids,
+            "walltime_seconds": cfg.walltime_seconds,
             "save_points": cfg.save_points,
             "static": cfg.static,
-            "walltime_seconds": cfg.walltime_seconds,
+            "epsilon": cfg.epsilon,
             "epsilon_monitor_total_time_ms": total_epsilon_time if epsilon_count else None,
             "epsilon_monitor_avg_time_ms": (total_epsilon_time / epsilon_count) if epsilon_count else None,
             "epsilon_monitor_observations": epsilon_count if epsilon_count else None,
+            "feature_columns": list(feature_names),
+            "probability_columns": list(prob_names),
+            "ignore_columns": list(cfg.ignore_columns),
         },
         "records": serializable_records,
     }
