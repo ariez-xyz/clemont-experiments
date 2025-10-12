@@ -148,6 +148,18 @@
       <input id="max-percentile" type="number" value="100" min="0" max="100" />
     </div>
     <div>
+      <label for="sample-size">Sample size</label><br />
+      <input id="sample-size" type="number" value="100" min="1" />
+    </div>
+    <div>
+      <label for="epsilon-filter">ε-monitor filter</label><br />
+      <select id="epsilon-filter">
+        <option value="any">Any</option>
+        <option value="true">Flagged only</option>
+        <option value="false">Unflagged only</option>
+      </select>
+    </div>
+    <div>
       <button id="apply" disabled>Apply filter</button>
     </div>
   </div>
@@ -165,11 +177,14 @@
     const minPctInput = document.getElementById('min-percentile');
     const maxPctInput = document.getElementById('max-percentile');
     const applyBtn = document.getElementById('apply');
+    const sampleSizeInput = document.getElementById('sample-size');
+    const epsilonFilterSelect = document.getElementById('epsilon-filter');
 
     let currentPayload = null;
     let probColumnNames = [];
     let featureColumnNames = [];
     let vectorEligibleIndices = new Set();
+    let pointIdLookup = new Map();
 
     const resetView = () => {
       errorBox.textContent = '';
@@ -180,6 +195,7 @@
       probColumnNames = [];
       featureColumnNames = [];
       vectorEligibleIndices = new Set();
+      pointIdLookup = new Map();
       applyBtn.disabled = true;
     };
 
@@ -233,9 +249,16 @@
       }
 
       const eligibleIndices = new Set();
+      const idMap = new Map();
       records.forEach((rec, idx) => {
         if (hasFullVectors(rec)) {
           eligibleIndices.add(idx);
+          if (rec.point_id != null) {
+            idMap.set(Number(rec.point_id), {
+              point: rec.point_vector.slice().map(Number),
+              prob: rec.prob_vector.slice().map(Number),
+            });
+          }
         }
       });
 
@@ -246,6 +269,7 @@
 
       currentPayload = { payload, filename };
       vectorEligibleIndices = eligibleIndices;
+      pointIdLookup = idMap;
       clearError();
       applyBtn.disabled = false;
       applyFilter();
@@ -255,12 +279,21 @@
       if (!currentPayload) return;
       const minPct = clamp(Number(minPctInput.value), 0, 100);
       const maxPct = clamp(Number(maxPctInput.value), 0, 100);
+      const sampleCap = Math.max(1, Number(sampleSizeInput.value) || 100);
+      const epsilonSelection = epsilonFilterSelect.value || 'any';
       if (Number.isNaN(minPct) || Number.isNaN(maxPct) || minPct > maxPct) {
         showError('Percentile bounds must be numbers between 0 and 100 (min ≤ max).');
         return;
       }
       clearError();
-      renderRecords(currentPayload.payload, currentPayload.filename, minPct, maxPct);
+      renderRecords(
+        currentPayload.payload,
+        currentPayload.filename,
+        minPct,
+        maxPct,
+        sampleCap,
+        epsilonSelection
+      );
     };
 
     const clamp = (value, min, max) => Math.min(Math.max(value, min), max);
@@ -278,7 +311,7 @@
       return sorted[lower] * (1 - weight) + sorted[upper] * weight;
     };
 
-    const renderRecords = (payload, filename, minPct, maxPct) => {
+    const renderRecords = (payload, filename, minPct, maxPct, sampleCap, epsilonFilter) => {
       const records = payload.records;
       const ratios = [];
       const ratioValues = [];
@@ -298,10 +331,17 @@
       const lowerThreshold = percentileThreshold(ratioValues, minPct);
       const upperThreshold = percentileThreshold(ratioValues, maxPct);
 
-      const selected = ratios.filter(({ index, ratio }) => {
+      let selected = ratios.filter(({ index, ratio }) => {
         if (!vectorEligibleIndices.has(index)) return false;
         return ratio >= lowerThreshold && ratio <= upperThreshold;
       });
+
+      if (epsilonFilter === 'true') {
+        selected = selected.filter(({ record }) => !!record?.epsilon_monitor_flag);
+      } else if (epsilonFilter === 'false') {
+        selected = selected.filter(({ record }) => !record?.epsilon_monitor_flag);
+      }
+
       if (!selected.length) {
         summaryBox.textContent = `No records found between percentiles ${minPct} and ${maxPct}.`;
         summaryBox.style.display = 'block';
@@ -311,10 +351,30 @@
 
       selected.sort((a, b) => b.ratio - a.ratio || a.index - b.index);
 
+      if (sampleCap && selected.length > sampleCap) {
+        const sampled = [];
+        const used = new Set();
+        while (sampled.length < sampleCap) {
+          const pick = selected[Math.floor(Math.random() * selected.length)];
+          if (!used.has(pick.index)) {
+            used.add(pick.index);
+            sampled.push(pick);
+          }
+        }
+        sampled.sort((a, b) => b.ratio - a.ratio || a.index - b.index);
+        selected = sampled;
+      }
+
       const { filename: fileLabel } = currentPayload;
+      const epsilonLabel = epsilonFilter === 'true'
+        ? 'flagged only'
+        : epsilonFilter === 'false'
+          ? 'unflagged only'
+          : 'any';
       summaryBox.innerHTML = `
         <strong>${selected.length}</strong> records selected from <code>${fileLabel}</code><br />
-        Percentile range: <strong>${formatNumber(lowerThreshold)}</strong> – <strong>${formatNumber(upperThreshold)}</strong>
+        Percentile range: <strong>${formatNumber(lowerThreshold)}</strong> – <strong>${formatNumber(upperThreshold)}</strong><br />
+        Sample cap: <strong>${sampleCap}</strong> | ε-filter: <strong>${epsilonLabel}</strong>
       `;
       summaryBox.style.display = 'block';
 
@@ -340,6 +400,8 @@
       const dIn = toNumeric(record.witness_in_distance);
       const earlyStop = record.stopped_by_bound ? '•' : '';
       const timeMs = toNumeric(record.time);
+      const epsFlag = record.epsilon_monitor_flag ? 'true' : 'false';
+      const epsTime = toNumeric(record.epsilon_monitor_time_ms);
 
       header.innerHTML = `
         <span>[${String(index).padStart(5, '0')}]</span>
@@ -350,6 +412,8 @@
         <span>d_in=${dIn !== null ? formatNumber(dIn) : '--'}</span>
         <span>${earlyStop}</span>
         <span class="meta">time=${timeMs !== null ? formatNumber(timeMs) + 'ms' : '--'}</span>
+        <span class="meta">ε-flag=${epsFlag}</span>
+        <span class="meta">ε-time=${epsTime !== null ? formatNumber(epsTime) + 'ms' : '--'}</span>
       `;
       card.appendChild(header);
 
@@ -366,16 +430,25 @@
       vectorTable.appendChild(thead);
 
       const tbody = document.createElement('tbody');
-      tbody.appendChild(buildVectorRow('point', record.prob_vector, record.point_vector));
+      const pointLabel = record.point_id != null ? `point #${record.point_id}` : 'point';
+      tbody.appendChild(buildVectorRow(pointLabel, record.prob_vector, record.point_vector));
       tbody.appendChild(buildVectorRow('witness', record.witness_prob_vector, record.witness_point_vector));
       vectorTable.appendChild(tbody);
 
       card.appendChild(vectorTable);
 
+      const epsilonTable = buildEpsilonTable(record, columnLabels);
+      if (epsilonTable) {
+        card.appendChild(epsilonTable);
+      }
+
       if (Array.isArray(record.k_progression) && Array.isArray(record.ratio_progression) && Array.isArray(record.bound_progression)) {
         const extra = document.createElement('div');
         extra.className = 'meta';
-        extra.textContent = `k progression: ${record.k_progression.join(', ')} | ratio progression: ${sliceProgression(record.ratio_progression)} | bound progression: ${sliceProgression(record.bound_progression)}`;
+        const msProgression = Array.isArray(record.ms_progression)
+          ? ` | time progression (ms): ${sliceProgression(record.ms_progression)}`
+          : '';
+        extra.textContent = `k progression: ${record.k_progression.join(', ')} | ratio progression: ${sliceProgression(record.ratio_progression)} | bound progression: ${sliceProgression(record.bound_progression)}${msProgression}`;
         extra.style.marginTop = '0.65rem';
         card.appendChild(extra);
       }
@@ -419,6 +492,106 @@
       return row;
     };
 
+    const buildEpsilonTable = (record, columnLabels) => {
+      if (!record || !record.epsilon_monitor_result) {
+        return null;
+      }
+
+      const eps = record.epsilon_monitor_result;
+      const counter = eps?.counterexamples || {};
+      const ids = Array.isArray(counter.ids) ? counter.ids : [];
+      const distances = Array.isArray(counter.distances) ? counter.distances : [];
+
+      const table = document.createElement('table');
+      table.className = 'vector-table';
+      table.style.marginTop = '0.75rem';
+
+      const thead = document.createElement('thead');
+      const headerRow = document.createElement('tr');
+      headerRow.appendChild(createHeaderCell('ε-row'));
+      headerRow.appendChild(createHeaderCell('dist'));
+      for (const label of columnLabels) {
+        headerRow.appendChild(createHeaderCell(label));
+      }
+      thead.appendChild(headerRow);
+      table.appendChild(thead);
+
+      const tbody = document.createElement('tbody');
+      const colSpan = columnLabels.length;
+
+      const pointLabel = record.point_id != null ? `point #${record.point_id}` : 'point';
+      tbody.appendChild(buildEpsilonRow(pointLabel, '', record.prob_vector, record.point_vector));
+
+      if (ids.length) {
+        ids.forEach((idValue, idx) => {
+          const pointData = pointIdLookup.get(Number(idValue));
+          const dist = distances[idx] != null ? distances[idx] : '';
+          if (pointData) {
+            tbody.appendChild(
+              buildEpsilonRow(`ce #${idValue}`, dist, pointData.prob, pointData.point)
+            );
+          } else {
+            const missingRow = document.createElement('tr');
+            const labelCell = document.createElement('td');
+            labelCell.textContent = `ce #${idValue}`;
+            missingRow.appendChild(labelCell);
+            const distCell = document.createElement('td');
+            distCell.textContent = dist === '' ? '' : formatNumber(dist);
+            missingRow.appendChild(distCell);
+            const infoCell = document.createElement('td');
+            infoCell.colSpan = colSpan;
+            infoCell.textContent = 'Point data unavailable in JSON.';
+            missingRow.appendChild(infoCell);
+            tbody.appendChild(missingRow);
+          }
+        });
+      } else {
+        const row = document.createElement('tr');
+        const labelCell = document.createElement('td');
+        labelCell.textContent = 'ε-monitor';
+        row.appendChild(labelCell);
+        const distCell = document.createElement('td');
+        distCell.textContent = '';
+        row.appendChild(distCell);
+        const messageCell = document.createElement('td');
+        messageCell.colSpan = colSpan;
+        messageCell.textContent = 'No counterexamples.';
+        row.appendChild(messageCell);
+        tbody.appendChild(row);
+      }
+
+      table.appendChild(tbody);
+      return table;
+    };
+
+    const buildEpsilonRow = (label, distance, probVector, featureVector) => {
+      const row = document.createElement('tr');
+      const labelCell = document.createElement('td');
+      labelCell.textContent = label;
+      row.appendChild(labelCell);
+
+      const distCell = document.createElement('td');
+      distCell.textContent = distance === '' || distance === null ? '' : formatNumber(distance);
+      row.appendChild(distCell);
+
+      if (!Array.isArray(probVector) || !Array.isArray(featureVector)) {
+        const infoCell = document.createElement('td');
+        infoCell.colSpan = probColumnNames.length + featureColumnNames.length;
+        infoCell.textContent = 'Vectors unavailable.';
+        row.appendChild(infoCell);
+        return row;
+      }
+
+      const combined = [...probVector, ...featureVector];
+      for (const value of combined) {
+        const cell = document.createElement('td');
+        const numeric = toNumeric(value);
+        cell.textContent = numeric !== null ? formatNumber(numeric) : '';
+        row.appendChild(cell);
+      }
+      return row;
+    };
+
     const hasFullVectors = (record) => {
       return (
         Array.isArray(record?.prob_vector) &&
@@ -453,6 +626,8 @@
 
     dropZone.addEventListener('click', () => fileInput.click());
     fileInput.addEventListener('change', (event) => handleFiles(event.target.files));
+    sampleSizeInput.addEventListener('change', () => applyFilter());
+    epsilonFilterSelect.addEventListener('change', () => applyFilter());
 
     dropZone.addEventListener('dragenter', (event) => {
       event.preventDefault();
