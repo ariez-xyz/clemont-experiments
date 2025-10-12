@@ -100,7 +100,7 @@ class Config:
     pred_columns: Tuple[str, ...] | None = None
     ignore_columns: Tuple[str, ...] = ("row_id",)
     frnn_metric: Literal["linf", "l1", "l2", "tv", "cosine"] = "l2"
-    out_metric: Literal["linf", "l1", "l2", "tv", "cosine"] = "l2"
+    out_metric: Literal["linf", "l1", "l2", "tv", "cosine"] = "tv"
     backend: Literal["kdtree", "faiss"] = "kdtree"
     display_stride: int = 1000
     frnn_threads: int = 4
