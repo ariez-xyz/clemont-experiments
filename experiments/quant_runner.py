@@ -110,6 +110,7 @@ class Config:
     max_k: Optional[int] = None
     max_rows: Optional[int] = None
     save_points: bool = False
+    normalize: bool = False
     static: bool = False
     epsilon: Optional[float] = None
     row_ids: Optional[set[int]] = None
@@ -386,10 +387,12 @@ def parse_args() -> Config:
                         help=f"Batch size for batched kNN backends (default: {defaults.batchsize})")
     parser.add_argument("--initial-k", dest="initial_k", type=int, default=argparse.SUPPRESS,
                         help=f"Initial k value for repeated kNN queries (default: {defaults.initial_k})")
+    parser.add_argument("--normalize", dest="normalize", action="store_true",
+                        help=f"Normalize input columns to length 1 in the L2 norm (default: {defaults.normalize})")
     parser.add_argument("--save-points", dest="save_points", action="store_true",
                         help=f"Whether to write raw input and output points to .json log (default: {defaults.save_points})")
     parser.add_argument("--static", dest="static", action="store_true",
-                        help=f"preloads the data before run to compute (default: {defaults.save_points})")
+                        help=f"preloads the data before run to compute (default: {defaults.static})")
     parser.add_argument("--epsilon", dest="epsilon", type=float, default=argparse.SUPPRESS,
                         help=f"epsilon value. If not None, also computes epsilon-monitor results (default: {defaults.epsilon})")
     parser.add_argument("--k-grow-factor", dest="k_grow_factor", type=float, default=argparse.SUPPRESS,
@@ -602,8 +605,15 @@ def load_data(cfg: Config) -> Tuple[np.ndarray, np.ndarray, List[str], List[str]
         )
         overlap = cfg.max_rows
 
+    input_array = np.asarray(inputs[:overlap], dtype=np.float32)
+    if cfg.normalize:
+        norms = np.linalg.norm(input_array, axis=1, keepdims=True)
+        nonzero_mask = (norms > 0).squeeze(axis=1)
+        if nonzero_mask.any():
+            input_array[nonzero_mask] /= norms[nonzero_mask]
+
     return (
-        np.asarray(inputs[:overlap], dtype=np.float32),
+        input_array,
         np.asarray(probs[:overlap], dtype=np.float64),
         list(feature_columns),
         prob_names,
@@ -680,6 +690,7 @@ def save_results_json(
             "save_points": cfg.save_points,
             "static": cfg.static,
             "epsilon": cfg.epsilon,
+            "normalize": cfg.normalize,
             "epsilon_monitor_total_time_ms": total_epsilon_time if epsilon_count else None,
             "epsilon_monitor_avg_time_ms": (total_epsilon_time / epsilon_count) if epsilon_count else None,
             "epsilon_monitor_observations": epsilon_count if epsilon_count else None,
