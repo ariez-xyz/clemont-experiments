@@ -1,5 +1,6 @@
 import argparse
 import torch
+import torch.nn.functional as F
 import torchvision.transforms as transforms
 import pandas as pd
 import numpy as np
@@ -181,36 +182,53 @@ def embed(model, data):
 
 def classify(model, data):
     predictions = []
+    logits = []
     last_update = time.time()
 
     with torch.no_grad():
         for i, x in enumerate(data):
-            x = x.unsqueeze(0)  # Add batch dimension (x.shape 3,32,32 -> 1,3,32,32)
-            logits = model(x)
-            pred = torch.argmax(logits, dim=1)
-            predictions.append(pred)
+            x = x.unsqueeze(0)
+            iter_logits = model(x)
+            predictions.append(torch.argmax(iter_logits, dim=1).cpu())
+            logits.append(iter_logits.squeeze(0).cpu())
 
             if time.time() - last_update > 1:
                 log(f"classifier: {i}")
                 last_update = time.time()
 
-    return predictions
+    preds_tensor = torch.cat(predictions, dim=0)
+    logits_tensor = torch.stack(logits, dim=0)
+    return preds_tensor.numpy(), logits_tensor
 
-def format(predictions, embeddings, x_test, y_test):
+
+def format(predictions, logits, embeddings, x_test, y_test, write_logits=False):
+    logits_tensor = logits
+    prob_tensor = F.softmax(logits_tensor, dim=1)
+
+    df_dict = {
+        'pred': predictions.astype(int),
+        'label': y_test.detach().cpu().numpy().astype(int),
+    }
+
+    for idx in range(prob_tensor.shape[1]):
+        df_dict[f'prob_{idx}'] = prob_tensor[:, idx].numpy()
+
+    if write_logits:
+        for idx in range(logits_tensor.shape[1]):
+            df_dict[f'logit_{idx}'] = logits_tensor[:, idx].numpy()
+
+    base_df = pd.DataFrame(df_dict)
+
     if embeddings:
         embeddings_array = torch.cat(embeddings, dim=0).cpu().numpy()
-        return pd.DataFrame(
-            np.column_stack([predictions, y_test.cpu(), embeddings_array]),
-            columns=['pred', 'label'] + [f'e{i}' for i in range(embeddings_array.shape[1])]
-        )
+        emb_cols = {f'emb_{i}': embeddings_array[:, i] for i in range(embeddings_array.shape[1])}
+        emb_df = pd.DataFrame(emb_cols)
+        return pd.concat([base_df, emb_df], axis=1)
 
-    else:
-        x_test = x_test.reshape(len(x_test), -1)
-        return pd.DataFrame({
-            'pred': predictions,
-            'label': y_test.cpu(),
-            **{f'f{i}': x_test[:, i].cpu().numpy() for i in range(x_test.shape[1])}
-        })
+    features = x_test.detach().cpu().reshape(len(x_test), -1).numpy()
+    feature_cols = {f'f{i}': features[:, i] for i in range(features.shape[1])}
+    feature_df = pd.DataFrame(feature_cols)
+    return pd.concat([base_df, feature_df], axis=1)
 
 if __name__ == '__main__':
     args = make_argparser().parse_args()
@@ -230,7 +248,7 @@ if __name__ == '__main__':
     if args.adversarials:
         x_test = adversarial_attack(model, args.threat_model, get_eps(args.threat_model, args.dataset), x_test, y_test, batchsize=args.adversarial_batchsize)
         
-    predictions = [i.item() for i in classify(model, x_test)]
+    predictions, logits = classify(model, x_test)
     log(f"finished computing classifier predictions")
     
     embeddings = []
@@ -249,7 +267,7 @@ if __name__ == '__main__':
         log(f"finished computing embeddings")
 
     log("saving csv...")
-    format(predictions, embeddings, x_test, y_test).to_csv(args.output, index=False)
+    output_df = format(predictions, logits, embeddings, x_test, y_test)
+    output_df.to_csv(args.output, index=False)
 
     log("completed")
-
