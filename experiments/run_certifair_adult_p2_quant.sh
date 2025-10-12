@@ -23,5 +23,7 @@ for dataset in "${DATASETS[@]}"; do
     --ignore-cols "row_id,pred,label" \
     --results-dir "$RESULTS_DIR" \
     --max-k 1024 \
+    --epsilon 0.025 \
+    --save-points \
     "$@"
 done
