@@ -102,7 +102,6 @@
       margin-right: 1.1rem;
     }
     table.vector-table {
-      width: 100%;
       border-collapse: collapse;
       font-size: 0.85rem;
     }
@@ -129,6 +128,13 @@
     .meta {
       color: #58606a;
       font-size: 0.85rem;
+    }
+    #search-result {
+      margin-top: 1.5rem;
+    }
+    #search-result h2 {
+      font-size: 1.1rem;
+      margin-bottom: 0.6rem;
     }
   </style>
 </head>
@@ -160,12 +166,18 @@
       </select>
     </div>
     <div>
+      <label for="search-point-id">Point ID</label><br />
+      <input id="search-point-id" type="number" min="0" />
+      <button id="search-btn" type="button">Search</button>
+    </div>
+    <div>
       <button id="apply" disabled>Apply filter</button>
     </div>
   </div>
 
   <div id="error"></div>
   <div id="summary"></div>
+  <div id="search-result"></div>
   <div id="records-container"></div>
 
   <script>
@@ -173,18 +185,24 @@
     const fileInput = document.getElementById('file-input');
     const errorBox = document.getElementById('error');
     const summaryBox = document.getElementById('summary');
+    const searchResultBox = document.getElementById('search-result');
     const recordsContainer = document.getElementById('records-container');
     const minPctInput = document.getElementById('min-percentile');
     const maxPctInput = document.getElementById('max-percentile');
     const applyBtn = document.getElementById('apply');
     const sampleSizeInput = document.getElementById('sample-size');
     const epsilonFilterSelect = document.getElementById('epsilon-filter');
+    const searchInput = document.getElementById('search-point-id');
+    const searchButton = document.getElementById('search-btn');
 
     let currentPayload = null;
     let probColumnNames = [];
     let featureColumnNames = [];
     let vectorEligibleIndices = new Set();
     let pointIdLookup = new Map();
+    let pointRecordLookup = new Map();
+    let outMetricName = 'l2';
+    let inMetricName = 'l2';
 
     const resetView = () => {
       errorBox.textContent = '';
@@ -196,6 +214,8 @@
       featureColumnNames = [];
       vectorEligibleIndices = new Set();
       pointIdLookup = new Map();
+      pointRecordLookup = new Map();
+      searchResultBox.innerHTML = '';
       applyBtn.disabled = true;
     };
 
@@ -248,6 +268,9 @@
         return;
       }
 
+      outMetricName = (metadata.out_metric || 'l2').toLowerCase();
+      inMetricName = (metadata.frnn_metric || 'l2').toLowerCase();
+
       const eligibleIndices = new Set();
       const idMap = new Map();
       records.forEach((rec, idx) => {
@@ -255,8 +278,8 @@
           eligibleIndices.add(idx);
           if (rec.point_id != null) {
             idMap.set(Number(rec.point_id), {
-              point: rec.point_vector.slice().map(Number),
-              prob: rec.prob_vector.slice().map(Number),
+              point: ensureNumericArray(rec.point_vector),
+              prob: ensureNumericArray(rec.prob_vector),
             });
           }
         }
@@ -270,6 +293,16 @@
       currentPayload = { payload, filename };
       vectorEligibleIndices = eligibleIndices;
       pointIdLookup = idMap;
+      pointRecordLookup = new Map();
+      records.forEach((rec, idx) => {
+        if (!rec || rec.point_id == null) return;
+        const rawRatio = rec.max_ratio != null ? Number(rec.max_ratio) : null;
+        pointRecordLookup.set(Number(rec.point_id), {
+          record: rec,
+          index: idx,
+          ratio: rawRatio,
+        });
+      });
       clearError();
       applyBtn.disabled = false;
       applyFilter();
@@ -311,16 +344,67 @@
       return sorted[lower] * (1 - weight) + sorted[upper] * weight;
     };
 
+    const ensureNumericArray = (arr) => Array.isArray(arr) ? arr.map(Number) : null;
+
+    const distanceFunctions = {
+      l2: (a, b) => Math.sqrt(a.reduce((sum, val, idx) => sum + (val - b[idx]) ** 2, 0)),
+      l1: (a, b) => a.reduce((sum, val, idx) => sum + Math.abs(val - b[idx]), 0),
+      linf: (a, b) => a.reduce((max, val, idx) => Math.max(max, Math.abs(val - b[idx])), 0),
+      tv: (a, b) => 0.5 * a.reduce((sum, val, idx) => sum + Math.abs(val - b[idx]), 0),
+      cosine: (a, b) => {
+        let dot = 0;
+        let normA = 0;
+        let normB = 0;
+        for (let i = 0; i < a.length; i += 1) {
+          dot += a[i] * b[i];
+          normA += a[i] * a[i];
+          normB += b[i] * b[i];
+        }
+        if (normA === 0 || normB === 0) return 0;
+        const cosine = dot / (Math.sqrt(normA) * Math.sqrt(normB));
+        const clamped = Math.max(-1, Math.min(1, cosine));
+        return 1 - clamped;
+      },
+    };
+
+    const computeDistance = (vectorA, vectorB, metric) => {
+      const a = ensureNumericArray(vectorA);
+      const b = ensureNumericArray(vectorB);
+      if (!a || !b || a.length !== b.length) return null;
+      const key = (metric || '').toLowerCase();
+      const fn = distanceFunctions[key];
+      if (!fn) return null;
+      return fn(a, b);
+    };
+
+    const computeRatioValue = (dIn, dOut) => {
+      if (dIn === null || dOut === null || Number.isNaN(dIn) || Number.isNaN(dOut)) return null;
+      if (Math.abs(dIn) < 1e-12) {
+        if (Math.abs(dOut) < 1e-12) return 0;
+        return Infinity;
+      }
+      return dOut / dIn;
+    };
+
+    const shuffleArray = (source) => {
+      const arr = [...source];
+      for (let i = arr.length - 1; i > 0; i -= 1) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [arr[i], arr[j]] = [arr[j], arr[i]];
+      }
+      return arr;
+    };
+
     const renderRecords = (payload, filename, minPct, maxPct, sampleCap, epsilonFilter) => {
       const records = payload.records;
       const ratios = [];
       const ratioValues = [];
       for (let idx = 0; idx < records.length; idx += 1) {
         const record = records[idx];
-        const ratio = toNumeric(record.max_ratio);
-        if (ratio === null) continue;
-        ratios.push({ index: idx, ratio, record });
-        ratioValues.push(ratio);
+        const rawRatio = record.max_ratio != null ? Number(record.max_ratio) : null;
+        if (rawRatio === null || Number.isNaN(rawRatio)) continue;
+        ratios.push({ index: idx, ratio: rawRatio, record });
+        ratioValues.push(rawRatio);
       }
 
       if (!ratioValues.length) {
@@ -351,19 +435,13 @@
 
       selected.sort((a, b) => b.ratio - a.ratio || a.index - b.index);
 
-      if (sampleCap && selected.length > sampleCap) {
-        const sampled = [];
-        const used = new Set();
-        while (sampled.length < sampleCap) {
-          const pick = selected[Math.floor(Math.random() * selected.length)];
-          if (!used.has(pick.index)) {
-            used.add(pick.index);
-            sampled.push(pick);
-          }
-        }
-        sampled.sort((a, b) => b.ratio - a.ratio || a.index - b.index);
-        selected = sampled;
+      const filteredCount = selected.length;
+      if (sampleCap && sampleCap > 0 && selected.length > sampleCap) {
+        const shuffled = shuffleArray(selected);
+        selected = shuffled.slice(0, sampleCap);
+        selected.sort((a, b) => b.ratio - a.ratio || a.index - b.index);
       }
+      const displayedCount = selected.length;
 
       const { filename: fileLabel } = currentPayload;
       const epsilonLabel = epsilonFilter === 'true'
@@ -372,9 +450,10 @@
           ? 'unflagged only'
           : 'any';
       summaryBox.innerHTML = `
-        <strong>${selected.length}</strong> records selected from <code>${fileLabel}</code><br />
+        <strong>${displayedCount}</strong> records selected from <code>${fileLabel}</code><br />
         Percentile range: <strong>${formatNumber(lowerThreshold)}</strong> – <strong>${formatNumber(upperThreshold)}</strong><br />
-        Sample cap: <strong>${sampleCap}</strong> | ε-filter: <strong>${epsilonLabel}</strong>
+        Filtered: <strong>${filteredCount}</strong>, sample cap: <strong>${sampleCap}</strong>, showing <strong>${displayedCount}</strong><br />
+        ε-filter: <strong>${epsilonLabel}</strong>
       `;
       summaryBox.style.display = 'block';
 
@@ -417,50 +496,60 @@
       `;
       card.appendChild(header);
 
-      const vectorTable = document.createElement('table');
-      vectorTable.className = 'vector-table';
-      const thead = document.createElement('thead');
-      const headerRow = document.createElement('tr');
-      headerRow.appendChild(createHeaderCell(''));
       const columnLabels = [...probColumnNames, ...featureColumnNames];
-      for (const label of columnLabels) {
-        headerRow.appendChild(createHeaderCell(label));
-      }
-      thead.appendChild(headerRow);
-      vectorTable.appendChild(thead);
-
-      const tbody = document.createElement('tbody');
       const pointLabel = record.point_id != null ? `point #${record.point_id}` : 'point';
-      tbody.appendChild(buildVectorRow(pointLabel, record.prob_vector, record.point_vector));
-      tbody.appendChild(buildVectorRow('witness', record.witness_prob_vector, record.witness_point_vector));
-      vectorTable.appendChild(tbody);
+      const pointProb = ensureNumericArray(record.prob_vector);
+      const pointFeat = ensureNumericArray(record.point_vector);
+      const witnessLabel = record.witness_id != null ? `witness #${record.witness_id}` : 'witness';
+      const witnessProb = ensureNumericArray(record.witness_prob_vector);
+      const witnessFeat = ensureNumericArray(record.witness_point_vector);
+      const witnessDIn = toNumeric(record.witness_in_distance);
+      const witnessDOut = toNumeric(record.witness_out_distance);
 
-      card.appendChild(vectorTable);
+      const mainRows = [
+        {
+          label: pointLabel,
+          dIn: null,
+          dOut: null,
+          ratio: null,
+          probVec: pointProb,
+          featureVec: pointFeat,
+          message: (!pointProb || !pointFeat) ? 'Point vectors unavailable.' : undefined,
+        },
+        {
+          label: witnessLabel,
+          dIn: witnessDIn,
+          dOut: witnessDOut,
+          ratio: computeRatioValue(witnessDIn, witnessDOut),
+          probVec: witnessProb,
+          featureVec: witnessFeat,
+          message: (!witnessProb || !witnessFeat) ? 'Witness vectors unavailable.' : undefined,
+        },
+      ];
 
-      const epsilonTable = buildEpsilonTable(record, columnLabels);
+      card.appendChild(buildDetailTable(mainRows, columnLabels));
+
+      const progressionTable = buildProgressionTable(record);
+      if (progressionTable) {
+        const progHeader = document.createElement('div');
+        progHeader.className = 'meta';
+        progHeader.textContent = 'Progression details';
+        progHeader.style.marginTop = '0.65rem';
+        card.appendChild(progHeader);
+        card.appendChild(progressionTable);
+      }
+
+      const epsilonTable = buildEpsilonTable(record, columnLabels, pointProb, pointFeat);
       if (epsilonTable) {
+        const epsHeader = document.createElement('div');
+        epsHeader.className = 'meta';
+        epsHeader.textContent = 'ε-monitor counterexamples';
+        epsHeader.style.marginTop = '0.65rem';
+        card.appendChild(epsHeader);
         card.appendChild(epsilonTable);
       }
 
-      if (Array.isArray(record.k_progression) && Array.isArray(record.ratio_progression) && Array.isArray(record.bound_progression)) {
-        const extra = document.createElement('div');
-        extra.className = 'meta';
-        const msProgression = Array.isArray(record.ms_progression)
-          ? ` | time progression (ms): ${sliceProgression(record.ms_progression)}`
-          : '';
-        extra.textContent = `k progression: ${record.k_progression.join(', ')} | ratio progression: ${sliceProgression(record.ratio_progression)} | bound progression: ${sliceProgression(record.bound_progression)}${msProgression}`;
-        extra.style.marginTop = '0.65rem';
-        card.appendChild(extra);
-      }
-
       return card;
-    };
-
-    const sliceProgression = (values) => {
-      if (!Array.isArray(values)) return '--';
-      const display = values.slice(0, 10).map((v) => formatNumber(v));
-      if (values.length > 10) display.push('…');
-      return display.join(', ');
     };
 
     const createHeaderCell = (label) => {
@@ -469,47 +558,15 @@
       return th;
     };
 
-    const buildVectorRow = (label, probVector, featureVector) => {
-      if (!Array.isArray(probVector) || !Array.isArray(featureVector)) {
-        throw new Error('Record is missing probability or feature vectors.');
-      }
-      const row = document.createElement('tr');
-      const labelCell = document.createElement('td');
-      labelCell.textContent = label;
-      row.appendChild(labelCell);
-
-      const combined = [...probVector, ...featureVector];
-      if (combined.length !== probColumnNames.length + featureColumnNames.length) {
-        throw new Error('Vector length mismatch with metadata columns.');
-      }
-
-      for (const value of combined) {
-        const cell = document.createElement('td');
-        const numeric = toNumeric(value);
-        cell.textContent = numeric !== null ? formatNumber(numeric) : '';
-        row.appendChild(cell);
-      }
-      return row;
-    };
-
-    const buildEpsilonTable = (record, columnLabels) => {
-      if (!record || !record.epsilon_monitor_result) {
-        return null;
-      }
-
-      const eps = record.epsilon_monitor_result;
-      const counter = eps?.counterexamples || {};
-      const ids = Array.isArray(counter.ids) ? counter.ids : [];
-      const distances = Array.isArray(counter.distances) ? counter.distances : [];
-
+    const buildDetailTable = (rows, columnLabels) => {
       const table = document.createElement('table');
       table.className = 'vector-table';
-      table.style.marginTop = '0.75rem';
-
       const thead = document.createElement('thead');
       const headerRow = document.createElement('tr');
-      headerRow.appendChild(createHeaderCell('ε-row'));
-      headerRow.appendChild(createHeaderCell('dist'));
+      headerRow.appendChild(createHeaderCell('row'));
+      headerRow.appendChild(createHeaderCell('d_in'));
+      headerRow.appendChild(createHeaderCell('d_out'));
+      headerRow.appendChild(createHeaderCell('ratio'));
       for (const label of columnLabels) {
         headerRow.appendChild(createHeaderCell(label));
       }
@@ -517,79 +574,166 @@
       table.appendChild(thead);
 
       const tbody = document.createElement('tbody');
-      const colSpan = columnLabels.length;
+      const spanColumns = Math.max(1, columnLabels.length);
 
-      const pointLabel = record.point_id != null ? `point #${record.point_id}` : 'point';
-      tbody.appendChild(buildEpsilonRow(pointLabel, '', record.prob_vector, record.point_vector));
-
-      if (ids.length) {
-        ids.forEach((idValue, idx) => {
-          const pointData = pointIdLookup.get(Number(idValue));
-          const dist = distances[idx] != null ? distances[idx] : '';
-          if (pointData) {
-            tbody.appendChild(
-              buildEpsilonRow(`ce #${idValue}`, dist, pointData.prob, pointData.point)
-            );
-          } else {
-            const missingRow = document.createElement('tr');
-            const labelCell = document.createElement('td');
-            labelCell.textContent = `ce #${idValue}`;
-            missingRow.appendChild(labelCell);
-            const distCell = document.createElement('td');
-            distCell.textContent = dist === '' ? '' : formatNumber(dist);
-            missingRow.appendChild(distCell);
-            const infoCell = document.createElement('td');
-            infoCell.colSpan = colSpan;
-            infoCell.textContent = 'Point data unavailable in JSON.';
-            missingRow.appendChild(infoCell);
-            tbody.appendChild(missingRow);
-          }
-        });
-      } else {
-        const row = document.createElement('tr');
+      rows.forEach((row) => {
+        const tr = document.createElement('tr');
         const labelCell = document.createElement('td');
-        labelCell.textContent = 'ε-monitor';
-        row.appendChild(labelCell);
-        const distCell = document.createElement('td');
-        distCell.textContent = '';
-        row.appendChild(distCell);
-        const messageCell = document.createElement('td');
-        messageCell.colSpan = colSpan;
-        messageCell.textContent = 'No counterexamples.';
-        row.appendChild(messageCell);
-        tbody.appendChild(row);
-      }
+        labelCell.textContent = row.label ?? '';
+        tr.appendChild(labelCell);
+
+        const dIn = row.dIn != null ? toNumeric(row.dIn) : null;
+        const dOut = row.dOut != null ? toNumeric(row.dOut) : null;
+        const ratio = row.ratio != null ? row.ratio : computeRatioValue(dIn, dOut);
+
+        const dInCell = document.createElement('td');
+        dInCell.textContent = dIn !== null ? formatNumber(dIn) : '';
+        tr.appendChild(dInCell);
+
+        const dOutCell = document.createElement('td');
+        dOutCell.textContent = dOut !== null ? formatNumber(dOut) : '';
+        tr.appendChild(dOutCell);
+
+        const ratioCell = document.createElement('td');
+        ratioCell.textContent = ratio !== null ? formatNumber(ratio) : '';
+        tr.appendChild(ratioCell);
+
+        const probVec = ensureNumericArray(row.probVec);
+        const featureVec = ensureNumericArray(row.featureVec);
+        if (probVec && featureVec && (probVec.length + featureVec.length) === spanColumns) {
+          const combined = [...probVec, ...featureVec];
+          combined.forEach((value) => {
+            const cell = document.createElement('td');
+            const numeric = toNumeric(value);
+            cell.textContent = numeric !== null ? formatNumber(numeric) : '';
+            tr.appendChild(cell);
+          });
+        } else {
+          const infoCell = document.createElement('td');
+          infoCell.colSpan = spanColumns;
+          infoCell.textContent = row.message || 'Vectors unavailable.';
+          tr.appendChild(infoCell);
+        }
+
+        tbody.appendChild(tr);
+      });
 
       table.appendChild(tbody);
       return table;
     };
 
-    const buildEpsilonRow = (label, distance, probVector, featureVector) => {
-      const row = document.createElement('tr');
-      const labelCell = document.createElement('td');
-      labelCell.textContent = label;
-      row.appendChild(labelCell);
-
-      const distCell = document.createElement('td');
-      distCell.textContent = distance === '' || distance === null ? '' : formatNumber(distance);
-      row.appendChild(distCell);
-
-      if (!Array.isArray(probVector) || !Array.isArray(featureVector)) {
-        const infoCell = document.createElement('td');
-        infoCell.colSpan = probColumnNames.length + featureColumnNames.length;
-        infoCell.textContent = 'Vectors unavailable.';
-        row.appendChild(infoCell);
-        return row;
+    const buildEpsilonTable = (record, columnLabels, pointProb, pointFeat) => {
+      if (!record || !record.epsilon_monitor_result) {
+        return null;
       }
 
-      const combined = [...probVector, ...featureVector];
-      for (const value of combined) {
-        const cell = document.createElement('td');
-        const numeric = toNumeric(value);
-        cell.textContent = numeric !== null ? formatNumber(numeric) : '';
-        row.appendChild(cell);
+      const baseProb = pointProb || ensureNumericArray(record.prob_vector);
+      const baseFeat = pointFeat || ensureNumericArray(record.point_vector);
+      const eps = record.epsilon_monitor_result;
+      const counter = eps?.counterexamples || {};
+      const ids = Array.isArray(counter.ids) ? counter.ids : [];
+      const distances = Array.isArray(counter.distances) ? counter.distances : [];
+
+      const epsilonRows = [
+        {
+          label: record.point_id != null ? `point #${record.point_id}` : 'point',
+          dIn: null,
+          dOut: null,
+          ratio: null,
+          probVec: baseProb,
+          featureVec: baseFeat,
+          message: (!baseProb || !baseFeat) ? 'Point vectors unavailable.' : undefined,
+        },
+      ];
+
+      if (ids.length) {
+        ids.forEach((idValue, idx) => {
+          const pointData = pointIdLookup.get(Number(idValue));
+          const ceProb = pointData ? ensureNumericArray(pointData.prob) : null;
+          const ceFeat = pointData ? ensureNumericArray(pointData.point) : null;
+          let dIn = distances[idx] != null ? Number(distances[idx]) : null;
+          if ((dIn === null || Number.isNaN(dIn)) && baseFeat && ceFeat) {
+            dIn = computeDistance(baseFeat, ceFeat, inMetricName);
+          }
+          const dOut = (baseProb && ceProb) ? computeDistance(baseProb, ceProb, outMetricName) : null;
+          const ratioValue = computeRatioValue(dIn, dOut);
+          let message;
+          if (!pointData) {
+            message = 'Point data unavailable in JSON.';
+          } else if (!ceProb || !ceFeat) {
+            message = 'Counterexample vectors unavailable.';
+          }
+
+          epsilonRows.push({
+            label: `ce #${idValue}`,
+            dIn,
+            dOut,
+            ratio: ratioValue,
+            probVec: ceProb,
+            featureVec: ceFeat,
+            message,
+          });
+        });
+      } else {
+        epsilonRows.push({
+          label: 'ε-monitor',
+          dIn: null,
+          dOut: null,
+          ratio: null,
+          probVec: null,
+          featureVec: null,
+          message: 'No counterexamples.',
+        });
       }
-      return row;
+
+      return buildDetailTable(epsilonRows, columnLabels);
+    };
+
+    const buildProgressionTable = (record) => {
+      const ks = Array.isArray(record.k_progression) ? record.k_progression : null;
+      if (!ks || !ks.length) return null;
+      const ratios = Array.isArray(record.ratio_progression) ? record.ratio_progression : [];
+      const bounds = Array.isArray(record.bound_progression) ? record.bound_progression : [];
+      const times = Array.isArray(record.ms_progression) ? record.ms_progression : [];
+
+      const table = document.createElement('table');
+      table.className = 'vector-table';
+      const thead = document.createElement('thead');
+      const headerRow = document.createElement('tr');
+      ['step', 'k', 'ratio', 'bound', 'ms'].forEach((label) => {
+        headerRow.appendChild(createHeaderCell(label));
+      });
+      thead.appendChild(headerRow);
+      table.appendChild(thead);
+
+      const tbody = document.createElement('tbody');
+      for (let i = 0; i < ks.length; i += 1) {
+        const tr = document.createElement('tr');
+        const stepCell = document.createElement('td');
+        stepCell.textContent = String(i + 1);
+        tr.appendChild(stepCell);
+
+        const kCell = document.createElement('td');
+        kCell.textContent = ks[i] != null ? formatNumber(Number(ks[i])) : '';
+        tr.appendChild(kCell);
+
+        const ratioCell = document.createElement('td');
+        ratioCell.textContent = ratios[i] != null ? formatNumber(Number(ratios[i])) : '';
+        tr.appendChild(ratioCell);
+
+        const boundCell = document.createElement('td');
+        boundCell.textContent = bounds[i] != null ? formatNumber(Number(bounds[i])) : '';
+        tr.appendChild(boundCell);
+
+        const timeCell = document.createElement('td');
+        timeCell.textContent = times[i] != null ? formatNumber(Number(times[i])) : '';
+        tr.appendChild(timeCell);
+
+        tbody.appendChild(tr);
+      }
+
+      table.appendChild(tbody);
+      return table;
     };
 
     const hasFullVectors = (record) => {
@@ -614,6 +758,11 @@
 
     const formatNumber = (value) => {
       if (value === null || Number.isNaN(value)) return '';
+      if (!Number.isFinite(value)) {
+        if (value > 0) return 'inf';
+        if (value < 0) return '-inf';
+        return '';
+      }
       const rounded = Math.round(value);
       if (Math.abs(value - rounded) < 1e-9) {
         return String(rounded);
@@ -624,10 +773,49 @@
       return value.toFixed(4);
     };
 
+    const handleSearch = () => {
+      if (!currentPayload) {
+        searchResultBox.textContent = 'Load a JSON file first.';
+        return;
+      }
+      const text = (searchInput.value || '').trim();
+      if (text === '') {
+        searchResultBox.textContent = 'Enter a point id to search.';
+        return;
+      }
+      const raw = Number(text);
+      if (!Number.isFinite(raw)) {
+        searchResultBox.textContent = 'Enter a valid point id.';
+        return;
+      }
+
+      const entry = pointRecordLookup.get(raw);
+      searchResultBox.innerHTML = '';
+      if (!entry) {
+        searchResultBox.textContent = `Point #${raw} not found in JSON.`;
+        return;
+      }
+
+      const ratioValue = entry.ratio != null ? entry.ratio : toNumeric(entry.record?.max_ratio);
+      const title = document.createElement('h2');
+      title.textContent = `Point #${raw}`;
+      const card = buildRecordCard(entry.record, entry.index, ratioValue);
+      searchResultBox.appendChild(title);
+      searchResultBox.appendChild(card);
+      card.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    };
+
     dropZone.addEventListener('click', () => fileInput.click());
     fileInput.addEventListener('change', (event) => handleFiles(event.target.files));
     sampleSizeInput.addEventListener('change', () => applyFilter());
     epsilonFilterSelect.addEventListener('change', () => applyFilter());
+    searchButton.addEventListener('click', () => handleSearch());
+    searchInput.addEventListener('keydown', (event) => {
+      if (event.key === 'Enter') {
+        event.preventDefault();
+        handleSearch();
+      }
+    });
 
     dropZone.addEventListener('dragenter', (event) => {
       event.preventDefault();
