@@ -46,7 +46,7 @@ def main() -> None:
     parser.add_argument(
         "--output",
         type=Path,
-        help="Optional output image path (default: <results_dir>/time_per_sample_<walltime>.png)",
+        help="Optional output image path (default: <results_dir>/../time_per_sample_<walltime>.png)",
     )
     parser.add_argument(
         "--show",
@@ -74,8 +74,10 @@ def main() -> None:
 
     fig, ax = plt.subplots(figsize=(10, 6))
 
+    line_alpha = 0.5
+
     for series in batch_series:
-        ax.plot(series.x, series.y, label=series.label, linewidth=2.0)
+        ax.plot(series.x, series.y, label=series.label, linewidth=2.0, alpha=line_alpha)
     for series in epsilon_series:
         ax.plot(
             series.x,
@@ -83,8 +85,10 @@ def main() -> None:
             label=series.label,
             linewidth=2.0,
             linestyle="--",
+            alpha=line_alpha,
         )
 
+    ax.set_yscale("log")
     ax.set_xlabel("Processed samples")
     ax.set_ylabel("Time per sample (seconds)")
     ax.set_title(f"Time per sample progression (walltime {walltime_key})")
@@ -120,6 +124,7 @@ def _collect_batch_series(results_dir: Path, walltime_key: str) -> Iterable[Seri
 
         for batch_dir in target_dirs:
             batchsize = _parse_batchsize(batch_dir.name)
+            if batchsize == '10000': continue
             payload = _load_latest_payload(batch_dir)
             if payload is None:
                 continue
@@ -217,7 +222,7 @@ def _parse_batchsize(name: str) -> str:
 def _resolve_output_path(output: Path | None, results_dir: Path, walltime_key: str) -> Path:
     if output:
         return output.expanduser().resolve()
-    default_name = f"time_per_sample_{walltime_key}.png"
+    default_name = f"../time_per_sample_{walltime_key}.png"
     return results_dir / default_name
 
 
