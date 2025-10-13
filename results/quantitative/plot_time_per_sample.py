@@ -163,7 +163,7 @@ def _collect_epsilon_series(results_dir: Path, walltime_key: str) -> Iterable[Se
             payload.get("records", []),
             value_key="epsilon_monitor_time_ms",
             label=f"epsilon {epsilon_value} (monitor)",
-            value_scale=0.001,
+            value_scale=1.0,
         )
         if series:
             series_list.append(series)
