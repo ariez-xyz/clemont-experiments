@@ -14,6 +14,7 @@ import matplotlib.pyplot as plt
 BATCH_EPS_DIR = "eps_0_05"
 DEFAULT_OUTPUT_NAME = "time_per_sample.png"
 JSON_PATTERN = "*.json"
+ROLLING_SAMPLE_LIMIT = 1000
 
 
 @dataclass
@@ -53,6 +54,14 @@ def main() -> None:
         action="store_true",
         help="Show the plot interactively in addition to saving it",
     )
+    parser.add_argument(
+        "--rolling-average",
+        type=int,
+        help=(
+            "Window size for rolling-average smoothing. When set, the script also "
+            "down-samples each line to at most 1000 points for plotting efficiency."
+        ),
+    )
     args = parser.parse_args()
 
     results_dir = args.results_dir.expanduser().resolve()
@@ -64,8 +73,20 @@ def main() -> None:
         raise SystemExit("Walltime must be a non-empty string")
     walltime_key = walltime_key.replace(":", "-")
 
-    batch_series = list(_collect_batch_series(results_dir, walltime_key))
-    epsilon_series = list(_collect_epsilon_series(results_dir, walltime_key))
+    batch_series = list(
+        _collect_batch_series(
+            results_dir,
+            walltime_key,
+            rolling_window=args.rolling_average,
+        )
+    )
+    epsilon_series = list(
+        _collect_epsilon_series(
+            results_dir,
+            walltime_key,
+            rolling_window=args.rolling_average,
+        )
+    )
 
     if not batch_series and not epsilon_series:
         raise SystemExit(
@@ -90,7 +111,7 @@ def main() -> None:
 
     ax.set_yscale("log")
     ax.set_xlabel("Processed samples")
-    ax.set_ylabel("Time per sample (seconds)")
+    ax.set_ylabel("Time per sample (ms)")
     ax.set_title(f"Time per sample progression (walltime {walltime_key})")
     ax.grid(True, alpha=0.3)
     ax.legend()
@@ -105,7 +126,12 @@ def main() -> None:
         plt.show()
 
 
-def _collect_batch_series(results_dir: Path, walltime_key: str) -> Iterable[Series]:
+def _collect_batch_series(
+    results_dir: Path,
+    walltime_key: str,
+    *,
+    rolling_window: int | None,
+) -> Iterable[Series]:
     eps_dir = results_dir / BATCH_EPS_DIR
     if not eps_dir.is_dir():
         print(f"Skipping batch/max-k lines: missing {eps_dir}")
@@ -124,7 +150,8 @@ def _collect_batch_series(results_dir: Path, walltime_key: str) -> Iterable[Seri
 
         for batch_dir in target_dirs:
             batchsize = _parse_batchsize(batch_dir.name)
-            if batchsize == '10000': continue
+            if batchsize == "10000":
+                continue
             payload = _load_latest_payload(batch_dir)
             if payload is None:
                 continue
@@ -133,6 +160,7 @@ def _collect_batch_series(results_dir: Path, walltime_key: str) -> Iterable[Seri
                 value_key="time",
                 label=f"batch {batchsize}, maxk {maxk_label}",
                 value_scale=1.0,
+                rolling_window=rolling_window,
             )
             if series:
                 series_list.append(series)
@@ -140,7 +168,12 @@ def _collect_batch_series(results_dir: Path, walltime_key: str) -> Iterable[Seri
     return series_list
 
 
-def _collect_epsilon_series(results_dir: Path, walltime_key: str) -> Iterable[Series]:
+def _collect_epsilon_series(
+    results_dir: Path,
+    walltime_key: str,
+    *,
+    rolling_window: int | None,
+) -> Iterable[Series]:
     series_list: List[Series] = []
 
     for eps_dir in sorted(
@@ -164,6 +197,7 @@ def _collect_epsilon_series(results_dir: Path, walltime_key: str) -> Iterable[Se
             value_key="epsilon_monitor_time_ms",
             label=f"epsilon {epsilon_value} (monitor)",
             value_scale=1.0,
+            rolling_window=rolling_window,
         )
         if series:
             series_list.append(series)
@@ -177,6 +211,7 @@ def _build_series(
     value_key: str,
     label: str,
     value_scale: float,
+    rolling_window: int | None,
 ) -> Series | None:
     ordered: List[Tuple[float, float]] = []
     for idx, record in enumerate(records):
@@ -197,7 +232,61 @@ def _build_series(
     ordered.sort(key=lambda item: item[0])
     y_values = [value for _, value in ordered]
     x_values = list(range(1, len(y_values) + 1))
+    x_values, y_values = _postprocess_series(x_values, y_values, rolling_window)
     return Series(label=label, x=x_values, y=y_values)
+
+
+def _postprocess_series(
+    x_values: List[int],
+    y_values: List[float],
+    rolling_window: int | None,
+) -> tuple[List[int], List[float]]:
+    if rolling_window is None or rolling_window <= 0 or len(y_values) <= 1:
+        return x_values, y_values
+
+    y_values = _apply_rolling_average(y_values, rolling_window)
+    if len(y_values) > ROLLING_SAMPLE_LIMIT:
+        x_values, y_values = _downsample_series(x_values, y_values, ROLLING_SAMPLE_LIMIT)
+    return x_values, y_values
+
+
+def _apply_rolling_average(values: Sequence[float], window: int) -> List[float]:
+    window = max(1, window)
+    count = len(values)
+    if count <= 1:
+        return list(values)
+
+    window = min(window, count)
+    cumsum = [0.0]
+    for val in values:
+        cumsum.append(cumsum[-1] + val)
+
+    averaged: List[float] = []
+    for i in range(1, count + 1):
+        start = max(0, i - window)
+        total = cumsum[i] - cumsum[start]
+        samples = i - start
+        averaged.append(total / samples)
+    return averaged
+
+
+def _downsample_series(
+    x_values: Sequence[int],
+    y_values: Sequence[float],
+    limit: int,
+) -> tuple[List[int], List[float]]:
+    total = len(y_values)
+    if total <= limit or limit <= 0:
+        return list(x_values), list(y_values)
+
+    if limit == 1:
+        idx = total - 1
+        return [x_values[idx]], [y_values[idx]]
+
+    step = (total - 1) / (limit - 1)
+    indices = {min(total - 1, round(i * step)) for i in range(limit)}
+    ordered_indices = sorted(indices)
+    return [x_values[i] for i in ordered_indices], [y_values[i] for i in ordered_indices]
 
 
 def _extract_order(record: dict, fallback: int) -> float:
