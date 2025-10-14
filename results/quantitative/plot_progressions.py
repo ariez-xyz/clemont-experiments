@@ -227,7 +227,7 @@ def _render_overlay(
 
     for record in records:
         k_vals = np.asarray(record["k_progression"], dtype=float)
-        k_vals = list(filter(lambda v: v >= 16, k_vals))
+#        k_vals = list(filter(lambda v: v >= 16, k_vals))
         ratio_vals = np.asarray(record["ratio_progression"], dtype=float)[-len(k_vals):]
         bound_vals = np.asarray(record["bound_progression"], dtype=float)[-len(k_vals):]
 
