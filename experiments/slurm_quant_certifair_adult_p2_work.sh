@@ -1,8 +1,6 @@
 #!/bin/bash
 set -euo pipefail
 
-cd "$(dirname "${BASH_SOURCE[0]}")"
-
 export OMP_NUM_THREADS=7
 export MKL_NUM_THREADS=7
 export OPENBLAS_NUM_THREADS=7
