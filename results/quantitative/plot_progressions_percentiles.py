@@ -64,7 +64,7 @@ def main() -> None:
             cmd.extend(["--output-dir", str(args.output_dir)])
 
         cmd.extend(extra_args)
-        cmd.extend(["--alpha", str(0.3)])
+        cmd.extend(["--alpha", str(1)])
 
         print(
             f"Running plot_progressions.py for {json_path.name} "
@@ -82,12 +82,21 @@ def _select_percentile_point_ids(json_path: Path) -> List[int]:
     for record in records:
         point_id = record.get("point_id")
         compared = record.get("compared_count")
+        ratios = record.get("ratio_progression")
+        bounds = record.get("bound_progression")
+        ks = record.get("k_progression")
+        note = record.get("note")
         try:
             pid = int(point_id)
             count = float(compared)
         except (TypeError, ValueError):
             continue
         if not np.isfinite(count):
+            continue
+        if note is not None and 'exhausted index' in note:
+            continue # disregard points that exhaust index
+        if ratios and bounds and ratios[-1] < bounds[-1]: # compatibility with earlier versions that lack note
+            assert ks[-1] > point_id or ks[-1] > payload.get("max_k"), "failed sanity check: early terminated without bound, maxk or exhausting index"
             continue
         usable.append((pid, count))
 
