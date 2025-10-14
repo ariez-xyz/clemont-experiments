@@ -3,8 +3,8 @@ set -euo pipefail
 
 cd "$(dirname "${BASH_SOURCE[0]}")"
 
-FAIR_MODEL="../data/Certifair/predictions/adult-global-P2-combined.csv"
-BASE_MODEL="../data/Certifair/predictions/adult-base-P2-combined.csv"
+FAIR_MODEL="../data/Certifair/predictions_tacas/adult-global-P2-combined.csv"
+BASE_MODEL="../data/Certifair/predictions_tacas/adult-base-P2-combined.csv"
 RESULTS_BASE="../results/quantitative/certifair"
 WORK_SCRIPT="slurm_quant_certifair_adult_p2_work.sh"
 CONFIG_FILE_NAME="certifair_adult_p2_runs.tsv"
