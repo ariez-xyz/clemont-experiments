@@ -16,7 +16,7 @@ try:
 except ImportError:  # pragma: no cover - script-style execution
     from _plot_utils import resolve_json_paths
 
-PERCENTILES = (10, 50, 90)
+PERCENTILES = (25, 50, 75)
 
 
 def main() -> None:
