@@ -1,5 +1,7 @@
 data_store
 *.json
 *.png
-certifair/
+certifair/*/*.json
+certifair/*/*.log
+!certifair/*/*.png
 robustbench_cifar10/
