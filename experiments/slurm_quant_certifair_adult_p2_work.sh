@@ -46,6 +46,10 @@ cmd=(
   --results-dir "${results_dir}"
   --display-stride 5000
   --frnn-threads 7
+  --frnn-metric l2
+  --out-metric tv
+  --static
+  --walltime 12:00:00
 )
 
 if [[ -n "${extra_args}" ]]; then

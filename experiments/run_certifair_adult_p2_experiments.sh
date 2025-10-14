@@ -28,6 +28,8 @@ run_quant() {
       --ignore-cols "row_id,pred,label" \
       --results-dir "$output_dir" \
       --shuffle \
+      --static \
+      --max-n 3000 \
       "$@" \
       "${EXTRA_ARGS[@]}"
   else
@@ -36,6 +38,8 @@ run_quant() {
       --ignore-cols "row_id,pred,label" \
       --results-dir "$output_dir" \
       --shuffle \
+      --static \
+      --max-n 3000 \
       "$@"
   fi
 }
@@ -58,6 +62,6 @@ for epsilon in $(seq -f "%.3f" 0.005 0.005 0.100); do
 done
 
 # 4. Fair model with a small k-grow-factor.
-run_quant "fair model (k-grow-factor 1.05)" "fair_kgrow_1p1" \
+run_quant "fair model (k-grow-factor 1.05)" "fair_kgrow_1p05" \
   --input-csv "$FAIR_MODEL_CSV" \
-  --k-grow-factor 1.1
+  --k-grow-factor 1.05

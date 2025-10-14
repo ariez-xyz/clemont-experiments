@@ -1,8 +1,6 @@
 #!/bin/bash
 set -euo pipefail
 
-cd "$(dirname "${BASH_SOURCE[0]}")"
-
 FAIR_MODEL="../data/Certifair/predictions_tacas/adult-global-P2-combined.csv"
 BASE_MODEL="../data/Certifair/predictions_tacas/adult-base-P2-combined.csv"
 RESULTS_BASE="../results/quantitative/certifair"
@@ -37,7 +35,9 @@ for epsilon in $(seq -f "%.3f" 0.005 0.005 0.100); do
     "${epsilon}" "${FAIR_MODEL}" "${epsilon_token}" "${epsilon}" >> "${CONFIG_FILE}"
 done
 
+printf 'Fair model (k-grow-factor 1.05)|%s|fair_kgrow_1p05|--k-grow-factor 1.05\n' "${FAIR_MODEL}" >> "${CONFIG_FILE}"
 printf 'Fair model (k-grow-factor 1.1)|%s|fair_kgrow_1p1|--k-grow-factor 1.1\n' "${FAIR_MODEL}" >> "${CONFIG_FILE}"
+printf 'Fair model (k-grow-factor 1.2)|%s|fair_kgrow_1p2|--k-grow-factor 1.2\n' "${FAIR_MODEL}" >> "${CONFIG_FILE}"
 
 NUM_TASKS=$(grep -c "" "${CONFIG_FILE}")
 if [[ "${NUM_TASKS}" -eq 0 ]]; then
@@ -57,8 +57,8 @@ sbatch \
   --job-name=quant_certifair \
   --output="${LOGS_DIR}/quant_certifair-%A-%a.log" \
   --cpus-per-task=8 \
-  --time=24:00:00 \
-  --mem=48G \
+  --time=14:00:00 \
+  --mem=16G \
   --array=1-${NUM_TASKS} \
   --export=ALL,RUN_CONFIG_FILE,RESULTS_BASE \
   "${WORK_SCRIPT}"
