@@ -62,6 +62,11 @@ def main() -> None:
             "down-samples each line to at most 1000 points for plotting efficiency."
         ),
     )
+    parser.add_argument(
+        "--batchsize",
+        type=int,
+        help="Filter runs to this batchsize (applies to both batch/max-k and epsilon series).",
+    )
     args = parser.parse_args()
 
     results_dir = args.results_dir.expanduser().resolve()
@@ -73,11 +78,14 @@ def main() -> None:
         raise SystemExit("Walltime must be a non-empty string")
     walltime_key = walltime_key.replace(":", "-")
 
+    batchsize_filter = str(args.batchsize) if args.batchsize else None
+
     batch_series = list(
         _collect_batch_series(
             results_dir,
             walltime_key,
             rolling_window=args.rolling_average,
+            batchsize_filter=batchsize_filter,
         )
     )
     epsilon_series = list(
@@ -85,6 +93,7 @@ def main() -> None:
             results_dir,
             walltime_key,
             rolling_window=args.rolling_average,
+            batchsize_filter=batchsize_filter,
         )
     )
 
@@ -131,6 +140,7 @@ def _collect_batch_series(
     walltime_key: str,
     *,
     rolling_window: int | None,
+    batchsize_filter: str | None,
 ) -> Iterable[Series]:
     eps_dir = results_dir / BATCH_EPS_DIR
     if not eps_dir.is_dir():
@@ -151,6 +161,8 @@ def _collect_batch_series(
         for batch_dir in target_dirs:
             batchsize = _parse_batchsize(batch_dir.name)
             if batchsize == "10000":
+                continue
+            if batchsize_filter and batchsize != batchsize_filter:
                 continue
             payload = _load_latest_payload(batch_dir)
             if payload is None:
@@ -173,7 +185,14 @@ def _collect_epsilon_series(
     walltime_key: str,
     *,
     rolling_window: int | None,
+    batchsize_filter: str | None,
 ) -> Iterable[Series]:
+    if batchsize_filter and batchsize_filter != "100000":
+        print(
+            "Skipping epsilon series: --batchsize does not match required batch_100000 directories"
+        )
+        return []
+
     series_list: List[Series] = []
 
     for eps_dir in sorted(
