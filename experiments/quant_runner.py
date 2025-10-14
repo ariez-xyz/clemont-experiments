@@ -450,17 +450,85 @@ def load_data(cfg: Config) -> Tuple[np.ndarray, np.ndarray, List[str], List[str]
 
     def _ensure_exists(path: Path) -> Path:
         if not path.exists():
-            raise FileNotFoundError(f"Expected file at {path.resolve()} (adjust --input-csv/--preds-csv)")
+            raise FileNotFoundError(
+                f"Expected file at {path.resolve()} (adjust --input-csv/--preds-csv)"
+            )
         return path
 
     def _clean_prob_names(columns: Sequence[str]) -> List[str]:
-        prob_names: List[str] = []
+        cleaned: List[str] = []
         for name in columns:
-            cleaned = name
-            if name.startswith("prob_"):
-                cleaned = name.replace("prob_", "p(") + ")"
-            prob_names.append(cleaned.lower())
-        return prob_names
+            alias = name
+            if alias.startswith("prob_"):
+                alias = alias.replace("prob_", "p(") + ")"
+            cleaned.append(alias.lower())
+        return cleaned
+
+    def _resolve_feature_columns(
+        fieldnames: Sequence[str], *, exclude: Sequence[str]
+    ) -> List[str]:
+        if cfg.input_columns:
+            candidates = [col for col in cfg.input_columns if col not in ignore]
+        else:
+            candidates = [
+                col for col in fieldnames if col not in ignore and col not in exclude
+            ]
+        missing = [col for col in candidates if col not in fieldnames]
+        if missing:
+            raise KeyError(
+                f"Columns {missing} missing in {input_path}. Available: {list(fieldnames)}"
+            )
+        return candidates
+
+    def _resolve_prob_columns(fieldnames: Sequence[str]) -> List[str]:
+        if cfg.pred_columns:
+            candidates = [col for col in cfg.pred_columns if col not in ignore]
+        else:
+            candidates = [
+                col
+                for col in fieldnames
+                if col.lower().startswith("prob") and col not in ignore
+            ]
+        missing = [col for col in candidates if col not in fieldnames]
+        if missing:
+            raise KeyError(
+                f"Columns {missing} missing in probability file. Available: {list(fieldnames)}"
+            )
+        if not candidates:
+            raise ValueError(
+                "Could not identify probability columns; provide them explicitly via --pred-cols"
+            )
+        return candidates
+
+    def _read_combined_rows(
+        path: Path, feature_cols: Sequence[str], prob_cols: Sequence[str]
+    ) -> Tuple[List[List[float]], List[List[float]], set[int]]:
+        feats: List[List[float]] = []
+        probs_local: List[List[float]] = []
+        seen: set[int] = set()
+        with path.open(newline="") as fh:
+            reader = csv.DictReader(fh)
+            for idx, row in enumerate(reader, start=1):
+                if cfg.row_ids and idx not in cfg.row_ids:
+                    continue
+                feats.append([float(row[col]) for col in feature_cols])
+                probs_local.append([float(row[col]) for col in prob_cols])
+                seen.add(idx)
+        return feats, probs_local, seen
+
+    def _read_columns(
+        path: Path, columns: Sequence[str]
+    ) -> Tuple[List[List[float]], set[int]]:
+        rows: List[List[float]] = []
+        seen: set[int] = set()
+        with path.open(newline="") as fh:
+            reader = csv.DictReader(fh)
+            for idx, row in enumerate(reader, start=1):
+                if cfg.row_ids and idx not in cfg.row_ids:
+                    continue
+                rows.append([float(row[col]) for col in columns])
+                seen.add(idx)
+        return rows, seen
 
     input_path = _ensure_exists(cfg.input_csv)
     preds_path = cfg.preds_csv
@@ -468,129 +536,57 @@ def load_data(cfg: Config) -> Tuple[np.ndarray, np.ndarray, List[str], List[str]
         preds_path = _ensure_exists(preds_path)
 
     ignore = set(cfg.ignore_columns)
-    seen_input_ids: set[int] = set()
+    combined_file = preds_path is None or preds_path == cfg.input_csv
 
-    if preds_path is None or preds_path == cfg.input_csv:
-        with input_path.open(newline="") as fh:
-            reader = csv.DictReader(fh)
-            fieldnames = reader.fieldnames or []
-            available = [col for col in fieldnames if col not in ignore]
+    with input_path.open(newline="") as fh:
+        input_reader = csv.DictReader(fh)
+        input_fields = input_reader.fieldnames or []
 
-            if cfg.pred_columns:
-                pred_cols = [col for col in cfg.pred_columns if col not in ignore]
-            else:
-                pred_cols = [col for col in available if col.lower().startswith("prob")]
-
-            missing_probs = [col for col in pred_cols if col not in fieldnames]
-            if missing_probs:
-                raise KeyError(
-                    f"Columns {missing_probs} missing in {input_path}. Available: {fieldnames}"
-                )
-            if not pred_cols:
-                raise ValueError(
-                    "Could not identify probability columns; provide them explicitly via --pred-cols"
-                )
-
-            if cfg.input_columns:
-                feature_columns = [col for col in cfg.input_columns if col not in ignore]
-            else:
-                feature_columns = [col for col in available if col not in pred_cols]
-
-            missing_features = [col for col in feature_columns if col not in fieldnames]
-            if missing_features:
-                raise KeyError(
-                    f"Columns {missing_features} missing in {input_path}. Available: {fieldnames}"
-                )
-            overlap = set(feature_columns) & set(pred_cols)
-            if overlap:
-                raise ValueError(
-                    f"Columns {sorted(overlap)} cannot be both feature and prediction columns"
-                )
-
-            inputs: List[List[float]] = []
-            probs: List[List[float]] = []
-            for idx, row in enumerate(reader, start=1):
-                if cfg.row_ids and idx not in cfg.row_ids:
-                    continue
-                inputs.append([float(row[col]) for col in feature_columns])
-                probs.append([float(row[col]) for col in pred_cols])
-                seen_input_ids.add(idx)
-
-        prob_names = _clean_prob_names(pred_cols)
+    if combined_file:
+        prob_columns = _resolve_prob_columns(input_fields)
+        feature_columns = _resolve_feature_columns(
+            input_fields, exclude=prob_columns
+        )
+        overlap_columns = set(feature_columns) & set(prob_columns)
+        if overlap_columns:
+            raise ValueError(
+                f"Columns {sorted(overlap_columns)} cannot be both feature and prediction columns"
+            )
+        inputs, probs, seen_input_ids = _read_combined_rows(
+            input_path, feature_columns, prob_columns
+        )
+        pred_seen_ids = seen_input_ids
     else:
-        with input_path.open(newline="") as fh:
-            reader = csv.DictReader(fh)
-            fieldnames = reader.fieldnames or []
-            if cfg.input_columns:
-                feature_columns = [col for col in cfg.input_columns if col not in ignore]
-            else:
-                feature_columns = [col for col in fieldnames if col not in ignore]
-
-            missing_features = [col for col in feature_columns if col not in fieldnames]
-            if missing_features:
-                raise KeyError(
-                    f"Columns {missing_features} missing in {input_path}. Available: {fieldnames}"
-                )
-
-            inputs = []
-            for idx, row in enumerate(reader, start=1):
-                if cfg.row_ids and idx not in cfg.row_ids:
-                    continue
-                inputs.append([float(row[col]) for col in feature_columns])
-                seen_input_ids.add(idx)
+        feature_columns = _resolve_feature_columns(input_fields, exclude=())
+        inputs, seen_input_ids = _read_columns(input_path, feature_columns)
 
         with preds_path.open(newline="") as fh:
-            reader = csv.DictReader(fh)
-            fieldnames = reader.fieldnames or []
-            if cfg.pred_columns:
-                prob_cols = [col for col in cfg.pred_columns if col not in ignore]
-            else:
-                prob_cols = [col for col in fieldnames if col.lower().startswith("prob") and col not in ignore]
-
-            missing_probs = [col for col in prob_cols if col not in fieldnames]
-            if missing_probs:
-                raise KeyError(
-                    f"Columns {missing_probs} missing in {preds_path}. Available: {fieldnames}"
-                )
-            if not prob_cols:
-                raise ValueError(
-                    "Could not identify probability columns; provide them explicitly via --pred-cols"
-                )
-
-            probs = []
-            pred_seen_ids: set[int] = set()
-            for idx, row in enumerate(reader, start=1):
-                if cfg.row_ids and idx not in cfg.row_ids:
-                    continue
-                probs.append([float(row[col]) for col in prob_cols])
-                pred_seen_ids.add(idx)
+            preds_reader = csv.DictReader(fh)
+            pred_fields = preds_reader.fieldnames or []
+        prob_columns = _resolve_prob_columns(pred_fields)
+        probs, pred_seen_ids = _read_columns(preds_path, prob_columns)
 
         if cfg.row_ids:
             missing_inputs = sorted(cfg.row_ids - seen_input_ids)
             missing_probs = sorted(cfg.row_ids - pred_seen_ids)
             if missing_inputs or missing_probs:
+                issues = []
+                if missing_inputs:
+                    issues.append(f"input CSV missing {missing_inputs}")
+                if missing_probs:
+                    issues.append(f"preds CSV missing {missing_probs}")
                 raise ValueError(
-                    "Rows requested via --row-ids not found in CSV(s): "
-                    + ", ".join(
-                        filter(
-                            None,
-                            [
-                                f"input CSV missing {missing_inputs}" if missing_inputs else "",
-                                f"preds CSV missing {missing_probs}" if missing_probs else "",
-                            ],
-                        )
-                    ).strip(', ')
+                    "Rows requested via --row-ids not found in CSV(s): " + ", ".join(issues)
                 )
 
-        prob_names = _clean_prob_names(prob_cols)
-
-    overlap = min(len(inputs), len(probs))
     if cfg.row_ids:
         missing_inputs = sorted(cfg.row_ids - seen_input_ids)
         if missing_inputs:
             raise ValueError(
                 f"Rows requested via --row-ids not found in input CSV: {missing_inputs}"
             )
+
+    overlap = min(len(inputs), len(probs))
     if cfg.row_ids and overlap == 0:
         raise ValueError(
             "--row-ids filtering removed all rows; verify the ids and the CSV contents"
@@ -608,11 +604,18 @@ def load_data(cfg: Config) -> Tuple[np.ndarray, np.ndarray, List[str], List[str]
         )
         overlap = cfg.max_rows
 
-    input_array = np.asarray(inputs[:overlap], dtype=np.float32)
+    inputs = inputs[:overlap]
+    probs = probs[:overlap]
+
+    input_array = np.asarray(inputs, dtype=np.float32)
+    probs_array = np.asarray(probs, dtype=np.float64)
 
     if cfg.shuffle:
         rng = np.random.default_rng(seed=42)
-        rng.shuffle(input_array)
+        indices = np.arange(overlap)
+        rng.shuffle(indices)
+        input_array = input_array[indices]
+        probs_array = probs_array[indices]
 
     if cfg.normalize:
         norms = np.linalg.norm(input_array, axis=1, keepdims=True)
@@ -620,12 +623,9 @@ def load_data(cfg: Config) -> Tuple[np.ndarray, np.ndarray, List[str], List[str]
         if nonzero_mask.any():
             input_array[nonzero_mask] /= norms[nonzero_mask]
 
-    return (
-        input_array,
-        np.asarray(probs[:overlap], dtype=np.float64),
-        list(feature_columns),
-        prob_names,
-    )
+    prob_names = _clean_prob_names(prob_columns)
+
+    return input_array, probs_array, list(feature_columns), prob_names
 
 
 def save_results_json(
