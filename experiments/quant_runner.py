@@ -112,6 +112,7 @@ class Config:
     save_points: bool = False
     normalize: bool = False
     static: bool = False
+    shuffle: bool = False
     epsilon: Optional[float] = None
     row_ids: Optional[set[int]] = None
     k_grow_factor: Optional[float] = None
@@ -391,6 +392,8 @@ def parse_args() -> Config:
                         help=f"Normalize input columns to length 1 in the L2 norm (default: {defaults.normalize})")
     parser.add_argument("--save-points", dest="save_points", action="store_true",
                         help=f"Whether to write raw input and output points to .json log (default: {defaults.save_points})")
+    parser.add_argument("--shuffle", dest="shuffle", action="store_true",
+                        help=f"shuffle the data before run to compute (seed 42, default: {defaults.shuffle})")
     parser.add_argument("--static", dest="static", action="store_true",
                         help=f"preloads the data before run to compute (default: {defaults.static})")
     parser.add_argument("--epsilon", dest="epsilon", type=float, default=argparse.SUPPRESS,
@@ -606,6 +609,11 @@ def load_data(cfg: Config) -> Tuple[np.ndarray, np.ndarray, List[str], List[str]
         overlap = cfg.max_rows
 
     input_array = np.asarray(inputs[:overlap], dtype=np.float32)
+
+    if cfg.shuffle:
+        rng = np.random.default_rng(seed=42)
+        rng.shuffle(input_array)
+
     if cfg.normalize:
         norms = np.linalg.norm(input_array, axis=1, keepdims=True)
         nonzero_mask = (norms > 0).squeeze(axis=1)
