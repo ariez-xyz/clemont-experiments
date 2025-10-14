@@ -15,8 +15,8 @@ export RESULTS_DIR="${RESULTS_BASE}/results"
 export LOGS_DIR="${RESULTS_BASE}/logs"
 export BATCH_SIZES="50000,100000"
 export WALLTIMES="03:00:00,72:00:00"
-export EPSILONS="0.01,0.025,0.05"
-export MAX_K_VALUES="128,256,512,1024,"
+export EPSILONS="0.01,0.025,0.05,0.1"
+export MAX_K_VALUES=",128,256,512,1024"
 export WORK_SCRIPT="slurm_quant_higgs_work.sh"
 
 mkdir -p "${RESULTS_DIR}" "${LOGS_DIR}"
@@ -41,7 +41,7 @@ sbatch \
   --job-name=quant_higgs \
   --output="${LOGS_DIR}/quant_higgs-%A-%a.log" \
   --cpus-per-task=8 \
-  --time=50:00:00 \
+  --time=75:00:00 \
   --mem=96G \
   --array=1-${num_tasks} \
   --export=ALL \
