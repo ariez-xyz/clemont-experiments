@@ -201,7 +201,7 @@ def _collect_epsilon_series(
         epsilon_value = eps_dir.name.split("eps_", 1)[1].replace("_", ".")
         target_dir = (
             eps_dir
-            / "maxk_128"
+            / "maxk_1024"
             / f"batch_100000_wt_{walltime_key}"
         )
         if not target_dir.is_dir():
