@@ -11,6 +11,11 @@ from typing import Iterable, List, Sequence, Tuple
 
 import matplotlib.pyplot as plt
 
+try:  # pragma: no cover - script entry point convenience
+    from ._plot_utils import DEFAULT_DPI, DEFAULT_FIGSIZE
+except ImportError:  # pragma: no cover - script executed from repo root
+    from _plot_utils import DEFAULT_DPI, DEFAULT_FIGSIZE
+
 BATCH_EPS_DIR = "eps_0_05"
 DEFAULT_OUTPUT_NAME = "time_per_sample.png"
 JSON_PATTERN = "*.json"
@@ -102,7 +107,7 @@ def main() -> None:
             "No matching JSON payloads found for the requested walltime."
         )
 
-    fig, ax = plt.subplots(figsize=(10, 6))
+    fig, ax = plt.subplots(figsize=DEFAULT_FIGSIZE)
 
     line_alpha = 0.5
 
@@ -128,7 +133,7 @@ def main() -> None:
     fig.tight_layout()
 
     output_path = _resolve_output_path(args.output, results_dir, walltime_key)
-    fig.savefig(output_path, dpi=200)
+    fig.savefig(output_path, dpi=DEFAULT_DPI)
     print(f"Saved plot to {output_path}")
 
     if args.show:

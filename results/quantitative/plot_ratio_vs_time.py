@@ -12,11 +12,9 @@ import matplotlib.pyplot as plt
 import numpy as np
 
 try:  # pragma: no cover - script entry point convenience
-    from ._plot_utils import resolve_json_paths
+    from ._plot_utils import DEFAULT_DPI, DEFAULT_FIGSIZE, resolve_json_paths
 except ImportError:  # pragma: no cover - script executed from repo root
-    from _plot_utils import resolve_json_paths
-
-DEFAULT_FIGSIZE = (10, 6)
+    from _plot_utils import DEFAULT_DPI, DEFAULT_FIGSIZE, resolve_json_paths
 CUMTIME_COLOR = "#ff7f0e"
 SCATTER_COLOR = "#1f77b4"
 
@@ -118,7 +116,7 @@ def _plot_single_run(
     fig.tight_layout()
 
     resolved_output = _resolve_output_path(output_path, json_path)
-    fig.savefig(resolved_output, dpi=200)
+    fig.savefig(resolved_output, dpi=DEFAULT_DPI)
     print(
         f"Saved ratio/time scatter to {resolved_output} "
         f"(records plotted: {len(x_times)})"

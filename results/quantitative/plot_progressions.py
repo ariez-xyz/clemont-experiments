@@ -11,9 +11,19 @@ import matplotlib.pyplot as plt
 import numpy as np
 
 try:
-    from ._plot_utils import metadata_value, resolve_json_paths
+    from ._plot_utils import (
+        DEFAULT_DPI,
+        DEFAULT_FIGSIZE,
+        metadata_value,
+        resolve_json_paths,
+    )
 except ImportError:  # pragma: no cover - script-style execution
-    from _plot_utils import metadata_value, resolve_json_paths
+    from _plot_utils import (
+        DEFAULT_DPI,
+        DEFAULT_FIGSIZE,
+        metadata_value,
+        resolve_json_paths,
+    )
 
 RATIO_COLOR = "#1f77b4"
 BOUND_COLOR = "#ff7f0e"
@@ -218,7 +228,7 @@ def _render_overlay(
     output_path: Path,
     alpha: float,
 ) -> None:
-    fig, ax = plt.subplots(figsize=(10, 6))
+    fig, ax = plt.subplots(figsize=DEFAULT_FIGSIZE)
 
     min_ratio: Optional[float] = None
     min_bound: Optional[float] = None
@@ -256,7 +266,7 @@ def _render_overlay(
 
     _configure_axes(fig, ax, metadata, description, min_ratio, min_bound)
 
-    fig.savefig(output_path, dpi=300, bbox_inches="tight")
+    fig.savefig(output_path, dpi=DEFAULT_DPI, bbox_inches="tight")
     print(f"Saved progression overlay to {output_path}")
     plt.close(fig)
 

@@ -11,9 +11,19 @@ import matplotlib.pyplot as plt
 import numpy as np
 
 try:
-    from ._plot_utils import metadata_value, resolve_json_paths
+    from ._plot_utils import (
+        DEFAULT_DPI,
+        DEFAULT_FIGSIZE,
+        metadata_value,
+        resolve_json_paths,
+    )
 except ImportError:  # pragma: no cover - script-style execution
-    from _plot_utils import metadata_value, resolve_json_paths
+    from _plot_utils import (
+        DEFAULT_DPI,
+        DEFAULT_FIGSIZE,
+        metadata_value,
+        resolve_json_paths,
+    )
 
 
 def main() -> None:
@@ -57,7 +67,7 @@ def _plot_histogram(json_path: Path, output_path: Optional[Path], bins: int) -> 
 
     bin_edges = np.logspace(np.log10(ratios.min()), np.log10(ratios.max()), bins)
 
-    plt.figure(figsize=(10, 6))
+    plt.figure(figsize=DEFAULT_FIGSIZE)
     plt.hist(ratios, bins=bin_edges, edgecolor="black", alpha=0.75)
     plt.xscale("log")
     plt.yscale("log")
@@ -94,7 +104,7 @@ def _plot_histogram(json_path: Path, output_path: Optional[Path], bins: int) -> 
 #    plt.xlim(left=10e-5, right=10e1)
 
     final_output_path = output_path or json_path.with_name(json_path.stem + "_ratios.png")
-    plt.savefig(final_output_path, dpi=300, bbox_inches="tight")
+    plt.savefig(final_output_path, dpi=DEFAULT_DPI, bbox_inches="tight")
     print(f"Saved ratio histogram to {final_output_path}")
     plt.close()
 

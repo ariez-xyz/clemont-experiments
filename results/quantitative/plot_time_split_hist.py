@@ -12,9 +12,9 @@ import matplotlib.pyplot as plt
 import numpy as np
 
 try:  # pragma: no cover - script entry point convenience
-    from ._plot_utils import resolve_json_paths
+    from ._plot_utils import DEFAULT_DPI, DEFAULT_FIGSIZE, resolve_json_paths
 except ImportError:  # pragma: no cover - script executed from repo root
-    from _plot_utils import resolve_json_paths
+    from _plot_utils import DEFAULT_DPI, DEFAULT_FIGSIZE, resolve_json_paths
 
 DEFAULT_BINS = 60
 DEFAULT_SPLIT = 80.0
@@ -121,7 +121,7 @@ def _plot_histogram(
 
     bin_edges = _compute_ratio_bins(ratios, bins)
 
-    fig, ax = plt.subplots(figsize=(10, 6))
+    fig, ax = plt.subplots(figsize=DEFAULT_FIGSIZE)
     ax.hist(
         group_within,
         bins=bin_edges,
@@ -158,7 +158,7 @@ def _plot_histogram(
     fig.tight_layout()
 
     output_path = _resolve_output_path(json_path, output_dir, split)
-    fig.savefig(output_path, dpi=200)
+    fig.savefig(output_path, dpi=DEFAULT_DPI)
     print(
         f"Saved time-coloured ratio histogram to {output_path} "
         f"(≤ cutoff: {group_within.size}, > cutoff: {group_outside.size})"

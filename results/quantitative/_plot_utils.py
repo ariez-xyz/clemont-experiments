@@ -5,6 +5,10 @@ from __future__ import annotations
 from pathlib import Path
 from typing import List, Optional, Sequence
 
+# Central plotting configuration used by quantitative result scripts.
+DEFAULT_FIGSIZE = (10, 6)
+DEFAULT_DPI = 300
+
 _DEFAULT_PATTERN = "quant_run_*.json"
 
 
@@ -59,4 +63,3 @@ def metadata_value(meta: Sequence, key: str, fallback_key: Optional[str] = None)
             return meta[fallback_key]
         except (KeyError, TypeError):
             return None
-

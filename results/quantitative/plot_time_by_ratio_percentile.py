@@ -12,12 +12,11 @@ import matplotlib.pyplot as plt
 import numpy as np
 
 try:  # pragma: no cover - script entry point convenience
-    from ._plot_utils import resolve_json_paths
+    from ._plot_utils import DEFAULT_DPI, DEFAULT_FIGSIZE, resolve_json_paths
 except ImportError:  # pragma: no cover - script executed from repo root
-    from _plot_utils import resolve_json_paths
+    from _plot_utils import DEFAULT_DPI, DEFAULT_FIGSIZE, resolve_json_paths
 
 DEFAULT_BINS = 20
-DEFAULT_FIGSIZE = (10, 6)
 
 
 def main() -> None:
@@ -40,6 +39,12 @@ def main() -> None:
         type=int,
         default=DEFAULT_BINS,
         help=f"Number of percentile bins to use (default: {DEFAULT_BINS})",
+    )
+    parser.add_argument(
+        "--fill-percentiles",
+        type=str,
+        default="10,90",
+        help="Comma-separated lower,upper percentiles for the shaded runtime band (default: 10,90)",
     )
     parser.add_argument(
         "--output",
@@ -73,9 +78,12 @@ def main() -> None:
     if not datasets:
         raise SystemExit("No usable records found in the supplied paths")
 
+    fill_bounds = _parse_fill_percentiles(args.fill_percentiles)
+
     _plot_histogram(
         datasets=datasets,
         bins=args.bins,
+        fill_bounds=fill_bounds,
         output_path=args.output,
         show=args.show,
     )
@@ -110,37 +118,54 @@ def _load_ratio_time(json_path: Path) -> Tuple[np.ndarray, np.ndarray]:
     return ratios, times
 
 
+def _parse_fill_percentiles(spec: str) -> Tuple[float, float]:
+    parts = [part.strip() for part in spec.split(",") if part.strip()]
+    if len(parts) != 2:
+        raise SystemExit("--fill-percentiles must contain two comma-separated values, e.g. '10,90'")
+    try:
+        lower, upper = (float(parts[0]), float(parts[1]))
+    except ValueError as exc:
+        raise SystemExit("--fill-percentiles values must be numeric") from exc
+    if not (0.0 <= lower < upper <= 100.0):
+        raise SystemExit("--fill-percentiles must satisfy 0 ≤ lower < upper ≤ 100")
+    return lower, upper
+
+
 def _plot_histogram(
     *,
     datasets: Sequence[Tuple[Path, np.ndarray, np.ndarray]],
     bins: int,
+    fill_bounds: Tuple[float, float],
     output_path: Optional[Path],
     show: bool,
 ) -> None:
     percentiles = np.linspace(0, 100, bins + 1)
-    labels = [f"{percentiles[i]:.1f}-{percentiles[i + 1]:.1f}" for i in range(bins)]
-
     color_cycle = plt.rcParams["axes.prop_cycle"].by_key().get("color", [])
-    alpha = 0.35
+
+    x_vals = (percentiles[:-1] + percentiles[1:]) / 2.0
 
     plotted = 0
     fig, ax = plt.subplots(figsize=DEFAULT_FIGSIZE)
 
     for idx, (json_path, ratios, times) in enumerate(datasets):
-        avg_times = _compute_avg_times(ratios, times, percentiles)
-        if avg_times is None:
+        stats = _compute_stats(ratios, times, percentiles, fill_bounds)
+        if stats is None:
             print(f"Insufficient ratio variation in {json_path}; skipping")
             continue
+        avg_times, lower_bounds, upper_bounds = stats
         color = color_cycle[idx % len(color_cycle)] if color_cycle else None
-        ax.bar(
-            labels,
-            avg_times,
-            color=color,
-            alpha=alpha,
-            edgecolor="black",
-            linewidth=0.6,
-            label=f"{json_path.stem} (n={len(ratios)})",
-        )
+        label = f"{json_path.stem} (n={len(ratios)})"
+        ax.plot(x_vals, avg_times, color=color, linewidth=2.0, label=label)
+        mask = ~np.isnan(lower_bounds) & ~np.isnan(upper_bounds)
+        if mask.any():
+            ax.fill_between(
+                x_vals,
+                lower_bounds,
+                upper_bounds,
+                where=mask,
+                color=color,
+                alpha=0.2,
+            )
         plotted += 1
 
     if plotted == 0:
@@ -148,28 +173,70 @@ def _plot_histogram(
         plt.close(fig)
         return
 
-    ax.set_xlabel("max_ratio percentile bin")
+    ax.set_xlabel("max_ratio percentile")
     ax.set_ylabel("Average time (ms)")
-    ax.set_title("Average time by ratio percentile")
-    ax.tick_params(axis="x", rotation=45)
+    ax.set_title(
+        "Average time by ratio percentile"
+        + (f" (fill {fill_bounds[0]:.1f}–{fill_bounds[1]:.1f}%)" if datasets else "")
+    )
+    ax.set_xlim(percentiles[0], percentiles[-1])
+    major_step = max(1, bins // 10)
+    ax.set_xticks(percentiles[::major_step])
+    ax.set_xticks(percentiles, minor=True)
     ax.grid(True, axis="y", alpha=0.3)
     ax.legend()
 
     fig.tight_layout()
 
     output = _resolve_output_path(output_path, [path for path, _, _ in datasets])
-    fig.savefig(output, dpi=200)
+    fig.savefig(output, dpi=DEFAULT_DPI)
     print(f"Saved ratio percentile histogram to {output}")
 
     if show:
         plt.show()
     plt.close(fig)
 
-def _compute_avg_times(
+def _compute_stats(
     ratios: np.ndarray,
     times: np.ndarray,
     percentiles: np.ndarray,
-) -> Optional[np.ndarray]:
+    fill_bounds: Tuple[float, float],
+) -> Optional[Tuple[np.ndarray, np.ndarray, np.ndarray]]:
+    lower_pct, upper_pct = fill_bounds
+    ratio_breaks = np.percentile(ratios, percentiles)
+
+    for idx in range(1, ratio_breaks.size):
+        if ratio_breaks[idx] <= ratio_breaks[idx - 1]:
+            ratio_breaks[idx] = np.nextafter(ratio_breaks[idx - 1], float("inf"))
+
+    if (not np.isfinite(ratio_breaks).all()) or np.allclose(ratio_breaks[0], ratio_breaks[-1]):
+        return None
+
+    bins = percentiles.size - 1
+    bin_indices = np.digitize(ratios, ratio_breaks[1:-1], right=True)
+    bin_indices = np.clip(bin_indices, 0, bins - 1)
+
+    bucket_values: list[list[float]] = [[] for _ in range(bins)]
+    for idx, time in zip(bin_indices, times):
+        bucket_values[idx].append(float(time))
+
+    avg_times = np.full(bins, np.nan, dtype=float)
+    lower_bounds = np.full(bins, np.nan, dtype=float)
+    upper_bounds = np.full(bins, np.nan, dtype=float)
+
+    for idx, values in enumerate(bucket_values):
+        if not values:
+            continue
+        arr = np.asarray(values, dtype=float)
+        avg_times[idx] = arr.mean()
+        if arr.size == 1:
+            lower_bounds[idx] = upper_bounds[idx] = arr[0]
+        else:
+            lower_bounds[idx], upper_bounds[idx] = np.percentile(
+                arr, [lower_pct, upper_pct]
+            )
+
+    return avg_times, lower_bounds, upper_bounds
     ratio_breaks = np.percentile(ratios, percentiles)
 
     for idx in range(1, ratio_breaks.size):
@@ -184,16 +251,24 @@ def _compute_avg_times(
     bin_indices = np.clip(bin_indices, 0, bins - 1)
 
     avg_times = np.zeros(bins, dtype=float)
+    sumsq_times = np.zeros(bins, dtype=float)
     counts = np.zeros(bins, dtype=float)
 
     for idx, time in zip(bin_indices, times):
         avg_times[idx] += time
+        sumsq_times[idx] += time * time
         counts[idx] += 1
 
     mask = counts > 0
     avg_times[mask] /= counts[mask]
     avg_times[~mask] = 0.0
-    return avg_times
+    std_times = np.zeros_like(avg_times)
+    valid = counts > 1
+    variance = np.zeros_like(avg_times)
+    variance[valid] = (sumsq_times[valid] / counts[valid]) - avg_times[valid] ** 2
+    variance = np.clip(variance, a_min=0.0, a_max=None)
+    std_times[valid] = np.sqrt(variance[valid])
+    return avg_times, std_times
 
 
 def _resolve_output_path(candidate: Optional[Path], json_paths: Sequence[Path]) -> Path:

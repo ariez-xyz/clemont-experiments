@@ -11,9 +11,9 @@ import matplotlib.pyplot as plt
 import numpy as np
 
 try:
-    from ._plot_utils import resolve_json_paths
+    from ._plot_utils import DEFAULT_DPI, DEFAULT_FIGSIZE, resolve_json_paths
 except ImportError:  # pragma: no cover - script-style execution
-    from _plot_utils import resolve_json_paths
+    from _plot_utils import DEFAULT_DPI, DEFAULT_FIGSIZE, resolve_json_paths
 
 
 def main() -> None:
@@ -95,7 +95,7 @@ def main() -> None:
 
     bins = np.logspace(np.log10(min_edge), np.log10(max_edge), args.bins)
 
-    plt.figure(figsize=(10, 6))
+    plt.figure(figsize=DEFAULT_FIGSIZE)
     color_cycle = plt.rcParams["axes.prop_cycle"].by_key().get("color", [])
 
     for idx, (label, ratios) in enumerate(datasets):
@@ -120,7 +120,7 @@ def main() -> None:
     plt.tight_layout()
 
     output_path = _resolve_output_path(args.output, args.paths, script_dir)
-    plt.savefig(output_path, dpi=300, bbox_inches="tight")
+    plt.savefig(output_path, dpi=DEFAULT_DPI, bbox_inches="tight")
     print(f"Saved combined ratio histogram to {output_path}")
     plt.close()
 

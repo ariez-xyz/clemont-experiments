@@ -11,9 +11,19 @@ import matplotlib.pyplot as plt
 import numpy as np
 
 try:
-    from ._plot_utils import metadata_value, resolve_json_paths
+    from ._plot_utils import (
+        DEFAULT_DPI,
+        DEFAULT_FIGSIZE,
+        metadata_value,
+        resolve_json_paths,
+    )
 except ImportError:  # pragma: no cover - script-style execution
-    from _plot_utils import metadata_value, resolve_json_paths
+    from _plot_utils import (
+        DEFAULT_DPI,
+        DEFAULT_FIGSIZE,
+        metadata_value,
+        resolve_json_paths,
+    )
 
 
 def main() -> None:
@@ -198,7 +208,7 @@ def _plot_interval_widths_by_k(
     data = [widths_by_k[k] for k in sorted_k]
     positions = np.array(sorted_k, dtype=float)
 
-    plt.figure(figsize=(12, 7))
+    plt.figure(figsize=DEFAULT_FIGSIZE)
     box = plt.boxplot(
         data,
         positions=positions,
@@ -263,7 +273,7 @@ def _plot_interval_widths_by_k(
     final_path = output_path or json_path.with_name(
         json_path.stem + "_interval_width_boxplots_by_k.png"
     )
-    plt.savefig(final_path, dpi=300, bbox_inches="tight")
+    plt.savefig(final_path, dpi=DEFAULT_DPI, bbox_inches="tight")
     print(f"Saved interval width boxplots to {final_path}")
     plt.close()
 

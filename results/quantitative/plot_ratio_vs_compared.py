@@ -21,9 +21,19 @@ import matplotlib.pyplot as plt
 import numpy as np
 
 try:
-    from ._plot_utils import metadata_value, resolve_json_paths
+    from ._plot_utils import (
+        DEFAULT_DPI,
+        DEFAULT_FIGSIZE,
+        metadata_value,
+        resolve_json_paths,
+    )
 except ImportError:  # pragma: no cover - script-style execution
-    from _plot_utils import metadata_value, resolve_json_paths
+    from _plot_utils import (
+        DEFAULT_DPI,
+        DEFAULT_FIGSIZE,
+        metadata_value,
+        resolve_json_paths,
+    )
 
 def main() -> None:
     parser = argparse.ArgumentParser(
@@ -151,7 +161,7 @@ def _plot_ratio_boxplots_by_pow2_count(
         ]
 
     # Plot
-    plt.figure(figsize=(12, 7))
+    plt.figure(figsize=DEFAULT_FIGSIZE)
     bp = plt.boxplot(
         data,
         positions=positions,
@@ -238,7 +248,7 @@ def _plot_ratio_boxplots_by_pow2_count(
         json_path.stem + "_ratio_boxplots_by_pow2_count.png"
     )
     plt.tight_layout()
-    plt.savefig(final_output_path, dpi=300, bbox_inches="tight")
+    plt.savefig(final_output_path, dpi=DEFAULT_DPI, bbox_inches="tight")
     print(f"Saved boxplots to {final_output_path}")
     plt.close()
 
