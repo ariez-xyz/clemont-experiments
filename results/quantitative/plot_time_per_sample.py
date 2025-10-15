@@ -72,6 +72,11 @@ def main() -> None:
         type=int,
         help="Filter runs to this batchsize (applies to both batch/max-k and epsilon series).",
     )
+    parser.add_argument(
+        "--epsilon",
+        type=str,
+        help="Filter runs to this epsilon.",
+    )
     args = parser.parse_args()
 
     results_dir = args.results_dir.expanduser().resolve()
@@ -84,6 +89,7 @@ def main() -> None:
     walltime_key = walltime_key.replace(":", "-")
 
     batchsize_filter = str(args.batchsize) if args.batchsize else None
+    epsilon_filter = str(args.epsilon) if args.epsilon else None
 
     batch_series = list(
         _collect_batch_series(
@@ -99,6 +105,7 @@ def main() -> None:
             walltime_key,
             rolling_window=args.rolling_average,
             batchsize_filter=batchsize_filter,
+            epsilon_filter=epsilon_filter,
         )
     )
 
@@ -191,6 +198,7 @@ def _collect_epsilon_series(
     *,
     rolling_window: int | None,
     batchsize_filter: str | None,
+    epsilon_filter: str | None,
 ) -> Iterable[Series]:
     if batchsize_filter and batchsize_filter != "100000":
         print(
@@ -204,6 +212,8 @@ def _collect_epsilon_series(
         p for p in results_dir.iterdir() if p.is_dir() and p.name.startswith("eps_")
     ):
         epsilon_value = eps_dir.name.split("eps_", 1)[1].replace("_", ".")
+        if epsilon_filter and epsilon_value != epsilon_filter:
+            continue
         target_dir = (
             eps_dir
             / "maxk_1024"
