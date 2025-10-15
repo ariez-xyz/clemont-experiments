@@ -60,6 +60,11 @@ def main() -> None:
         help="Show the plot interactively in addition to saving it",
     )
     parser.add_argument(
+        "--no-title",
+        action="store_true",
+        dest='no_title'
+    )
+    parser.add_argument(
         "--rolling-average",
         type=int,
         help=(
@@ -133,7 +138,7 @@ def main() -> None:
     ax.set_yscale("log")
     ax.set_xlabel("Processed samples")
     ax.set_ylabel("Time per sample (ms)")
-    ax.set_title(f"Time per sample progression (walltime {walltime_key})")
+    if not args.no_title: ax.set_title(f"Time per sample progression (walltime {walltime_key})")
     ax.grid(True, alpha=0.3)
     ax.legend()
 
