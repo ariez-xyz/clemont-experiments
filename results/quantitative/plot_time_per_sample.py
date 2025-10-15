@@ -179,10 +179,12 @@ def _collect_batch_series(
             payload = _load_latest_payload(batch_dir)
             if payload is None:
                 continue
+            label = f"quantitative, batch {batchsize}, maxk {maxk_label}"
+            if batchsize_filter: label = f"quantitative, max_k={maxk_label}"
             series = _build_series(
                 payload.get("records", []),
                 value_key="time",
-                label=f"batch {batchsize}, maxk {maxk_label}",
+                label=label,
                 value_scale=1.0,
                 rolling_window=rolling_window,
             )
@@ -229,7 +231,7 @@ def _collect_epsilon_series(
         series = _build_series(
             payload.get("records", []),
             value_key="epsilon_monitor_time_ms",
-            label=f"epsilon {epsilon_value} (monitor)",
+            label=f"$\\epsilon-\\delta$ monitor, $\\epsilon={epsilon_value}$",
             value_scale=1.0,
             rolling_window=rolling_window,
         )
