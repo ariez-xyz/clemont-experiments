@@ -50,7 +50,25 @@ def main() -> None:
         default=None,
         help="Comma-separated list of indices. Ratios from each .json file will be divided into splits accordingly. Splits are assigned an individual color",
     )
+    parser.add_argument(
+        "--no-title",
+        action='store_true',
+        dest='no_title'
+    )
+    parser.add_argument(
+        "--split-epsilon-flagged",
+        action='store_true',
+        dest='split_epsilon_flagged'
+    )
+    parser.add_argument(
+        "--labels",
+        type=str,
+        default=None,
+        help="Comma-separated list of labels for legend.",
+    )
     args = parser.parse_args()
+
+    assert not (args.split_epsilon_flagged and args.split)
 
     script_dir = Path(__file__).resolve().parent
     json_paths = _collect_json_paths(args.paths, default_dir=script_dir)
@@ -72,6 +90,10 @@ def main() -> None:
                 datasets.append((f'{split_start}-{split_end-1} of {json_path.stem}', ratios[split_start:split_end]))
                 split_start = split_end
             print(len(ratios), [len(d) for l,d in datasets])
+        elif args.split_epsilon_flagged:
+            flags = _load_flags(json_path)
+            datasets.append((f'unflagged', ratios[~flags]))
+            datasets.append((f'flagged', ratios[flags]))
         else:
             datasets.append((str(json_path.stem), ratios))
 
@@ -100,11 +122,13 @@ def main() -> None:
 
     for idx, (label, ratios) in enumerate(datasets):
         color = color_cycle[idx % len(color_cycle)] if color_cycle else None
+        label = f"{label} (n={len(ratios)})"
+        if args.labels: label = args.labels.split(",")[idx]
         plt.hist(
             ratios,
             bins=bins,
             alpha=args.alpha,
-            label=f"{label} (n={len(ratios)})",
+            label=label,
             edgecolor="black",
             linewidth=0.6,
             color=color,
@@ -112,9 +136,9 @@ def main() -> None:
 
     plt.xscale("log")
     plt.yscale("log")
-    plt.xlabel("Max ratio")
+    plt.xlabel("Robustness score")
     plt.ylabel("Frequency")
-    plt.title("Max ratios histogram (combined)")
+    if not args.no_title: plt.title("Max ratios histogram (combined)")
     plt.grid(True, alpha=0.3)
     plt.legend()
     plt.tight_layout()
@@ -140,6 +164,12 @@ def _collect_json_paths(paths: Iterable[Path], *, default_dir: Path) -> List[Pat
         raise SystemExit("No quant_run_*.json files resolved from provided paths")
     return resolved
 
+
+def _load_flags(json_path: Path) -> np.ndarray:
+    with json_path.open("r", encoding="utf-8") as fh:
+        payload = json.load(fh)
+    flags = np.array([record.get("epsilon_monitor_flag") for record in payload.get("records", [])], dtype=bool)
+    return flags
 
 def _load_ratios(json_path: Path) -> Tuple[np.ndarray, bool]:
     with json_path.open("r", encoding="utf-8") as fh:

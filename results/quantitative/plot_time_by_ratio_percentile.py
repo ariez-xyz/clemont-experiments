@@ -56,6 +56,17 @@ def main() -> None:
         action="store_true",
         help="Display the plot interactively in addition to saving it",
     )
+    parser.add_argument(
+        "--no-title",
+        action='store_true',
+        dest='no_title'
+    )
+    parser.add_argument(
+        "--labels",
+        type=str,
+        default=None,
+        help="Comma-separated list of labels for legend.",
+    )
     args = parser.parse_args()
 
     if args.bins <= 0:
@@ -86,6 +97,8 @@ def main() -> None:
         fill_bounds=fill_bounds,
         output_path=args.output,
         show=args.show,
+        no_title=args.no_title,
+        labels=args.labels,
     )
 
 
@@ -138,6 +151,8 @@ def _plot_histogram(
     fill_bounds: Tuple[float, float],
     output_path: Optional[Path],
     show: bool,
+    no_title: bool,
+    labels: Optional[str],
 ) -> None:
     percentiles = np.linspace(0, 100, bins + 1)
     color_cycle = plt.rcParams["axes.prop_cycle"].by_key().get("color", [])
@@ -155,6 +170,7 @@ def _plot_histogram(
         avg_times, lower_bounds, upper_bounds = stats
         color = color_cycle[idx % len(color_cycle)] if color_cycle else None
         label = f"{json_path.stem} (n={len(ratios)})"
+        if labels: label = labels.split(",")[idx]
         ax.plot(x_vals, avg_times, color=color, linewidth=2.0, label=label)
         mask = ~np.isnan(lower_bounds) & ~np.isnan(upper_bounds)
         if mask.any():
@@ -173,9 +189,9 @@ def _plot_histogram(
         plt.close(fig)
         return
 
-    ax.set_xlabel("max_ratio percentile")
-    ax.set_ylabel("Average time (ms)")
-    ax.set_title(
+    ax.set_xlabel("Robustness score percentile")
+    ax.set_ylabel("Time (ms)")
+    if not no_title: ax.set_title(
         "Average time by ratio percentile"
         + (f" (fill {fill_bounds[0]:.1f}–{fill_bounds[1]:.1f}%)" if datasets else "")
     )
