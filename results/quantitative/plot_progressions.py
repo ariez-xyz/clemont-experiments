@@ -449,14 +449,10 @@ def _configure_axes(
     if not no_title: ax.set_title(title)
 
     legend_handles = [
-        plt.Line2D([], [], color=RATIO_COLOR, linewidth=1.5, label="Progression of largest seen ratio"),
-        plt.Line2D([], [], color=BOUND_COLOR, linewidth=1.5, label="Bound progression"),
+        plt.Line2D([], [], color=RATIO_COLOR, linewidth=1.5, label=r"$l_t$"),
+        plt.Line2D([], [], color=BOUND_COLOR, linewidth=1.5, label="$u_t$"),
         plt.Line2D([], [], marker="x", color=INTERSECTION_COLOR, linestyle="", markersize=6, label="Crossover"),
     ]
-    if fill_between:
-        legend_handles.append(
-            plt.Rectangle((0, 0), 1, 1, facecolor=FILL_COLOR, alpha=0.5, label="Gap (ratio–bound)"),
-        )
     ax.legend(handles=legend_handles, loc="best", fontsize="small")
     ax.grid(True, which="both", alpha=0.15)
     fig.tight_layout()
