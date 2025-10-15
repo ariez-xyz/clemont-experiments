@@ -4,8 +4,8 @@ set -euo pipefail
 cd "$(dirname "${BASH_SOURCE[0]}")"
 
 INPUT_CSVS=(
-  "../data/RobustBench/predictions/cifar10-Bartoldson2024Adversarial_WRN-94-16-combined.csv"
-  "../data/RobustBench/predictions/cifar10-Standard-combined.csv"
+  "../data/RobustBench/predictions/cifar10-Bartoldson2024Adversarial_WRN-94-16-uniq.csv"
+  "../data/RobustBench/predictions/cifar10-Standard-uniq.csv"
 )
 MODEL_LABELS=(robust baseline)
 RESULTS_BASE="../results/quantitative/robustbench_cifar10"
@@ -18,6 +18,8 @@ for idx in "${!INPUT_CSVS[@]}"; do
   INPUT_CSVS[$idx]=$(realpath "${INPUT_CSVS[$idx]}")
   if [[ ! -f "${INPUT_CSVS[$idx]}" ]]; then
     echo "Input CSV not found: ${INPUT_CSVS[$idx]}" >&2
+    echo "Create prediction .csvs using predict.py script and instructions given in" >&2
+    echo "data/RobustBench. Combine the originals and adversarials using combine.py" >&2
     exit 1
   fi
   mkdir -p "${RESULTS_BASE}/${MODEL_LABELS[$idx]}"
