@@ -13,3 +13,8 @@ python plot_max_ratio_combined.py robustbench_cifar10/robust/quant_run_20251015T
 python plot_max_ratio_combined.py certifair/fair_eps_0p015_maxk64/quant_run_20251014T190025.json --split-epsilon-flagged --no-title --output certifair/hist_flag_vs_nonflag_eps_0.015.png
 python plot_max_ratio_combined.py certifair/fair_eps_0p050_maxk64/quant_run_20251014T190158.json --split-epsilon-flagged --no-title --output certifair/hist_flag_vs_nonflag_eps_0.05.png
 python plot_max_ratio_combined.py certifair/fair_eps_0p100_maxk64/quant_run_20251014T190007.json --split-epsilon-flagged --no-title --output certifair/hist_flag_vs_nonflag_eps_0.1.png
+
+python plot_time_per_sample.py robusttrees_higgs/results/ --walltime 72:00:00 --rolling-average 100000 --batchsize 100000 --epsilon 0.025 --no-title
+
+python plot_epsilon_flag_alignment.py certifair --pattern 'fair*none' --output certifair/fair_epsilon_alignment.png
+python plot_epsilon_flag_alignment.py certifair --pattern 'base*none' --output certifair/base_epsilon_alignment.png
