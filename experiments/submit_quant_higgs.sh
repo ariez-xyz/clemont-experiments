@@ -42,7 +42,7 @@ sbatch \
   --output="${LOGS_DIR}/quant_higgs-%A-%a.log" \
   --cpus-per-task=8 \
   --time=75:00:00 \
-  --mem=96G \
+  --mem=192G \
   --array=1-${num_tasks} \
   --export=ALL \
   "${WORK_SCRIPT}"
