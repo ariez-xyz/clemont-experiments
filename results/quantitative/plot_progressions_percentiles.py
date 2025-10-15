@@ -16,7 +16,7 @@ try:
 except ImportError:  # pragma: no cover - script-style execution
     from _plot_utils import resolve_json_paths
 
-PERCENTILES = (25, 50, 75)
+PERCENTILES = (25, 75)
 
 
 def main() -> None:
@@ -63,8 +63,9 @@ def main() -> None:
         if args.output_dir is not None:
             cmd.extend(["--output-dir", str(args.output_dir)])
 
+        cmd.extend(["--line-width", "1", "--fill-between", "--alpha", "1"])
+
         cmd.extend(extra_args)
-        cmd.extend(["--alpha", str(1)])
 
         print(
             f"Running plot_progressions.py for {json_path.name} "
@@ -93,9 +94,9 @@ def _select_percentile_point_ids(json_path: Path) -> List[int]:
             continue
         if not np.isfinite(count):
             continue
-        if note is not None and 'exhausted index' in note:
-            continue # disregard points that exhaust index
-        if ratios and bounds and ratios[-1] < bounds[-1]: # compatibility with earlier versions that lack note
+        if note is not None and "exhausted index" in note:
+            continue  # disregard points that exhaust index
+        if ratios and bounds and ratios[-1] < bounds[-1]:  # compatibility with earlier versions that lack note
             assert ks[-1] > point_id or ks[-1] > payload.get("max_k"), "failed sanity check: early terminated without bound, maxk or exhausting index"
             continue
         usable.append((pid, count))

@@ -28,6 +28,7 @@ except ImportError:  # pragma: no cover - script-style execution
 RATIO_COLOR = "#1f77b4"
 BOUND_COLOR = "#ff7f0e"
 INTERSECTION_COLOR = "#2ca02c"
+FILL_COLOR = "#d3d3d3"  # light gray
 
 
 def main() -> None:
@@ -61,6 +62,17 @@ def main() -> None:
         help="Line alpha for individual progressions (default: 0.08)",
     )
     parser.add_argument(
+        "--line-width",
+        type=float,
+        default=0.8,
+        help="Line width for progression curves (default: 0.8)",
+    )
+    parser.add_argument(
+        "--fill-between",
+        action="store_true",
+        help="Shade the area between ratio and bound for each record (light gray, alpha=0.5).",
+    )
+    parser.add_argument(
         "--output-dir",
         type=Path,
         help="Optional directory for output images (defaults to the JSON file's directory)",
@@ -82,6 +94,8 @@ def main() -> None:
             json_path,
             top_k=args.top_k,
             alpha=args.alpha,
+            line_width=args.line_width,
+            fill_between=args.fill_between,
             output_dir=args.output_dir,
             point_ids=point_ids,
         )
@@ -92,6 +106,8 @@ def _generate_plots(
     *,
     top_k: int,
     alpha: float,
+    line_width: float,
+    fill_between: bool,
     output_dir: Optional[Path],
     point_ids: Optional[list[int]],
 ) -> None:
@@ -159,6 +175,8 @@ def _generate_plots(
             description=description,
             output_path=output_path,
             alpha=alpha,
+            line_width=line_width,
+            fill_between=fill_between,
         )
         return
 
@@ -176,6 +194,8 @@ def _generate_plots(
             description=f"top {len(top_by_compared)} by compared_count",
             output_path=output_path,
             alpha=alpha,
+            line_width=line_width,
+            fill_between=fill_between,
         )
     else:
         print(f"No records with compared_count data in {json_path}")
@@ -189,6 +209,8 @@ def _generate_plots(
             description=f"top {len(top_by_ratio)} by max_ratio",
             output_path=output_path,
             alpha=alpha,
+            line_width=line_width,
+            fill_between=fill_between,
         )
     else:
         print(f"No records with max_ratio data in {json_path}")
@@ -227,6 +249,8 @@ def _render_overlay(
     description: str,
     output_path: Path,
     alpha: float,
+    line_width: float,
+    fill_between: bool,
 ) -> None:
     fig, ax = plt.subplots(figsize=DEFAULT_FIGSIZE)
 
@@ -237,17 +261,20 @@ def _render_overlay(
 
     for record in records:
         k_vals = np.asarray(record["k_progression"], dtype=float)
-#        k_vals = list(filter(lambda v: v >= 16, k_vals))
         ratio_vals = np.asarray(record["ratio_progression"], dtype=float)[-len(k_vals):]
         bound_vals = np.asarray(record["bound_progression"], dtype=float)[-len(k_vals):]
 
         ratio_min = float(np.nanmin(ratio_vals))
         bound_min = float(np.nanmin(bound_vals))
-        if (bound_min < 0): print(record)
         min_ratio = ratio_min if min_ratio is None else min(min_ratio, ratio_min)
         min_bound = bound_min if min_bound is None else min(min_bound, bound_min)
 
-        optional_intersection = _add_progression_to_ax(ax, k_vals, ratio_vals, bound_vals, alpha=alpha)
+        optional_intersection = _add_progression_to_ax(
+            ax, k_vals, ratio_vals, bound_vals,
+            alpha=alpha,
+            line_width=line_width,
+            fill_between=fill_between,
+        )
         if optional_intersection:
             ix, iy = optional_intersection
             intersection_points_x.append(ix)
@@ -258,7 +285,7 @@ def _render_overlay(
         intersection_points_y,
         color=INTERSECTION_COLOR,
         s=18,
-        marker='x',
+        marker="x",
         alpha=min(1.0, alpha * 2.5),
         linewidths=1,
         zorder=5,
@@ -278,10 +305,30 @@ def _add_progression_to_ax(
     bound_vals: np.ndarray,
     *,
     alpha: float,
+    line_width: float,
+    fill_between: bool,
 ) -> Optional[tuple[float, float]]:
-    ax.plot(k_vals, ratio_vals, color=RATIO_COLOR, linewidth=0.8, alpha=alpha)
-    ax.plot(k_vals, bound_vals, color=BOUND_COLOR, linewidth=0.8, alpha=alpha)
+    ax.plot(k_vals, ratio_vals, color=RATIO_COLOR, linewidth=line_width, alpha=alpha)
+    ax.plot(k_vals, bound_vals, color=BOUND_COLOR, linewidth=line_width, alpha=alpha)
+
+    # shading between ratio and bound
+    if fill_between:
+        last_valid_idx = len(ratio_vals) - 1
+        if np.any(ratio_vals < bound_vals):
+            last_valid_idx = np.where(ratio_vals < bound_vals)[0][-1]
+
+        ax.fill_between(
+            k_vals[:last_valid_idx + 1],
+            ratio_vals[:last_valid_idx + 1],
+            bound_vals[:last_valid_idx + 1],
+            facecolor=FILL_COLOR,
+            alpha=0.5,
+            linewidth=0,
+            zorder=0,
+        )
+
     return _find_intersection(k_vals, ratio_vals, bound_vals)
+
 
 def _find_intersection(
     k_vals: np.ndarray,
@@ -365,15 +412,8 @@ def _configure_axes(
     legend_handles = [
         plt.Line2D([], [], color=RATIO_COLOR, linewidth=1.5, label="Progression of largest seen ratio"),
         plt.Line2D([], [], color=BOUND_COLOR, linewidth=1.5, label="Bound progression"),
-        plt.Line2D(
-            [],
-            [],
-            marker="x",
-            color=INTERSECTION_COLOR,
-            linestyle="",
-            markersize=6,
-            label="Crossover",
-        ),
+        plt.Line2D([], [], marker="x", color=INTERSECTION_COLOR, linestyle="", markersize=6, label="Crossover"),
+        plt.Rectangle((0, 0), 1, 1, facecolor=FILL_COLOR, alpha=0.5, label="Gap (ratio–bound)"),
     ]
     ax.legend(handles=legend_handles, loc="best", fontsize="small")
     ax.grid(True, which="both", alpha=0.15)
