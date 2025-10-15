@@ -63,7 +63,7 @@ def main() -> None:
         if args.output_dir is not None:
             cmd.extend(["--output-dir", str(args.output_dir)])
 
-        cmd.extend(["--line-width", "1", "--fill-between", "--alpha", "1"])
+        cmd.extend(["--use-time", "--no-title", "--line-width", "1.5", "--fill-between", "--alpha", "1"])
 
         cmd.extend(extra_args)
 

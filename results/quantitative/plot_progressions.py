@@ -82,6 +82,16 @@ def main() -> None:
         type=str,
         help="Comma-separated point IDs to plot instead of automatic top selections",
     )
+    parser.add_argument(
+        "--no-title",
+        action="store_true",
+        help="Whether to include figure title",
+    )
+    parser.add_argument(
+        "--use-time",
+        action="store_true",
+        help="Use ms_progression values for the x-axis instead of k_progression",
+    )
     args = parser.parse_args()
 
     script_dir = Path(__file__).resolve().parent
@@ -98,6 +108,8 @@ def main() -> None:
             fill_between=args.fill_between,
             output_dir=args.output_dir,
             point_ids=point_ids,
+            use_time=args.use_time,
+            no_title=args.no_title,
         )
 
 
@@ -110,11 +122,13 @@ def _generate_plots(
     fill_between: bool,
     output_dir: Optional[Path],
     point_ids: Optional[list[int]],
+    use_time: bool,
+    no_title: bool,
 ) -> None:
     with json_path.open("r", encoding="utf-8") as fh:
         payload = json.load(fh)
 
-    records = _filter_records(payload.get("records", []))
+    records = _filter_records(payload.get("records", []), require_time=use_time)
     if not records:
         print(f"No progression records found in {json_path}")
         return
@@ -177,6 +191,8 @@ def _generate_plots(
             alpha=alpha,
             line_width=line_width,
             fill_between=fill_between,
+            use_time=use_time,
+            no_title=no_title,
         )
         return
 
@@ -196,6 +212,8 @@ def _generate_plots(
             alpha=alpha,
             line_width=line_width,
             fill_between=fill_between,
+            use_time=use_time,
+            no_title=no_title,
         )
     else:
         print(f"No records with compared_count data in {json_path}")
@@ -211,12 +229,14 @@ def _generate_plots(
             alpha=alpha,
             line_width=line_width,
             fill_between=fill_between,
+            use_time=use_time,
+            no_title=no_title,
         )
     else:
         print(f"No records with max_ratio data in {json_path}")
 
 
-def _filter_records(raw_records: Iterable[dict]) -> list[dict]:
+def _filter_records(raw_records: Iterable[dict], *, require_time: bool) -> list[dict]:
     filtered = []
     for record in raw_records:
         k = record.get("k_progression")
@@ -226,6 +246,10 @@ def _filter_records(raw_records: Iterable[dict]) -> list[dict]:
             continue
         if len(k) != len(ratio) or len(k) != len(bound):
             continue
+        if require_time:
+            ms = record.get("ms_progression")
+            if not ms or len(ms) != len(ratio):
+                continue
         filtered.append(record)
     return filtered
 
@@ -251,6 +275,8 @@ def _render_overlay(
     alpha: float,
     line_width: float,
     fill_between: bool,
+    use_time: bool,
+    no_title: bool,
 ) -> None:
     fig, ax = plt.subplots(figsize=DEFAULT_FIGSIZE)
 
@@ -260,9 +286,18 @@ def _render_overlay(
     intersection_points_y: list[float] = []
 
     for record in records:
-        k_vals = np.asarray(record["k_progression"], dtype=float)
-        ratio_vals = np.asarray(record["ratio_progression"], dtype=float)[-len(k_vals):]
-        bound_vals = np.asarray(record["bound_progression"], dtype=float)[-len(k_vals):]
+        x_key = "ms_progression" if use_time else "k_progression"
+        x_vals = np.asarray(record[x_key], dtype=float)
+        ratio_vals = np.asarray(record["ratio_progression"], dtype=float)
+        bound_vals = np.asarray(record["bound_progression"], dtype=float)
+
+        limit = min(len(x_vals), len(ratio_vals), len(bound_vals))
+        x_vals = x_vals[:limit]
+        ratio_vals = ratio_vals[:limit]
+        bound_vals = bound_vals[:limit]
+
+        if limit == 0:
+            continue
 
         ratio_min = float(np.nanmin(ratio_vals))
         bound_min = float(np.nanmin(bound_vals))
@@ -270,7 +305,7 @@ def _render_overlay(
         min_bound = bound_min if min_bound is None else min(min_bound, bound_min)
 
         optional_intersection = _add_progression_to_ax(
-            ax, k_vals, ratio_vals, bound_vals,
+            ax, x_vals, ratio_vals, bound_vals,
             alpha=alpha,
             line_width=line_width,
             fill_between=fill_between,
@@ -291,7 +326,7 @@ def _render_overlay(
         zorder=5,
     )
 
-    _configure_axes(fig, ax, metadata, description, min_ratio, min_bound)
+    _configure_axes(fig, ax, metadata, description, min_ratio, min_bound, use_time, fill_between, no_title)
 
     fig.savefig(output_path, dpi=DEFAULT_DPI, bbox_inches="tight")
     print(f"Saved progression overlay to {output_path}")
@@ -300,7 +335,7 @@ def _render_overlay(
 
 def _add_progression_to_ax(
     ax: plt.Axes,
-    k_vals: np.ndarray,
+    x_vals: np.ndarray,
     ratio_vals: np.ndarray,
     bound_vals: np.ndarray,
     *,
@@ -308,8 +343,8 @@ def _add_progression_to_ax(
     line_width: float,
     fill_between: bool,
 ) -> Optional[tuple[float, float]]:
-    ax.plot(k_vals, ratio_vals, color=RATIO_COLOR, linewidth=line_width, alpha=alpha)
-    ax.plot(k_vals, bound_vals, color=BOUND_COLOR, linewidth=line_width, alpha=alpha)
+    ax.plot(x_vals, ratio_vals, color=RATIO_COLOR, linewidth=line_width, alpha=alpha)
+    ax.plot(x_vals, bound_vals, color=BOUND_COLOR, linewidth=line_width, alpha=alpha)
 
     # shading between ratio and bound
     if fill_between:
@@ -318,7 +353,7 @@ def _add_progression_to_ax(
             last_valid_idx = np.where(ratio_vals < bound_vals)[0][-1]
 
         ax.fill_between(
-            k_vals[:last_valid_idx + 1],
+            x_vals[:last_valid_idx + 1],
             ratio_vals[:last_valid_idx + 1],
             bound_vals[:last_valid_idx + 1],
             facecolor=FILL_COLOR,
@@ -327,11 +362,11 @@ def _add_progression_to_ax(
             zorder=0,
         )
 
-    return _find_intersection(k_vals, ratio_vals, bound_vals)
+    return _find_intersection(x_vals, ratio_vals, bound_vals)
 
 
 def _find_intersection(
-    k_vals: np.ndarray,
+    x_vals: np.ndarray,
     ratio_vals: np.ndarray,
     bound_vals: np.ndarray,
 ) -> Optional[tuple[float, float]]:
@@ -339,16 +374,16 @@ def _find_intersection(
     for idx, current in enumerate(diff):
         if current >= 0:
             if idx == 0 or diff[idx - 1] >= 0:
-                return float(k_vals[idx]), float(ratio_vals[idx])
+                return float(x_vals[idx]), float(ratio_vals[idx])
 
             prev_diff = diff[idx - 1]
             if prev_diff == current:
-                return float(k_vals[idx]), float(ratio_vals[idx])
+                return float(x_vals[idx]), float(ratio_vals[idx])
 
-            prev_k = k_vals[idx - 1]
+            prev_k = x_vals[idx - 1]
             prev_ratio = ratio_vals[idx - 1]
             prev_bound = bound_vals[idx - 1]
-            curr_k = k_vals[idx]
+            curr_k = x_vals[idx]
             curr_ratio = ratio_vals[idx]
             # Linear interpolation on diff to approximate crossing location.
             denom = prev_diff - current
@@ -371,14 +406,18 @@ def _configure_axes(
     description: str,
     min_ratio: Optional[float],
     min_bound: Optional[float],
+    use_time: bool,
+    fill_between: bool,
+    no_title: bool,
 ) -> None:
-    ax.set_xlabel("k (neighbors)")
-    ax.set_ylabel("Value")
+    ax.set_xlabel("Time (ms)" if use_time else "k (neighbors)")
+    ax.set_ylabel("Robustness score")
 
-    try:
-        ax.set_xscale("log", base=2)
-    except TypeError:
-        ax.set_xscale("log")
+    if not use_time:
+        try:
+            ax.set_xscale("log", base=2)
+        except TypeError:
+            ax.set_xscale("log")
 
     finite_mins = [val for val in (min_ratio, min_bound) if val is not None and np.isfinite(val)]
     if finite_mins and min(finite_mins) > 0:
@@ -407,14 +446,17 @@ def _configure_axes(
         title += f" — {description}"
     if meta_bits:
         title += f" ({', '.join(meta_bits)})"
-    ax.set_title(title)
+    if not no_title: ax.set_title(title)
 
     legend_handles = [
         plt.Line2D([], [], color=RATIO_COLOR, linewidth=1.5, label="Progression of largest seen ratio"),
         plt.Line2D([], [], color=BOUND_COLOR, linewidth=1.5, label="Bound progression"),
         plt.Line2D([], [], marker="x", color=INTERSECTION_COLOR, linestyle="", markersize=6, label="Crossover"),
-        plt.Rectangle((0, 0), 1, 1, facecolor=FILL_COLOR, alpha=0.5, label="Gap (ratio–bound)"),
     ]
+    if fill_between:
+        legend_handles.append(
+            plt.Rectangle((0, 0), 1, 1, facecolor=FILL_COLOR, alpha=0.5, label="Gap (ratio–bound)"),
+        )
     ax.legend(handles=legend_handles, loc="best", fontsize="small")
     ax.grid(True, which="both", alpha=0.15)
     fig.tight_layout()
