@@ -1,25 +1,45 @@
 Fair model (no max-k)|/nfs/scistore16/tomgrp/dapape/clemont-experiments/data/Certifair/predictions_tacas/adult-global-P2-combined.csv|fair_no_maxk|
 Baseline model (no max-k)|/nfs/scistore16/tomgrp/dapape/clemont-experiments/data/Certifair/predictions_tacas/adult-base-P2-combined.csv|baseline_no_maxk|
 Fair model epsilon 0.005 (max-k 64)|/nfs/scistore16/tomgrp/dapape/clemont-experiments/data/Certifair/predictions_tacas/adult-global-P2-combined.csv|fair_eps_0p005_maxk64|--epsilon 0.005 --max-k 64
+Fair model epsilon 0.005 (max-k none)|/nfs/scistore16/tomgrp/dapape/clemont-experiments/data/Certifair/predictions_tacas/adult-global-P2-combined.csv|fair_eps_0p005_maxk_none|--epsilon 0.005
 Fair model epsilon 0.010 (max-k 64)|/nfs/scistore16/tomgrp/dapape/clemont-experiments/data/Certifair/predictions_tacas/adult-global-P2-combined.csv|fair_eps_0p010_maxk64|--epsilon 0.010 --max-k 64
+Fair model epsilon 0.010 (max-k none)|/nfs/scistore16/tomgrp/dapape/clemont-experiments/data/Certifair/predictions_tacas/adult-global-P2-combined.csv|fair_eps_0p010_maxk_none|--epsilon 0.010
 Fair model epsilon 0.015 (max-k 64)|/nfs/scistore16/tomgrp/dapape/clemont-experiments/data/Certifair/predictions_tacas/adult-global-P2-combined.csv|fair_eps_0p015_maxk64|--epsilon 0.015 --max-k 64
+Fair model epsilon 0.015 (max-k none)|/nfs/scistore16/tomgrp/dapape/clemont-experiments/data/Certifair/predictions_tacas/adult-global-P2-combined.csv|fair_eps_0p015_maxk_none|--epsilon 0.015
 Fair model epsilon 0.020 (max-k 64)|/nfs/scistore16/tomgrp/dapape/clemont-experiments/data/Certifair/predictions_tacas/adult-global-P2-combined.csv|fair_eps_0p020_maxk64|--epsilon 0.020 --max-k 64
+Fair model epsilon 0.020 (max-k none)|/nfs/scistore16/tomgrp/dapape/clemont-experiments/data/Certifair/predictions_tacas/adult-global-P2-combined.csv|fair_eps_0p020_maxk_none|--epsilon 0.020
 Fair model epsilon 0.025 (max-k 64)|/nfs/scistore16/tomgrp/dapape/clemont-experiments/data/Certifair/predictions_tacas/adult-global-P2-combined.csv|fair_eps_0p025_maxk64|--epsilon 0.025 --max-k 64
+Fair model epsilon 0.025 (max-k none)|/nfs/scistore16/tomgrp/dapape/clemont-experiments/data/Certifair/predictions_tacas/adult-global-P2-combined.csv|fair_eps_0p025_maxk_none|--epsilon 0.025
 Fair model epsilon 0.030 (max-k 64)|/nfs/scistore16/tomgrp/dapape/clemont-experiments/data/Certifair/predictions_tacas/adult-global-P2-combined.csv|fair_eps_0p030_maxk64|--epsilon 0.030 --max-k 64
+Fair model epsilon 0.030 (max-k none)|/nfs/scistore16/tomgrp/dapape/clemont-experiments/data/Certifair/predictions_tacas/adult-global-P2-combined.csv|fair_eps_0p030_maxk_none|--epsilon 0.030
 Fair model epsilon 0.035 (max-k 64)|/nfs/scistore16/tomgrp/dapape/clemont-experiments/data/Certifair/predictions_tacas/adult-global-P2-combined.csv|fair_eps_0p035_maxk64|--epsilon 0.035 --max-k 64
+Fair model epsilon 0.035 (max-k none)|/nfs/scistore16/tomgrp/dapape/clemont-experiments/data/Certifair/predictions_tacas/adult-global-P2-combined.csv|fair_eps_0p035_maxk_none|--epsilon 0.035
 Fair model epsilon 0.040 (max-k 64)|/nfs/scistore16/tomgrp/dapape/clemont-experiments/data/Certifair/predictions_tacas/adult-global-P2-combined.csv|fair_eps_0p040_maxk64|--epsilon 0.040 --max-k 64
+Fair model epsilon 0.040 (max-k none)|/nfs/scistore16/tomgrp/dapape/clemont-experiments/data/Certifair/predictions_tacas/adult-global-P2-combined.csv|fair_eps_0p040_maxk_none|--epsilon 0.040
 Fair model epsilon 0.045 (max-k 64)|/nfs/scistore16/tomgrp/dapape/clemont-experiments/data/Certifair/predictions_tacas/adult-global-P2-combined.csv|fair_eps_0p045_maxk64|--epsilon 0.045 --max-k 64
+Fair model epsilon 0.045 (max-k none)|/nfs/scistore16/tomgrp/dapape/clemont-experiments/data/Certifair/predictions_tacas/adult-global-P2-combined.csv|fair_eps_0p045_maxk_none|--epsilon 0.045
 Fair model epsilon 0.050 (max-k 64)|/nfs/scistore16/tomgrp/dapape/clemont-experiments/data/Certifair/predictions_tacas/adult-global-P2-combined.csv|fair_eps_0p050_maxk64|--epsilon 0.050 --max-k 64
+Fair model epsilon 0.050 (max-k none)|/nfs/scistore16/tomgrp/dapape/clemont-experiments/data/Certifair/predictions_tacas/adult-global-P2-combined.csv|fair_eps_0p050_maxk_none|--epsilon 0.050
 Fair model epsilon 0.055 (max-k 64)|/nfs/scistore16/tomgrp/dapape/clemont-experiments/data/Certifair/predictions_tacas/adult-global-P2-combined.csv|fair_eps_0p055_maxk64|--epsilon 0.055 --max-k 64
+Fair model epsilon 0.055 (max-k none)|/nfs/scistore16/tomgrp/dapape/clemont-experiments/data/Certifair/predictions_tacas/adult-global-P2-combined.csv|fair_eps_0p055_maxk_none|--epsilon 0.055
 Fair model epsilon 0.060 (max-k 64)|/nfs/scistore16/tomgrp/dapape/clemont-experiments/data/Certifair/predictions_tacas/adult-global-P2-combined.csv|fair_eps_0p060_maxk64|--epsilon 0.060 --max-k 64
+Fair model epsilon 0.060 (max-k none)|/nfs/scistore16/tomgrp/dapape/clemont-experiments/data/Certifair/predictions_tacas/adult-global-P2-combined.csv|fair_eps_0p060_maxk_none|--epsilon 0.060
 Fair model epsilon 0.065 (max-k 64)|/nfs/scistore16/tomgrp/dapape/clemont-experiments/data/Certifair/predictions_tacas/adult-global-P2-combined.csv|fair_eps_0p065_maxk64|--epsilon 0.065 --max-k 64
+Fair model epsilon 0.065 (max-k none)|/nfs/scistore16/tomgrp/dapape/clemont-experiments/data/Certifair/predictions_tacas/adult-global-P2-combined.csv|fair_eps_0p065_maxk_none|--epsilon 0.065
 Fair model epsilon 0.070 (max-k 64)|/nfs/scistore16/tomgrp/dapape/clemont-experiments/data/Certifair/predictions_tacas/adult-global-P2-combined.csv|fair_eps_0p070_maxk64|--epsilon 0.070 --max-k 64
+Fair model epsilon 0.070 (max-k none)|/nfs/scistore16/tomgrp/dapape/clemont-experiments/data/Certifair/predictions_tacas/adult-global-P2-combined.csv|fair_eps_0p070_maxk_none|--epsilon 0.070
 Fair model epsilon 0.075 (max-k 64)|/nfs/scistore16/tomgrp/dapape/clemont-experiments/data/Certifair/predictions_tacas/adult-global-P2-combined.csv|fair_eps_0p075_maxk64|--epsilon 0.075 --max-k 64
+Fair model epsilon 0.075 (max-k none)|/nfs/scistore16/tomgrp/dapape/clemont-experiments/data/Certifair/predictions_tacas/adult-global-P2-combined.csv|fair_eps_0p075_maxk_none|--epsilon 0.075
 Fair model epsilon 0.080 (max-k 64)|/nfs/scistore16/tomgrp/dapape/clemont-experiments/data/Certifair/predictions_tacas/adult-global-P2-combined.csv|fair_eps_0p080_maxk64|--epsilon 0.080 --max-k 64
+Fair model epsilon 0.080 (max-k none)|/nfs/scistore16/tomgrp/dapape/clemont-experiments/data/Certifair/predictions_tacas/adult-global-P2-combined.csv|fair_eps_0p080_maxk_none|--epsilon 0.080
 Fair model epsilon 0.085 (max-k 64)|/nfs/scistore16/tomgrp/dapape/clemont-experiments/data/Certifair/predictions_tacas/adult-global-P2-combined.csv|fair_eps_0p085_maxk64|--epsilon 0.085 --max-k 64
+Fair model epsilon 0.085 (max-k none)|/nfs/scistore16/tomgrp/dapape/clemont-experiments/data/Certifair/predictions_tacas/adult-global-P2-combined.csv|fair_eps_0p085_maxk_none|--epsilon 0.085
 Fair model epsilon 0.090 (max-k 64)|/nfs/scistore16/tomgrp/dapape/clemont-experiments/data/Certifair/predictions_tacas/adult-global-P2-combined.csv|fair_eps_0p090_maxk64|--epsilon 0.090 --max-k 64
+Fair model epsilon 0.090 (max-k none)|/nfs/scistore16/tomgrp/dapape/clemont-experiments/data/Certifair/predictions_tacas/adult-global-P2-combined.csv|fair_eps_0p090_maxk_none|--epsilon 0.090
 Fair model epsilon 0.095 (max-k 64)|/nfs/scistore16/tomgrp/dapape/clemont-experiments/data/Certifair/predictions_tacas/adult-global-P2-combined.csv|fair_eps_0p095_maxk64|--epsilon 0.095 --max-k 64
+Fair model epsilon 0.095 (max-k none)|/nfs/scistore16/tomgrp/dapape/clemont-experiments/data/Certifair/predictions_tacas/adult-global-P2-combined.csv|fair_eps_0p095_maxk_none|--epsilon 0.095
 Fair model epsilon 0.100 (max-k 64)|/nfs/scistore16/tomgrp/dapape/clemont-experiments/data/Certifair/predictions_tacas/adult-global-P2-combined.csv|fair_eps_0p100_maxk64|--epsilon 0.100 --max-k 64
+Fair model epsilon 0.100 (max-k none)|/nfs/scistore16/tomgrp/dapape/clemont-experiments/data/Certifair/predictions_tacas/adult-global-P2-combined.csv|fair_eps_0p100_maxk_none|--epsilon 0.100
 Fair model (k-grow-factor 1.05)|/nfs/scistore16/tomgrp/dapape/clemont-experiments/data/Certifair/predictions_tacas/adult-global-P2-combined.csv|fair_kgrow_1p05|--k-grow-factor 1.05
 Fair model (k-grow-factor 1.1)|/nfs/scistore16/tomgrp/dapape/clemont-experiments/data/Certifair/predictions_tacas/adult-global-P2-combined.csv|fair_kgrow_1p1|--k-grow-factor 1.1
 Fair model (k-grow-factor 1.2)|/nfs/scistore16/tomgrp/dapape/clemont-experiments/data/Certifair/predictions_tacas/adult-global-P2-combined.csv|fair_kgrow_1p2|--k-grow-factor 1.2
