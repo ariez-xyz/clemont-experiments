@@ -29,12 +29,12 @@ fi
 printf 'Fair model (no max-k)|%s|fair_no_maxk|\n' "${FAIR_MODEL}" >> "${CONFIG_FILE}"
 printf 'Baseline model (no max-k)|%s|baseline_no_maxk|\n' "${BASE_MODEL}" >> "${CONFIG_FILE}"
 
-for epsilon in $(seq -f "%.3f" 0.005 0.005 0.100); do
+for epsilon in $(seq -f "%.3f" 0.005 0.005 0.200); do
   epsilon_token=${epsilon/./p}
-  printf 'Fair model epsilon %s (max-k 64)|%s|fair_eps_%s_maxk64|--epsilon %s --max-k 64\n' \
-    "${epsilon}" "${FAIR_MODEL}" "${epsilon_token}" "${epsilon}" >> "${CONFIG_FILE}"
   printf 'Fair model epsilon %s (max-k none)|%s|fair_eps_%s_maxk_none|--epsilon %s\n' \
     "${epsilon}" "${FAIR_MODEL}" "${epsilon_token}" "${epsilon}" >> "${CONFIG_FILE}"
+  printf 'Base model epsilon %s (max-k none)|%s|base_eps_%s_maxk_none|--epsilon %s\n' \
+    "${epsilon}" "${BASE_MODEL}" "${epsilon_token}" "${epsilon}" >> "${CONFIG_FILE}"
 done
 
 printf 'Fair model (k-grow-factor 1.05)|%s|fair_kgrow_1p05|--k-grow-factor 1.05\n' "${FAIR_MODEL}" >> "${CONFIG_FILE}"
