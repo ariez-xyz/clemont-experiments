@@ -234,7 +234,7 @@ def main() -> None:
         )
 
     lo, _ = ax.get_ylim()
-    ax.set_ylim(10e-2, 10e2)
+    ax.set_ylim(10e-3, 10e1)
     ax.set_yscale("log")
     ax.set_xlabel("Processed samples")
     ax.set_ylabel("Time per sample (ms)")
