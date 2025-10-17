@@ -233,6 +233,7 @@ def main() -> None:
             linestyle="--",
         )
 
+    ax.set_ylim(top=100)
     ax.set_yscale("log")
     ax.set_xlabel("Processed samples")
     ax.set_ylabel("Time per sample (ms)")
@@ -465,6 +466,8 @@ def _postprocess_series(
     y_values: List[float],
     rolling_window: int | None,
 ) -> tuple[List[int], List[float]]:
+    x_values = x_values[:5000000]
+    y_values = y_values[:5000000]
     if rolling_window is None or rolling_window <= 0 or len(y_values) <= 1:
         return x_values, y_values
 
