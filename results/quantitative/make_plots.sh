@@ -27,13 +27,15 @@ echo "Plotting quant/qual MSE..."
 
 echo "Plotting time per sample..."
 python plot_time_per_sample.py robusttrees_higgs/results/ \
-	--run-dir robusttrees_higgs/results/eps_0_01/maxk_128/batch_50000_wt_03-00-00 \
-	--run-dir robusttrees_higgs/results/eps_0_01/maxk_256/batch_50000_wt_03-00-00 \
-	--run-dir robusttrees_higgs/results/eps_0_01/maxk_512/batch_50000_wt_03-00-00 \
-	--run-dir robusttrees_higgs/results/eps_0_01/maxk_1024/batch_50000_wt_03-00-00 \
-	--run-dir robusttrees_higgs/results/eps_0_01/maxk_none/batch_50000_wt_03-00-00 \
-	--labels '128,256,512,1024,none' \
-	--epsilon-run-dir robusttrees_higgs/results/eps_0_025/maxk_128/batch_50000_wt_03-00-00 \
+	--run-dir robusttrees_higgs/results/eps_0_01/maxk_128/batch_50000_wt_24-00-00 \
+	--run-dir robusttrees_higgs/results/eps_0_01/maxk_256/batch_50000_wt_24-00-00 \
+	--run-dir robusttrees_higgs/results/eps_0_01/maxk_512/batch_50000_wt_24-00-00 \
+	--run-dir robusttrees_higgs/results/eps_0_01/maxk_1024/batch_50000_wt_72-00-00 \
+	--run-dir robusttrees_higgs/results/eps_0_01/maxk_none/batch_50000_wt_72-00-00 \
+	--run-dir robusttrees_higgs/results/naive/wt_20-00-00 \
+	--labels '128,256,512,1024,none,brute-force' \
+	--epsilon-run-dir robusttrees_higgs/results/eps_0_025/maxk_128/batch_50000_wt_24-00-00 \
 	--epsilon-labels '$\epsilon$=0.025' \
-    --output combined_time_per_sample.png
-	--no-title '
+	--output robusttrees_higgs/combined_time_per_sample.png \
+	--no-title \
+	--rolling-average 100000
