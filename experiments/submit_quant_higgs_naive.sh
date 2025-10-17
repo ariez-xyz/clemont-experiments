@@ -14,7 +14,7 @@ export RESULTS_BASE
 export RESULTS_DIR="${RESULTS_BASE}/results"
 export LOGS_DIR="${RESULTS_BASE}/logs"
 export WALLTIMES="00:10:00,06:00:00,20:00:00"
-export WORK_SCRIPT="slurm_quant_higgs_naive.sh"
+export WORK_SCRIPT="slurm_quant_higgs_naive_work.sh"
 
 mkdir -p "${RESULTS_DIR}" "${LOGS_DIR}"
 
