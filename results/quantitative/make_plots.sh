@@ -33,7 +33,7 @@ python plot_time_per_sample.py robusttrees_higgs/results/ \
 	--run-dir robusttrees_higgs/results/eps_0_01/maxk_1024/batch_50000_wt_72-00-00 \
 	--run-dir robusttrees_higgs/results/eps_0_01/maxk_none/batch_50000_wt_72-00-00 \
 	--run-dir robusttrees_higgs/results/naive/wt_20-00-00 \
-	--labels '128,256,512,1024,none,brute-force' \
+	--labels '$max_k$=128,$max_k$=256,$max_k$=512,$max_k$=1024,no $max_k$,brute-force' \
 	--epsilon-run-dir robusttrees_higgs/results/eps_0_025/maxk_128/batch_50000_wt_24-00-00 \
 	--epsilon-labels '$\epsilon$=0.025' \
 	--output robusttrees_higgs/combined_time_per_sample.png \
