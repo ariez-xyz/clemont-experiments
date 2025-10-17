@@ -204,8 +204,12 @@ def main() -> None:
     line_alpha = 0.5
 
     for series in batch_series:
+        series.x = series.x[1:]
+        series.y = series.y[1:]
         ax.plot(series.x, series.y, label=series.label, linewidth=2.0, alpha=line_alpha)
     for series in epsilon_series:
+        series.x = series.x[1:]
+        series.y = series.y[1:]
         ax.plot(
             series.x,
             series.y,
@@ -215,8 +219,12 @@ def main() -> None:
             alpha=line_alpha,
         )
     for series in explicit_series:
+        series.x = series.x[1:]
+        series.y = series.y[1:]
         ax.plot(series.x, series.y, label=series.label, linewidth=2.0)
     for series in epsilon_explicit_series:
+        series.x = series.x[1:]
+        series.y = series.y[1:]
         ax.plot(
             series.x,
             series.y,
