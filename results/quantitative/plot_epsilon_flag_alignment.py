@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import argparse
 import json
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Dict, Iterable, List, Optional, Sequence, Tuple
 
@@ -36,7 +37,12 @@ def main() -> None:
     parser.add_argument(
         "--pattern",
         default="fair*maxk_none",
-        help="Glob pattern used to select epsilon directories (default: fair*maxk_none)",
+        help="Glob pattern used to select epsilon directories when --series is absent (default: fair*maxk_none)",
+    )
+    parser.add_argument(
+        "--series",
+        action="append",
+        help="Optional labelled pattern in the form label=glob. Provide multiple times for multi-series plots.",
     )
     parser.add_argument(
         "--output",
@@ -53,28 +59,27 @@ def main() -> None:
     script_dir = Path(__file__).resolve().parent
     base_dirs = args.paths or [script_dir / "certifair"]
 
-    entries = _collect_entries(base_dirs, pattern=args.pattern)
-    if not entries:
-        raise SystemExit("No epsilon directories with JSON payloads were found")
+    series_specs = _resolve_series_specs(args.series, args.pattern)
 
-    epsilons: List[float] = []
-    mses: List[float] = []
-    counts: List[int] = []
+    series_payload: List[SeriesData] = []
 
-    for epsilon, json_path in sorted(entries.items()):
-        ratios, flags = _load_pairs(json_path)
-        if not ratios:
-            print(f"Skipping {json_path}: no usable records")
+    for label, pattern in series_specs:
+        entries = _collect_entries(base_dirs, pattern=pattern)
+        if not entries:
+            print(f"Warning: no epsilon directories found for pattern '{pattern}'")
             continue
-        mse = _normalized_mse(ratios, flags)
-        epsilons.append(epsilon)
-        mses.append(mse)
-        counts.append(int(sum(flags)))
+        epsilons, mses, counts = _compute_series(entries)
+        if not epsilons:
+            print(f"Warning: pattern '{pattern}' produced no valid statistics")
+            continue
+        series_payload.append(
+            SeriesData(label=label, epsilons=epsilons, mses=mses, counts=counts)
+        )
 
-    if not epsilons:
+    if not series_payload:
         raise SystemExit("No epsilon settings produced valid statistics")
 
-    fig = _plot_alignment(epsilons, mses, counts, output=args.output)
+    fig = _plot_alignment(series_payload, output=args.output)
 
     if args.show:
         plt.show()
@@ -103,11 +108,59 @@ def _collect_entries(
                 print(f"Warning: no JSON files found in {candidate}")
                 continue
             if len(json_files) > 1:
+                json_files.sort(key=lambda f: f.stat().st_mtime)
                 print(
-                    f"Warning: multiple JSON files in {candidate}; using {json_files[-1].name}"
+                    f"Warning: multiple JSON files in {candidate}; using newest file {json_files[-1].name}"
                 )
             discovered[epsilon] = json_files[-1]
     return discovered
+
+
+def _resolve_series_specs(
+    raw_series: Optional[Sequence[str]],
+    default_pattern: str,
+) -> List[Tuple[str, str]]:
+    if raw_series:
+        specs: List[Tuple[str, str]] = []
+        for token in raw_series:
+            if "=" in token:
+                label, pattern = token.split("=", 1)
+                label = label.strip() or pattern.strip()
+                pattern = pattern.strip()
+            else:
+                pattern = token.strip()
+                label = pattern
+            if not pattern:
+                print("Warning: empty pattern in --series specification; skipping")
+                continue
+            specs.append((label, pattern))
+        return specs
+    return [(default_pattern, default_pattern)]
+
+
+@dataclass
+class SeriesData:
+    label: str
+    epsilons: List[float]
+    mses: List[float]
+    counts: List[int]
+
+
+def _compute_series(entries: Dict[float, Path]) -> Tuple[List[float], List[float], List[int]]:
+    epsilons: List[float] = []
+    mses: List[float] = []
+    counts: List[int] = []
+
+    for epsilon, json_path in sorted(entries.items()):
+        ratios, flags = _load_pairs(json_path)
+        if not ratios:
+            print(f"Skipping {json_path}: no usable records")
+            continue
+        mse = _normalized_mse(ratios, flags)
+        epsilons.append(epsilon)
+        mses.append(mse)
+        counts.append(int(sum(flags)))
+    return epsilons, mses, counts
 
 
 def _parse_epsilon(folder_name: str) -> Optional[float]:
@@ -180,43 +233,45 @@ def _normalized_mse(ratios: Sequence[float], flags: Sequence[float]) -> float:
 
 
 def _plot_alignment(
-    epsilons: Sequence[float],
-    mses: Sequence[float],
-    counts: Sequence[int],
+    series_list: Sequence[SeriesData],
     *,
     output: Optional[Path],
 ) -> plt.Figure:
-    ordered = sorted(zip(epsilons, mses, counts), key=lambda item: item[0])
-    eps_arr = np.array([item[0] for item in ordered], dtype=float)
-    mse_arr = np.array([item[1] for item in ordered], dtype=float)
-    count_arr = np.array([item[2] for item in ordered], dtype=int)
-
     fig, ax = plt.subplots(figsize=DEFAULT_FIGSIZE)
     color_cycle = plt.rcParams["axes.prop_cycle"].by_key().get("color", ["#1f77b4"])
-    color = color_cycle[0] if color_cycle else "#1f77b4"
+    colors = color_cycle if color_cycle else ["#1f77b4"]
 
-    ax.plot(
-        eps_arr,
-        mse_arr,
-        color=color,
-        linewidth=2.0,
-        marker="o",
-        label="MSE (normalized ratio vs flag)",
-    )
+    for idx, series in enumerate(series_list):
+        ordered = sorted(
+            zip(series.epsilons, series.mses, series.counts),
+            key=lambda item: item[0],
+        )
+        eps_arr = np.array([item[0] for item in ordered], dtype=float)
+        mse_arr = np.array([item[1] for item in ordered], dtype=float)
+        count_arr = np.array([item[2] for item in ordered], dtype=int)
 
-    for epsilon, mse, count in zip(eps_arr, mse_arr, count_arr):
-        ax.annotate(
-            f"{count}",
-            xy=(epsilon, mse),
-            xytext=(0, 6),
-            textcoords="offset points",
-            fontsize="small",
-            ha="center",
+        color = colors[idx % len(colors)]
+        ax.plot(
+            eps_arr,
+            mse_arr,
+            color=color,
+            linewidth=2.0,
+            label=series.label,
         )
 
-    ax.set_xlabel("epsilon")
-    ax.set_ylabel("Mean squared error")
-    ax.set_title("Alignment between max_ratio and epsilon_monitor_flag")
+#        for pidx, (epsilon, mse, count) in enumerate(zip(eps_arr, mse_arr, count_arr)):
+#            ax.annotate(
+#                f"{count}" if pidx % 3 == 0 else "",
+#                xy=(epsilon, mse),
+#                xytext=(0, 6 if idx%2==0 else -10),
+#                textcoords="offset points",
+#                fontsize="xx-small",
+#                ha="center",
+#                color=color,
+#            )
+
+    ax.set_xlabel("$\\epsilon$")
+    ax.set_ylabel("MSE")
     ax.grid(True, alpha=0.3)
     ax.legend(loc="best")
 

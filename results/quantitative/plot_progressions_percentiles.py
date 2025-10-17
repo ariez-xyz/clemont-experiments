@@ -6,6 +6,7 @@ import argparse
 import json
 import subprocess
 import sys
+import random
 from pathlib import Path
 from typing import List
 
@@ -16,7 +17,7 @@ try:
 except ImportError:  # pragma: no cover - script-style execution
     from _plot_utils import resolve_json_paths
 
-PERCENTILES = (25, 75)
+PERCENTILES = (10, 90)
 
 
 def main() -> None:
@@ -40,6 +41,10 @@ def main() -> None:
         type=Path,
         help="Optional output directory forwarded to plot_progressions.py",
     )
+    parser.add_argument(
+        "--randomize",
+        action="store_true",
+    )
 
     args, extra_args = parser.parse_known_args()
 
@@ -47,7 +52,7 @@ def main() -> None:
     json_paths = resolve_json_paths(args.json_path, default_dir=script_dir)
 
     for json_path in json_paths:
-        point_ids = _select_percentile_point_ids(json_path)
+        point_ids = _select_percentile_point_ids(json_path, args.randomize)
         if not point_ids:
             print(f"No eligible point IDs found for {json_path}, skipping")
             continue
@@ -63,7 +68,7 @@ def main() -> None:
         if args.output_dir is not None:
             cmd.extend(["--output-dir", str(args.output_dir)])
 
-        cmd.extend(["--use-time", "--no-title", "--line-width", "1.5", "--fill-between", "--alpha", "1"])
+        cmd.extend(["--no-title", "--line-width", "1.5", "--fill-between", "--alpha", "1"])
 
         cmd.extend(extra_args)
 
@@ -74,7 +79,7 @@ def main() -> None:
         subprocess.run(cmd, check=True)
 
 
-def _select_percentile_point_ids(json_path: Path) -> List[int]:
+def _select_percentile_point_ids(json_path: Path, randomize: bool) -> List[int]:
     with json_path.open("r", encoding="utf-8") as fh:
         payload = json.load(fh)
 
@@ -97,7 +102,7 @@ def _select_percentile_point_ids(json_path: Path) -> List[int]:
         if note is not None and "exhausted index" in note:
             continue  # disregard points that exhaust index
         if ratios and bounds and ratios[-1] < bounds[-1]:  # compatibility with earlier versions that lack note
-            assert ks[-1] > point_id or ks[-1] > payload.get("max_k"), "failed sanity check: early terminated without bound, maxk or exhausting index"
+            assert ks[-1] > point_id or ks[-1] > payload.get("max_k", 0), f"{point_id} failed sanity check: early terminated without bound, maxk or exhausting index"
             continue
         usable.append((pid, count))
 
@@ -107,13 +112,15 @@ def _select_percentile_point_ids(json_path: Path) -> List[int]:
     counts = np.array([count for _, count in usable], dtype=float)
 
     remaining_indices = list(range(len(usable)))
+    print(len(remaining_indices))
     selected_ids: List[int] = []
 
     for percentile in PERCENTILES:
         if not remaining_indices:
             break
         target = np.percentile(counts, percentile)
-        best_index = min(
+
+        choices = sorted(
             remaining_indices,
             key=lambda idx: (
                 abs(usable[idx][1] - target),
@@ -121,8 +128,9 @@ def _select_percentile_point_ids(json_path: Path) -> List[int]:
                 usable[idx][0],
             ),
         )
-        selected_ids.append(usable[best_index][0])
-        remaining_indices.remove(best_index)
+        choice = choices[:1000][random.randint(0, min(99, len(choices) - 1))]
+        selected_ids.append(usable[choice][0])
+        remaining_indices.remove(choice)
 
     # Ensure ids reflect the original percentile ordering and are unique.
     deduped: List[int] = []
