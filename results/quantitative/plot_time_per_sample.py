@@ -29,12 +29,45 @@ class Series:
     y: List[float]
 
 
+def _parse_run_dirs(raw_run_dirs: Sequence[str] | None) -> List[Path]:
+    if not raw_run_dirs:
+        return []
+    run_dirs: List[Path] = []
+    for entry in raw_run_dirs:
+        for token in entry.split(","):
+            candidate = token.strip()
+            if not candidate:
+                continue
+            path = Path(candidate).expanduser().resolve()
+            if not path.is_dir():
+                print(f"Skipping --run-dir '{candidate}': not a directory")
+                continue
+            run_dirs.append(path)
+    return run_dirs
+
+
+def _parse_labels(raw_labels: Sequence[str] | None, *, expected: int) -> List[str] | None:
+    if not raw_labels:
+        return None
+    labels: List[str] = []
+    for entry in raw_labels:
+        parts = [part.strip() for part in entry.split(",") if part.strip()]
+        labels.extend(parts)
+    if not labels:
+        return None
+    if expected and len(labels) != expected:
+        raise SystemExit(
+            f"Expected {expected} label(s) for --run-dir entries, received {len(labels)}"
+        )
+    return labels
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(
         description=(
             "Create a time-per-sample plot for RobustTrees Higgs quantitative runs. "
-            "For the batch/max-k lines the script reads all runs under eps_0_05. "
-            "For the epsilon lines it reads maxk_128/batch_100000 for every epsilon."
+            "When --walltime is supplied the script searches structured experiment directories; "
+            "when --run-dir is used it plots the latest JSON found in the specified directories."
         )
     )
     parser.add_argument(
@@ -46,7 +79,6 @@ def main() -> None:
     )
     parser.add_argument(
         "--walltime",
-        required=True,
         help="Walltime identifier such as 03-00-00 or 03:00:00",
     )
     parser.add_argument(
@@ -63,6 +95,28 @@ def main() -> None:
         "--no-title",
         action="store_true",
         dest='no_title'
+    )
+    parser.add_argument(
+        "--run-dir",
+        action="append",
+        dest="run_dirs",
+        help="Directory containing JSON runs to plot (may be provided multiple times)",
+    )
+    parser.add_argument(
+        "--epsilon-run-dir",
+        action="append",
+        dest="epsilon_run_dirs",
+        help="Directory containing epsilon monitor runs (may be provided multiple times)",
+    )
+    parser.add_argument(
+        "--labels",
+        action="append",
+        help="Comma-separated legend labels corresponding to --run-dir entries",
+    )
+    parser.add_argument(
+        "--epsilon-labels",
+        action="append",
+        help="Comma-separated legend labels corresponding to --epsilon-run-dir entries",
     )
     parser.add_argument(
         "--rolling-average",
@@ -88,35 +142,61 @@ def main() -> None:
     if not results_dir.is_dir():
         raise SystemExit(f"Results directory not found: {results_dir}")
 
-    walltime_key = args.walltime.strip()
-    if not walltime_key:
-        raise SystemExit("Walltime must be a non-empty string")
-    walltime_key = walltime_key.replace(":", "-")
+    walltime_key: str | None = None
+    if args.walltime:
+        walltime_key = args.walltime.strip()
+        if not walltime_key:
+            raise SystemExit("Walltime must be a non-empty string")
+        walltime_key = walltime_key.replace(":", "-")
 
     batchsize_filter = str(args.batchsize) if args.batchsize else None
     epsilon_filter = str(args.epsilon) if args.epsilon else None
 
-    batch_series = list(
-        _collect_batch_series(
-            results_dir,
-            walltime_key,
+    run_dirs = _parse_run_dirs(args.run_dirs)
+    epsilon_run_dirs = _parse_run_dirs(args.epsilon_run_dirs)
+    labels = _parse_labels(args.labels, expected=len(run_dirs))
+    epsilon_labels = _parse_labels(args.epsilon_labels, expected=len(epsilon_run_dirs))
+
+    batch_series: List[Series] = []
+    epsilon_series: List[Series] = []
+
+    if walltime_key:
+        batch_series = list(
+            _collect_batch_series(
+                results_dir,
+                walltime_key,
+                rolling_window=args.rolling_average,
+                batchsize_filter=batchsize_filter,
+            )
+        )
+        epsilon_series = list(
+            _collect_epsilon_series(
+                results_dir,
+                walltime_key,
+                rolling_window=args.rolling_average,
+                batchsize_filter=batchsize_filter,
+                epsilon_filter=epsilon_filter,
+            )
+        )
+
+    explicit_series = list(
+        _collect_explicit_series(
+            run_dirs,
+            labels=labels,
             rolling_window=args.rolling_average,
-            batchsize_filter=batchsize_filter,
         )
     )
-    epsilon_series = list(
-        _collect_epsilon_series(
-            results_dir,
-            walltime_key,
+    epsilon_explicit_series = list(
+        _collect_epsilon_explicit_series(
+            epsilon_run_dirs,
+            labels=epsilon_labels,
             rolling_window=args.rolling_average,
-            batchsize_filter=batchsize_filter,
-            epsilon_filter=epsilon_filter,
         )
     )
 
-    if not batch_series and not epsilon_series:
+    if not batch_series and not epsilon_series and not explicit_series and not epsilon_explicit_series:
         raise SystemExit(
-            "No matching JSON payloads found for the requested walltime."
+            "No matching JSON payloads found for the requested inputs."
         )
 
     fig, ax = plt.subplots(figsize=DEFAULT_FIGSIZE)
@@ -134,22 +214,117 @@ def main() -> None:
             linestyle="--",
             alpha=line_alpha,
         )
+    for series in explicit_series:
+        ax.plot(series.x, series.y, label=series.label, linewidth=2.0)
+    for series in epsilon_explicit_series:
+        ax.plot(
+            series.x,
+            series.y,
+            label=series.label,
+            linewidth=2.0,
+            linestyle="--",
+        )
 
     ax.set_yscale("log")
     ax.set_xlabel("Processed samples")
     ax.set_ylabel("Time per sample (ms)")
-    if not args.no_title: ax.set_title(f"Time per sample progression (walltime {walltime_key})")
+    if not args.no_title:
+        if walltime_key:
+            ax.set_title(f"Time per sample progression (walltime {walltime_key})")
+        else:
+            ax.set_title("Time per sample progression")
     ax.grid(True, alpha=0.3)
     ax.legend()
 
     fig.tight_layout()
 
-    output_path = _resolve_output_path(args.output, results_dir, walltime_key)
+    output_path = _resolve_output_path(
+        args.output,
+        results_dir=results_dir,
+        walltime_key=walltime_key,
+        run_dirs=run_dirs,
+        epsilon_run_dirs=epsilon_run_dirs,
+    )
     fig.savefig(output_path, dpi=DEFAULT_DPI)
     print(f"Saved plot to {output_path}")
 
     if args.show:
         plt.show()
+
+
+def _collect_explicit_series(
+    run_dirs: Sequence[Path],
+    *,
+    labels: Sequence[str] | None,
+    rolling_window: int | None,
+) -> Iterable[Series]:
+    series_list: List[Series] = []
+
+    for idx, run_dir in enumerate(run_dirs):
+        label = labels[idx] if labels and idx < len(labels) else run_dir.name
+        payload = _load_latest_payload(run_dir)
+        if payload is None:
+            continue
+        records = payload.get("records", [])
+        if not records:
+            print(f"No records in {run_dir}")
+            continue
+        value_key = _infer_value_key(records)
+        if value_key is None:
+            print(
+                f"Unable to infer value key for records in {run_dir}; expected 'time' or 'epsilon_monitor_time_ms'"
+            )
+            continue
+        series = _build_series(
+            records,
+            value_key=value_key,
+            label=label,
+            value_scale=1.0,
+            rolling_window=rolling_window,
+        )
+        if series:
+            series_list.append(series)
+
+    return series_list
+
+
+def _collect_epsilon_explicit_series(
+    run_dirs: Sequence[Path],
+    *,
+    labels: Sequence[str] | None,
+    rolling_window: int | None,
+) -> Iterable[Series]:
+    series_list: List[Series] = []
+
+    for idx, run_dir in enumerate(run_dirs):
+        label = labels[idx] if labels and idx < len(labels) else f"epsilon monitor ({run_dir.name})"
+        payload = _load_latest_payload(run_dir)
+        if payload is None:
+            continue
+        records = payload.get("records", [])
+        if not records:
+            print(f"No records in {run_dir}")
+            continue
+        series = _build_series(
+            records,
+            value_key="epsilon_monitor_time_ms",
+            label=label,
+            value_scale=1.0,
+            rolling_window=rolling_window,
+        )
+        if series:
+            series_list.append(series)
+
+    return series_list
+
+
+def _infer_value_key(records: Sequence[dict]) -> str | None:
+    preferred_keys = ("time", "epsilon_monitor_time_ms")
+    for key in preferred_keys:
+        for record in records:
+            if record.get(key) is not None:
+                return key
+    return None
 
 
 def _collect_batch_series(
@@ -349,11 +524,23 @@ def _parse_batchsize(name: str) -> str:
     return name
 
 
-def _resolve_output_path(output: Path | None, results_dir: Path, walltime_key: str) -> Path:
+def _resolve_output_path(
+    output: Path | None,
+    *,
+    results_dir: Path,
+    walltime_key: str | None,
+    run_dirs: Sequence[Path],
+    epsilon_run_dirs: Sequence[Path],
+) -> Path:
     if output:
         return output.expanduser().resolve()
-    default_name = f"../time_per_sample_{walltime_key}.png"
-    return results_dir / default_name
+    if walltime_key:
+        default_name = results_dir / f"../time_per_sample_{walltime_key}.png"
+        return default_name.resolve()
+    if run_dirs or epsilon_run_dirs:
+        return (Path.cwd() / DEFAULT_OUTPUT_NAME).resolve()
+    # Fallback: use results directory parent
+    return (results_dir / f"../{DEFAULT_OUTPUT_NAME}").resolve()
 
 
 def _load_latest_payload(run_dir: Path) -> dict | None:

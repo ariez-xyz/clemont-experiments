@@ -26,4 +26,14 @@ echo "Plotting quant/qual MSE..."
  python plot_epsilon_flag_alignment.py certifair --series "fair=fair*none" --series "base=base*none" --output certifair/fair_vs_base_alignment.png
 
 echo "Plotting time per sample..."
-python plot_time_per_sample.py robusttrees_higgs/results/ --walltime 72:00:00 --rolling-average 100000 --batchsize 100000 --epsilon 0.025 --no-title
+python plot_time_per_sample.py robusttrees_higgs/results/ \
+	--run-dir robusttrees_higgs/results/eps_0_01/maxk_128/batch_50000_wt_03-00-00 \
+	--run-dir robusttrees_higgs/results/eps_0_01/maxk_256/batch_50000_wt_03-00-00 \
+	--run-dir robusttrees_higgs/results/eps_0_01/maxk_512/batch_50000_wt_03-00-00 \
+	--run-dir robusttrees_higgs/results/eps_0_01/maxk_1024/batch_50000_wt_03-00-00 \
+	--run-dir robusttrees_higgs/results/eps_0_01/maxk_none/batch_50000_wt_03-00-00 \
+	--labels '128,256,512,1024,none' \
+	--epsilon-run-dir robusttrees_higgs/results/eps_0_025/maxk_128/batch_50000_wt_03-00-00 \
+	--epsilon-labels '$\epsilon$=0.025' \
+    --output combined_time_per_sample.png
+	--no-title '
