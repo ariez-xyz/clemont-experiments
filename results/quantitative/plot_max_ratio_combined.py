@@ -136,7 +136,7 @@ def main() -> None:
 
     plt.xscale("log")
     plt.yscale("log")
-    plt.xlabel("Robustness score")
+    plt.xlabel("i.o.r score")
     plt.ylabel("Frequency")
     if not args.no_title: plt.title("Max ratios histogram (combined)")
     plt.grid(True, alpha=0.3)

@@ -189,7 +189,7 @@ def _plot_histogram(
         plt.close(fig)
         return
 
-    ax.set_xlabel("Robustness score percentile")
+    ax.set_xlabel("i.o.r score percentile")
     ax.set_ylabel("Time (ms)")
     if not no_title: ax.set_title(
         "Average time by ratio percentile"

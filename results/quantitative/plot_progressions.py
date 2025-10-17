@@ -411,7 +411,7 @@ def _configure_axes(
     no_title: bool,
 ) -> None:
     ax.set_xlabel("Time (ms)" if use_time else "k (neighbors)")
-    ax.set_ylabel("Robustness score")
+    ax.set_ylabel("i.o.r score")
 
     if not use_time:
         try:
