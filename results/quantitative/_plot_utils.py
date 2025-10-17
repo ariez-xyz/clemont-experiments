@@ -6,7 +6,7 @@ from pathlib import Path
 from typing import List, Optional, Sequence
 
 # Central plotting configuration used by quantitative result scripts.
-DEFAULT_FIGSIZE = (6, 4)
+DEFAULT_FIGSIZE = (4, 2.6)
 DEFAULT_DPI = 300
 
 _DEFAULT_PATTERN = "quant_run_*.json"
