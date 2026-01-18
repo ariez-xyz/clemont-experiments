@@ -30,6 +30,8 @@ class TestQuantRunnerInterpolationE2E(unittest.TestCase):
                 str(results_dir),
                 "--display-stride",
                 "1000",
+                "--interpolate-bins",
+                "3",
             ],
             cwd=str(repo_root),
             capture_output=True,
@@ -77,10 +79,15 @@ class TestQuantRunnerInterpolationE2E(unittest.TestCase):
         fair_map = load_prob_map(fair_csv)
 
         num_points = len(records)
+        bins = 3
+        weights = np.linspace(0.0, 1.0, bins)
+        bin_idx = (np.arange(num_points) * bins) // num_points
+        bin_idx = np.clip(bin_idx, 0, bins - 1)
+        blends = weights[bin_idx]
         print("\n=== Interpolation check (features, base->fair blend) ===")
         print(f"{'row':>3} {'blend':>5} {'f1':>4} {'base_csv':>18} {'fair_csv':>18} {'expected':>18} {'actual':>18} {'ratio':>10}")
         for idx, record in enumerate(records):
-            blend = idx / (num_points - 1) if num_points > 1 else 0.0
+            blend = blends[idx]
             actual = np.asarray(record["prob_vector"], dtype=float)
             f1 = float(record["point_vector"][0])
             f1_key = round(f1, 1)

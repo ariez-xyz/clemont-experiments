@@ -31,6 +31,21 @@ def _csv_list(value: str) -> Tuple[str, ...]:
     return tuple(item for item in items if item)
 
 
+def _csv_float_list(value: str) -> Tuple[float, ...]:
+    items = [item.strip() for item in value.split(",")]
+    floats: List[float] = []
+    for item in items:
+        if not item:
+            continue
+        try:
+            floats.append(float(item))
+        except ValueError as exc:
+            raise argparse.ArgumentTypeError(f"Invalid float value '{item}' in list") from exc
+    if not floats:
+        raise argparse.ArgumentTypeError("Expected at least one float in list")
+    return tuple(floats)
+
+
 def _csv_int_set(value: str) -> Optional[set[int]]:
     stripped = value.strip()
     if not stripped:
@@ -111,6 +126,8 @@ class Config:
     max_k: Optional[int] = None
     max_rows: Optional[int] = None
     interpolate_csv: Optional[Path] = None
+    interpolate_bins: Optional[int] = None
+    interpolate_weights: Optional[Tuple[float, ...]] = None
     deduplicate: bool = False
     save_points: bool = False
     normalize: bool = False
@@ -129,7 +146,16 @@ def main() -> None:
     probs_run = probs
     if fair_probs is not None:
         if num_points > 1:
-            blends = np.linspace(0.0, 1.0, num_points)
+            if cfg.interpolate_bins:
+                bins = cfg.interpolate_bins
+                if cfg.interpolate_weights is not None:
+                    weights = np.asarray(cfg.interpolate_weights, dtype=float)
+                else:
+                    weights = np.linspace(0.0, 1.0, bins)
+                bin_idx = (np.arange(num_points) * bins) // num_points
+                blends = weights[bin_idx]
+            else:
+                blends = np.linspace(0.0, 1.0, num_points)
         else:
             blends = np.array([0.0])
         probs_run = (1.0 - blends[:, None]) * probs + blends[:, None] * fair_probs
@@ -456,6 +482,26 @@ def parse_args() -> Config:
         ),
     )
     parser.add_argument(
+        "--interpolate-bins",
+        dest="interpolate_bins",
+        type=int,
+        default=argparse.SUPPRESS,
+        help=(
+            "Use stepwise interpolation with the given number of bins. "
+            "Bins include both endpoints (e.g. 5 bins -> 0.0, 0.25, 0.5, 0.75, 1.0)."
+        ),
+    )
+    parser.add_argument(
+        "--interpolate-weights",
+        dest="interpolate_weights",
+        type=_csv_float_list,
+        default=argparse.SUPPRESS,
+        help=(
+            "Comma-separated interpolation weights to override bin weights. "
+            "Length must match --interpolate-bins."
+        ),
+    )
+    parser.add_argument(
         "--deduplicate",
         dest="deduplicate",
         action="store_true",
@@ -482,6 +528,21 @@ def parse_args() -> Config:
             raise ValueError("--interpolate is incompatible with --row-ids")
         cfg_values["deduplicate"] = True
         cfg_values["shuffle"] = True
+        bins = cfg_values.get("interpolate_bins")
+        if bins is not None and bins < 2:
+            raise ValueError("--interpolate-bins must be >= 2")
+        weights = cfg_values.get("interpolate_weights")
+        if weights is not None:
+            if bins is None:
+                raise ValueError("--interpolate-weights requires --interpolate-bins")
+            if len(weights) != bins:
+                raise ValueError("--interpolate-weights length must match --interpolate-bins")
+            if any(w < 0.0 or w > 1.0 for w in weights):
+                raise ValueError("--interpolate-weights values must be in [0, 1]")
+    elif cfg_values.get("interpolate_bins") is not None:
+        raise ValueError("--interpolate-bins requires --interpolate")
+    elif cfg_values.get("interpolate_weights") is not None:
+        raise ValueError("--interpolate-weights requires --interpolate")
 
     return Config(**cfg_values)
 
@@ -822,6 +883,8 @@ def save_results_json(
             "preds_csv": str(cfg.preds_csv) if cfg.preds_csv is not None else None,
             "interpolate_csv": str(cfg.interpolate_csv) if cfg.interpolate_csv is not None else None,
             "deduplicate": cfg.deduplicate,
+            "interpolate_bins": cfg.interpolate_bins,
+            "interpolate_weights": list(cfg.interpolate_weights) if cfg.interpolate_weights is not None else None,
             "input_exponent": cfg.input_exponent,
             "discount_factor": cfg.discount_factor,
             "frnn_metric": cfg.frnn_metric,
