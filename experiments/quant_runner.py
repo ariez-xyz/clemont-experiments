@@ -110,6 +110,8 @@ class Config:
     initial_k: int = 16
     max_k: Optional[int] = None
     max_rows: Optional[int] = None
+    interpolate_csv: Optional[Path] = None
+    deduplicate: bool = False
     save_points: bool = False
     normalize: bool = False
     static: bool = False
@@ -122,8 +124,15 @@ class Config:
 
 def main() -> None:
     cfg = parse_args()
-    inputs, probs, input_names, prob_names = load_data(cfg)
+    inputs, probs, fair_probs, input_names, prob_names = load_data(cfg)
     num_points = inputs.shape[0]
+    probs_run = probs
+    if fair_probs is not None:
+        if num_points > 1:
+            blends = np.linspace(0.0, 1.0, num_points)
+        else:
+            blends = np.array([0.0])
+        probs_run = (1.0 - blends[:, None]) * probs + blends[:, None] * fair_probs
 
     if cfg.backend == "kdtree":
         backend_factory = lambda: KdTreeFRNN(
@@ -154,7 +163,7 @@ def main() -> None:
         epsilon_monitor = Monitor(backend_factory)
 
     if cfg.static:
-        monitor.batch_add(zip(inputs, probs))
+        monitor.batch_add(zip(inputs, probs_run))
 
     full_records: List[
         Tuple[
@@ -186,7 +195,7 @@ def main() -> None:
     epsilon_timings: List[float] = []
 
     try:
-        for idx, (x_vec, p_vec) in enumerate(zip(inputs, probs)):
+        for idx, (x_vec, p_vec) in enumerate(zip(inputs, probs_run)):
             start_time = time.time()
             res = monitor.observe(x_vec, p_vec, dry_run=cfg.static)
             iter_time = (time.time() - start_time) * 1000
@@ -210,7 +219,7 @@ def main() -> None:
                     x_vec,
                     p_vec,
                     inputs,
-                    probs,
+                    probs_run,
                     prob_names,
                     input_names,
                 )
@@ -276,7 +285,7 @@ def main() -> None:
             x_vec,
             p_vec,
             inputs,
-            probs,
+            probs_run,
             prob_names,
             input_names,
         )
@@ -304,7 +313,7 @@ def main() -> None:
                 x_vec,
                 p_vec,
                 inputs,
-                probs,
+                probs_run,
                 prob_names,
                 input_names,
             )
@@ -313,11 +322,11 @@ def main() -> None:
 
     output_path = save_results_json(
         cfg,
-        inputs,
-        probs,
-        full_records,
-        input_names,
-        prob_names,
+            inputs,
+            probs_run,
+            full_records,
+            input_names,
+            prob_names,
         total_time,
         total_epsilon_time,
         len(epsilon_timings),
@@ -435,6 +444,24 @@ def parse_args() -> Config:
             f"Default: {defaults.max_rows if defaults.max_rows is not None else 'no limit'}"
         ),
     )
+    parser.add_argument(
+        "--interpolate",
+        dest="interpolate_csv",
+        type=_optional_path,
+        default=argparse.SUPPRESS,
+        help=(
+            "Path to a second combined CSV with fair model probabilities. "
+            "Rows are matched by input features (ignoring output columns), then "
+            "probabilities are linearly interpolated from baseline to fair over time."
+        ),
+    )
+    parser.add_argument(
+        "--deduplicate",
+        dest="deduplicate",
+        action="store_true",
+        default=argparse.SUPPRESS,
+        help="Drop duplicate feature rows when loading data (default: false unless --interpolate is set).",
+    )
 
     parsed = parser.parse_args()
     provided = vars(parsed)
@@ -446,10 +473,22 @@ def parse_args() -> Config:
     if "pred_columns" in provided and "preds_csv" not in provided:
         cfg_values["preds_csv"] = None
 
+    if cfg_values.get("interpolate_csv") is not None:
+        if "preds_csv" not in provided:
+            cfg_values["preds_csv"] = None
+        if cfg_values.get("preds_csv") is not None:
+            raise ValueError("--interpolate is incompatible with --preds-csv")
+        if cfg_values.get("row_ids") is not None:
+            raise ValueError("--interpolate is incompatible with --row-ids")
+        cfg_values["deduplicate"] = True
+        cfg_values["shuffle"] = True
+
     return Config(**cfg_values)
 
 
-def load_data(cfg: Config) -> Tuple[np.ndarray, np.ndarray, List[str], List[str]]:
+def load_data(
+    cfg: Config,
+) -> Tuple[np.ndarray, np.ndarray, Optional[np.ndarray], List[str], List[str]]:
     """Load feature and probability data from one or two CSV files."""
 
     def _ensure_exists(path: Path) -> Path:
@@ -520,6 +559,48 @@ def load_data(cfg: Config) -> Tuple[np.ndarray, np.ndarray, List[str], List[str]
                 seen.add(idx)
         return feats, probs_local, seen
 
+    def _read_combined_rows_with_keys(
+        path: Path,
+        feature_cols: Sequence[str],
+        prob_cols: Sequence[str],
+        key_cols: Sequence[str],
+    ) -> Tuple[List[List[float]], List[List[float]], List[Tuple[str, ...]]]:
+        feats: List[List[float]] = []
+        probs_local: List[List[float]] = []
+        keys: List[Tuple[str, ...]] = []
+        with path.open(newline="") as fh:
+            reader = csv.DictReader(fh)
+            for idx, row in enumerate(reader, start=1):
+                if cfg.row_ids and idx not in cfg.row_ids:
+                    continue
+                feats.append([float(row[col]) for col in feature_cols])
+                probs_local.append([float(row[col]) for col in prob_cols])
+                keys.append(tuple(row[col] for col in key_cols))
+        return feats, probs_local, keys
+
+    def _dedupe_aligned_rows(
+        keys: Sequence[Tuple[str, ...]],
+        feats: Sequence[List[float]],
+        probs_local: Sequence[List[float]],
+        fair_local: Sequence[List[float]],
+    ) -> Tuple[List[Tuple[str, ...]], List[List[float]], List[List[float]], List[List[float]], int]:
+        dedup_keys: List[Tuple[str, ...]] = []
+        dedup_feats: List[List[float]] = []
+        dedup_probs: List[List[float]] = []
+        dedup_fair: List[List[float]] = []
+        removed = 0
+        last_key: Optional[Tuple[str, ...]] = None
+        for key, feat, prob, fair in zip(keys, feats, probs_local, fair_local):
+            if key == last_key:
+                removed += 1
+                continue
+            dedup_keys.append(key)
+            dedup_feats.append(feat)
+            dedup_probs.append(prob)
+            dedup_fair.append(fair)
+            last_key = key
+        return dedup_keys, dedup_feats, dedup_probs, dedup_fair, removed
+
     def _read_columns(
         path: Path, columns: Sequence[str]
     ) -> Tuple[List[List[float]], set[int]]:
@@ -539,8 +620,13 @@ def load_data(cfg: Config) -> Tuple[np.ndarray, np.ndarray, List[str], List[str]
     if preds_path is not None and preds_path != cfg.input_csv:
         preds_path = _ensure_exists(preds_path)
 
+    interpolate_path = cfg.interpolate_csv
+    if interpolate_path is not None:
+        interpolate_path = _ensure_exists(interpolate_path)
+
     ignore = set(cfg.ignore_columns)
     combined_file = preds_path is None or preds_path == cfg.input_csv
+    fair_probs: Optional[List[List[float]]] = None
 
     with input_path.open(newline="") as fh:
         input_reader = csv.DictReader(fh)
@@ -556,9 +642,51 @@ def load_data(cfg: Config) -> Tuple[np.ndarray, np.ndarray, List[str], List[str]
             raise ValueError(
                 f"Columns {sorted(overlap_columns)} cannot be both feature and prediction columns"
             )
-        inputs, probs, seen_input_ids = _read_combined_rows(
-            input_path, feature_columns, prob_columns
-        )
+        if interpolate_path is None:
+            inputs, probs, seen_input_ids = _read_combined_rows(
+                input_path, feature_columns, prob_columns
+            )
+        else:
+            key_columns = [col for col in feature_columns if col.lower() != "pred"]
+            inputs, probs, keys_base = _read_combined_rows_with_keys(
+                input_path, feature_columns, prob_columns, key_columns
+            )
+            with interpolate_path.open(newline="") as fh:
+                reader = csv.DictReader(fh)
+                interp_fields = reader.fieldnames or []
+            if list(interp_fields) != list(input_fields):
+                raise ValueError(
+                    "Interpolate CSV must have the same columns as input CSV"
+                )
+            _, fair_probs, keys_fair = _read_combined_rows_with_keys(
+                interpolate_path, feature_columns, prob_columns, key_columns
+            )
+            order_base = sorted(range(len(keys_base)), key=lambda i: (keys_base[i], i))
+            order_fair = sorted(range(len(keys_fair)), key=lambda i: (keys_fair[i], i))
+            sorted_keys_base = [keys_base[i] for i in order_base]
+            sorted_keys_fair = [keys_fair[i] for i in order_fair]
+            if sorted_keys_base != sorted_keys_fair:
+                raise ValueError(
+                    "Interpolate CSV rows do not match input CSV rows when aligned by features"
+                )
+            inputs = [inputs[i] for i in order_base]
+            probs = [probs[i] for i in order_base]
+            fair_probs = [fair_probs[i] for i in order_fair]
+            if cfg.deduplicate:
+                (
+                    sorted_keys_base,
+                    inputs,
+                    probs,
+                    fair_probs,
+                    removed,
+                ) = _dedupe_aligned_rows(
+                    sorted_keys_base, inputs, probs, fair_probs
+                )
+                if removed:
+                    print(
+                        f"Warning: removed {removed} duplicate rows while aligning interpolation data"
+                    )
+            seen_input_ids = set(range(1, len(inputs) + 1))
         pred_seen_ids = seen_input_ids
     else:
         feature_columns = _resolve_feature_columns(input_fields, exclude=())
@@ -591,6 +719,8 @@ def load_data(cfg: Config) -> Tuple[np.ndarray, np.ndarray, List[str], List[str]
             )
 
     overlap = min(len(inputs), len(probs))
+    if fair_probs is not None:
+        overlap = min(overlap, len(fair_probs))
     if cfg.row_ids and overlap == 0:
         raise ValueError(
             "--row-ids filtering removed all rows; verify the ids and the CSV contents"
@@ -610,9 +740,12 @@ def load_data(cfg: Config) -> Tuple[np.ndarray, np.ndarray, List[str], List[str]
 
     inputs = inputs[:overlap]
     probs = probs[:overlap]
+    fair_probs_array: Optional[np.ndarray] = None
 
     input_array = np.asarray(inputs, dtype=np.float32)
     probs_array = np.asarray(probs, dtype=np.float64)
+    if interpolate_path is not None:
+        fair_probs_array = np.asarray(fair_probs[:overlap], dtype=np.float64)
 
     if cfg.shuffle:
         rng = np.random.default_rng(seed=42)
@@ -620,6 +753,8 @@ def load_data(cfg: Config) -> Tuple[np.ndarray, np.ndarray, List[str], List[str]
         rng.shuffle(indices)
         input_array = input_array[indices]
         probs_array = probs_array[indices]
+        if fair_probs_array is not None:
+            fair_probs_array = fair_probs_array[indices]
 
     if cfg.normalize:
         norms = np.linalg.norm(input_array, axis=1, keepdims=True)
@@ -629,7 +764,7 @@ def load_data(cfg: Config) -> Tuple[np.ndarray, np.ndarray, List[str], List[str]
 
     prob_names = _clean_prob_names(prob_columns)
 
-    return input_array, probs_array, list(feature_columns), prob_names
+    return input_array, probs_array, fair_probs_array, list(feature_columns), prob_names
 
 
 def save_results_json(
@@ -685,6 +820,8 @@ def save_results_json(
             "timestamp": timestamp,
             "input_csv": str(cfg.input_csv),
             "preds_csv": str(cfg.preds_csv) if cfg.preds_csv is not None else None,
+            "interpolate_csv": str(cfg.interpolate_csv) if cfg.interpolate_csv is not None else None,
+            "deduplicate": cfg.deduplicate,
             "input_exponent": cfg.input_exponent,
             "discount_factor": cfg.discount_factor,
             "frnn_metric": cfg.frnn_metric,
