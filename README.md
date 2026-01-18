@@ -8,7 +8,7 @@ Code to reproduce experiments for [Clemont](https://github.com/ariez-xyz/clemont
 * `data/` contains various data sources used to create the input data for monitoring.
 * `experiments/` holds a number of scripts, each of which corresponds to an experiment
 * `results/` is the place for all experimental outputs
-* `lib/` holds dd (and Clemont with the `--dev` switch)
+* `lib/` holds dd (and Clemont when running `setup.sh` with the `--dev` switch)
 
 
 ## Usage

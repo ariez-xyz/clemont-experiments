@@ -105,6 +105,7 @@ class Config:
     display_stride: int = 1000
     frnn_threads: int = 4
     input_exponent: float = 1
+    discount_factor: float = 1.0
     batchsize: int = 1000
     initial_k: int = 16
     max_k: Optional[int] = None
@@ -144,6 +145,7 @@ def main() -> None:
         initial_k=cfg.initial_k,
         max_k=cfg.max_k,
         input_exponent=cfg.input_exponent,
+        discount_factor=cfg.discount_factor,
         k_grow_factor=cfg.k_grow_factor,
     )
 
@@ -384,6 +386,8 @@ def parse_args() -> Config:
                         help=f"Thread hint for FRNN backends (default: {defaults.frnn_threads})")
     parser.add_argument("--input-exponent", dest="input_exponent", type=float, default=argparse.SUPPRESS,
                         help=f"Input exponent for monitor (default: {defaults.input_exponent})")
+    parser.add_argument("--discount-factor", dest="discount_factor", type=float, default=argparse.SUPPRESS,
+                        help=f"Discount factor for monitor (default: {defaults.discount_factor})")
     parser.add_argument("--batchsize", dest="batchsize", type=int, default=argparse.SUPPRESS,
                         help=f"Batch size for batched kNN backends (default: {defaults.batchsize})")
     parser.add_argument("--initial-k", dest="initial_k", type=int, default=argparse.SUPPRESS,
@@ -682,6 +686,7 @@ def save_results_json(
             "input_csv": str(cfg.input_csv),
             "preds_csv": str(cfg.preds_csv) if cfg.preds_csv is not None else None,
             "input_exponent": cfg.input_exponent,
+            "discount_factor": cfg.discount_factor,
             "frnn_metric": cfg.frnn_metric,
             "out_metric": cfg.out_metric,
             "display_stride": cfg.display_stride,
