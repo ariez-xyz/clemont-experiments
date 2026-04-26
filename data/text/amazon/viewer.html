@@ -1,0 +1,850 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Amazon LLM Judge Results</title>
+  <style>
+    :root {
+      --paper: #f8f3e8;
+      --ink: #17211b;
+      --muted: #667267;
+      --line: #d7cbb8;
+      --green: #1f7a4d;
+      --red: #a83e32;
+      --amber: #b7751f;
+      --blue: #275f86;
+      --panel: #fffaf0;
+      --shadow: 0 18px 50px rgba(64, 46, 23, 0.14);
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      background:
+        radial-gradient(circle at 18% 12%, rgba(246, 198, 101, 0.35), transparent 32rem),
+        linear-gradient(135deg, #fdf7eb 0%, var(--paper) 48%, #ede1cc 100%);
+      color: var(--ink);
+      font-family: ui-serif, Georgia, "Times New Roman", serif;
+    }
+
+    header {
+      padding: 34px clamp(18px, 5vw, 70px) 24px;
+      border-bottom: 1px solid var(--line);
+    }
+
+    h1 {
+      margin: 0;
+      max-width: 940px;
+      font-size: clamp(2.2rem, 5vw, 5.1rem);
+      line-height: 0.9;
+      letter-spacing: -0.06em;
+    }
+
+    .subhead {
+      margin-top: 14px;
+      max-width: 900px;
+      color: var(--muted);
+      font-family: ui-sans-serif, "Avenir Next", "Segoe UI", sans-serif;
+      font-size: 0.98rem;
+    }
+
+    main {
+      display: grid;
+      grid-template-columns: minmax(280px, 440px) 1fr;
+      gap: 18px;
+      padding: 22px clamp(14px, 3vw, 44px) 36px;
+    }
+
+    .panel {
+      background: rgba(255, 250, 240, 0.86);
+      border: 1px solid var(--line);
+      border-radius: 24px;
+      box-shadow: var(--shadow);
+      overflow: hidden;
+    }
+
+    .controls {
+      padding: 18px;
+      display: grid;
+      gap: 14px;
+    }
+
+    .control-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+    }
+
+    label {
+      display: grid;
+      gap: 6px;
+      color: var(--muted);
+      font-family: ui-sans-serif, "Avenir Next", "Segoe UI", sans-serif;
+      font-size: 0.76rem;
+      font-weight: 700;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+    }
+
+    input, select, button {
+      width: 100%;
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      background: #fffdf7;
+      color: var(--ink);
+      font: 500 0.94rem ui-sans-serif, "Avenir Next", "Segoe UI", sans-serif;
+      padding: 10px 12px;
+    }
+
+    button {
+      cursor: pointer;
+      background: var(--ink);
+      color: #fffaf0;
+      border-color: var(--ink);
+    }
+
+    .stats {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 8px;
+      padding: 0 18px 18px;
+    }
+
+    .stat {
+      border: 1px solid var(--line);
+      border-radius: 16px;
+      padding: 10px;
+      background: rgba(255, 255, 255, 0.48);
+    }
+
+    .stat strong {
+      display: block;
+      font-size: 1.35rem;
+      letter-spacing: -0.04em;
+    }
+
+    .stat span {
+      color: var(--muted);
+      font: 700 0.68rem ui-sans-serif, "Avenir Next", "Segoe UI", sans-serif;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+    }
+
+    .list {
+      max-height: calc(100vh - 390px);
+      overflow: auto;
+      border-top: 1px solid var(--line);
+    }
+
+    .row {
+      border-bottom: 1px solid var(--line);
+      padding: 13px 16px;
+      cursor: pointer;
+      background: rgba(255, 250, 240, 0.68);
+    }
+
+    .row:hover, .row.active { background: #fff4da; }
+
+    .row-top {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      justify-content: space-between;
+      font-family: ui-sans-serif, "Avenir Next", "Segoe UI", sans-serif;
+      font-size: 0.78rem;
+      color: var(--muted);
+    }
+
+    .title {
+      margin-top: 7px;
+      font-weight: 800;
+      letter-spacing: -0.02em;
+    }
+
+    .excerpt {
+      margin-top: 4px;
+      color: var(--muted);
+      font-family: ui-sans-serif, "Avenir Next", "Segoe UI", sans-serif;
+      font-size: 0.82rem;
+      line-height: 1.35;
+    }
+
+    .row-measure {
+      display: grid;
+      grid-template-columns: 1fr auto;
+      gap: 10px;
+      align-items: center;
+      margin-top: 9px;
+      color: var(--muted);
+      font: 700 0.68rem ui-sans-serif, "Avenir Next", "Segoe UI", sans-serif;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+    }
+
+    .prob-strip {
+      position: relative;
+      height: 8px;
+      border-radius: 999px;
+      overflow: hidden;
+      border: 1px solid rgba(23, 33, 27, 0.16);
+      background: linear-gradient(90deg, rgba(168, 62, 50, 0.18), rgba(31, 122, 77, 0.18));
+    }
+
+    .prob-strip::before {
+      content: "";
+      position: absolute;
+      inset: 0 auto 0 0;
+      width: var(--p0, 50%);
+      background: rgba(168, 62, 50, 0.82);
+    }
+
+    .prob-strip::after {
+      content: "";
+      position: absolute;
+      top: -4px;
+      bottom: -4px;
+      left: 50%;
+      width: 1px;
+      background: rgba(23, 33, 27, 0.38);
+    }
+
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      border-radius: 999px;
+      padding: 3px 9px;
+      color: #fff;
+      font: 800 0.72rem ui-sans-serif, "Avenir Next", "Segoe UI", sans-serif;
+    }
+
+    .badge.neg { background: var(--red); }
+    .badge.pos { background: var(--green); }
+    .badge.miss { background: var(--amber); }
+
+    .detail {
+      padding: clamp(18px, 3vw, 32px);
+      min-height: 640px;
+    }
+
+    .detail-head {
+      display: flex;
+      justify-content: space-between;
+      gap: 20px;
+      align-items: start;
+      margin-bottom: 18px;
+    }
+
+    .detail h2 {
+      margin: 0;
+      font-size: clamp(1.8rem, 3vw, 3.2rem);
+      line-height: 0.95;
+      letter-spacing: -0.05em;
+    }
+
+    .meta {
+      color: var(--muted);
+      font: 700 0.74rem ui-sans-serif, "Avenir Next", "Segoe UI", sans-serif;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+    }
+
+    .score-grid {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(120px, 1fr));
+      gap: 10px;
+      margin: 18px 0;
+    }
+
+    .score-card {
+      border: 1px solid var(--line);
+      border-radius: 18px;
+      background: rgba(255, 255, 255, 0.45);
+      padding: 12px;
+    }
+
+    .score-card span {
+      display: block;
+      color: var(--muted);
+      font: 800 0.67rem ui-sans-serif, "Avenir Next", "Segoe UI", sans-serif;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+    }
+
+    .score-card strong {
+      display: block;
+      margin-top: 5px;
+      font: 800 1.26rem ui-sans-serif, "Avenir Next", "Segoe UI", sans-serif;
+      letter-spacing: -0.04em;
+    }
+
+    .review {
+      margin-top: 18px;
+      border-top: 1px solid var(--line);
+      padding-top: 18px;
+      white-space: pre-wrap;
+      font-size: 1.04rem;
+      line-height: 1.55;
+    }
+
+    .tokens {
+      margin-top: 20px;
+      display: grid;
+      gap: 8px;
+    }
+
+    .neighbors {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+      margin-top: 22px;
+    }
+
+    .neighbor-group {
+      border: 1px solid var(--line);
+      border-radius: 20px;
+      background: rgba(255, 255, 255, 0.36);
+      padding: 12px;
+    }
+
+    .neighbor-group h3 {
+      margin: 0 0 10px;
+    }
+
+    .neighbor {
+      border-top: 1px solid var(--line);
+      padding: 10px 0;
+      cursor: pointer;
+    }
+
+    .neighbor:first-of-type { border-top: 0; }
+
+    .neighbor:hover .neighbor-title { text-decoration: underline; }
+
+    .neighbor-top {
+      display: flex;
+      justify-content: space-between;
+      gap: 12px;
+      color: var(--muted);
+      font: 800 0.68rem ui-sans-serif, "Avenir Next", "Segoe UI", sans-serif;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+    }
+
+    .neighbor-title {
+      margin-top: 5px;
+      font-weight: 800;
+      letter-spacing: -0.02em;
+    }
+
+    .neighbor-text {
+      margin-top: 4px;
+      color: var(--muted);
+      font: 0.8rem/1.35 ui-sans-serif, "Avenir Next", "Segoe UI", sans-serif;
+    }
+
+    .token {
+      display: grid;
+      grid-template-columns: minmax(70px, 130px) 1fr 90px;
+      align-items: center;
+      gap: 10px;
+      font-family: ui-sans-serif, "Avenir Next", "Segoe UI", sans-serif;
+    }
+
+    .bar {
+      height: 10px;
+      border-radius: 999px;
+      background: #eadcc5;
+      overflow: hidden;
+    }
+
+    .bar > div {
+      height: 100%;
+      background: var(--blue);
+    }
+
+    .empty {
+      padding: 40px;
+      color: var(--muted);
+      font-family: ui-sans-serif, "Avenir Next", "Segoe UI", sans-serif;
+    }
+
+    @media (max-width: 980px) {
+      main { grid-template-columns: 1fr; }
+      .list { max-height: 420px; }
+      .score-grid { grid-template-columns: repeat(2, 1fr); }
+      .neighbors { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>Amazon Review Judge Results</h1>
+    <div class="subhead">
+      Browse monitor-ready LLM judge outputs without rendering the embedding dimensions. Default data:
+      <code>amazon_sentiment_openrouter_20260424T150523Z.csv</code>
+    </div>
+  </header>
+
+  <main>
+    <section class="panel">
+      <div class="controls">
+        <label>
+          Load CSV
+          <input id="fileInput" type="file" accept=".csv,text/csv">
+        </label>
+        <div class="control-grid">
+          <label>
+            Search
+            <input id="searchInput" type="search" placeholder="title, text, id">
+          </label>
+          <label>
+            Filter
+            <select id="filterSelect">
+              <option value="all">All rows</option>
+              <option value="missing">Missing label prob</option>
+              <option value="inferred">Inferred score</option>
+              <option value="uncertain">Ambiguous</option>
+              <option value="positive">Answer: positive</option>
+              <option value="negative">Answer: negative</option>
+            </select>
+          </label>
+        </div>
+        <div class="control-grid">
+          <label>
+            Sort
+            <select id="sortSelect">
+              <option value="source">Source order</option>
+              <option value="uncertainty">Most ambiguous</option>
+              <option value="confidence">Most certain</option>
+              <option value="margin">Smallest margin</option>
+              <option value="prob0">prob_0 high</option>
+              <option value="prob1">prob_1 high</option>
+              <option value="logprob0">logprob_0 high</option>
+              <option value="logprob1">logprob_1 high</option>
+              <option value="rating">Rating</option>
+            </select>
+          </label>
+          <button id="loadDefault">Load Latest CSV</button>
+        </div>
+      </div>
+      <div class="stats" id="stats"></div>
+      <div class="list" id="list"></div>
+    </section>
+
+    <section class="panel detail" id="detail">
+      <div class="empty">Load a CSV, then select a row.</div>
+    </section>
+  </main>
+
+  <script>
+    const DEFAULT_CSV = "amazon_sentiment_openrouter_20260424T150523Z.csv";
+    const state = { rows: [], filtered: [], selected: null };
+
+    const fileInput = document.getElementById("fileInput");
+    const searchInput = document.getElementById("searchInput");
+    const filterSelect = document.getElementById("filterSelect");
+    const sortSelect = document.getElementById("sortSelect");
+    const list = document.getElementById("list");
+    const detail = document.getElementById("detail");
+    const stats = document.getElementById("stats");
+
+    document.getElementById("loadDefault").addEventListener("click", () => loadDefaultCsv());
+    fileInput.addEventListener("change", async (event) => {
+      const file = event.target.files[0];
+      if (!file) return;
+      setRows(parseCsv(await file.text()));
+    });
+    searchInput.addEventListener("input", render);
+    filterSelect.addEventListener("change", render);
+    sortSelect.addEventListener("change", render);
+
+    loadDefaultCsv();
+
+    async function loadDefaultCsv() {
+      try {
+        const response = await fetch(DEFAULT_CSV);
+        if (!response.ok) throw new Error(`${response.status} ${response.statusText}`);
+        setRows(parseCsv(await response.text()));
+      } catch (error) {
+        list.innerHTML = `<div class="empty">Could not fetch ${DEFAULT_CSV}. If opened via file://, use the file picker above.</div>`;
+      }
+    }
+
+    function setRows(rows) {
+      state.rows = rows;
+      state.selected = rows[0] || null;
+      render();
+    }
+
+    function render() {
+      const query = searchInput.value.trim().toLowerCase();
+      const filter = filterSelect.value;
+      const sort = sortSelect.value;
+
+      let rows = state.rows.filter(row => {
+        const haystack = `${row.example_id} ${row.review_title} ${row.review_text}`.toLowerCase();
+        if (query && !haystack.includes(query)) return false;
+        if (filter === "missing" && !hasMissingProb(row)) return false;
+        if (filter === "inferred" && !hasInferredScore(row)) return false;
+        if (filter === "uncertain" && uncertainty(row) < 0.6) return false;
+        if (filter === "positive" && row.judge_answer !== "1") return false;
+        if (filter === "negative" && row.judge_answer !== "0") return false;
+        return true;
+      });
+
+      rows = [...rows].sort((a, b) => {
+        if (sort === "uncertainty") return uncertainty(b) - uncertainty(a);
+        if (sort === "confidence") return confidence(b) - confidence(a);
+        if (sort === "margin") return margin(a) - margin(b);
+        if (sort === "prob0") return numberOrNaN(b.prob_0) - numberOrNaN(a.prob_0);
+        if (sort === "prob1") return numberOrNaN(b.prob_1) - numberOrNaN(a.prob_1);
+        if (sort === "logprob0") return numberOrNaN(b.logprob_0) - numberOrNaN(a.logprob_0);
+        if (sort === "logprob1") return numberOrNaN(b.logprob_1) - numberOrNaN(a.logprob_1);
+        if (sort === "rating") return numberOrNaN(b.rating_value) - numberOrNaN(a.rating_value);
+        return numberOrNaN(a.source_row) - numberOrNaN(b.source_row);
+      });
+
+      state.filtered = rows;
+      if (!rows.includes(state.selected)) state.selected = rows[0] || null;
+      renderStats();
+      renderList();
+      renderDetail();
+    }
+
+    function renderStats() {
+      const rows = state.rows;
+      const missing = rows.filter(hasMissingProb).length;
+      const inferred = rows.filter(hasInferredScore).length;
+      const pos = rows.filter(row => row.judge_answer === "1").length;
+      const neg = rows.filter(row => row.judge_answer === "0").length;
+      stats.innerHTML = [
+        stat("Rows", rows.length),
+        stat("Negative", neg),
+        stat("Positive", pos),
+        stat("Inferred", inferred || missing),
+      ].join("");
+    }
+
+    function stat(label, value) {
+      return `<div class="stat"><strong>${escapeHtml(String(value))}</strong><span>${label}</span></div>`;
+    }
+
+    function renderList() {
+      if (!state.filtered.length) {
+        list.innerHTML = `<div class="empty">No rows match the current filters.</div>`;
+        return;
+      }
+      list.innerHTML = state.filtered.map(row => {
+        const active = row === state.selected ? " active" : "";
+        const badgeClass = hasInferredScore(row) ? "miss" : row.judge_answer === "1" ? "pos" : "neg";
+        const label = hasInferredScore(row) ? "inferred" : row.judge_answer === "1" ? "positive" : "negative";
+        const p0 = probability(row, "0");
+        const interesting = uncertainty(row);
+        return `
+          <article class="row${active}" data-id="${escapeHtml(row.example_id)}">
+            <div class="row-top">
+              <span>${escapeHtml(row.example_id)} · ${escapeHtml(row.rating || "")}</span>
+              <span class="badge ${badgeClass}">${label}</span>
+            </div>
+            <div class="title">${escapeHtml(row.review_title || "(untitled)")}</div>
+            <div class="excerpt">${escapeHtml(truncate(row.review_text || "", 150))}</div>
+            <div class="row-measure">
+              <div class="prob-strip" style="--p0:${Math.max(0, Math.min(100, p0 * 100))}%"></div>
+              <span>ambiguity ${formatNum(interesting)}</span>
+            </div>
+          </article>
+        `;
+      }).join("");
+
+      list.querySelectorAll(".row").forEach((node, index) => {
+        node.addEventListener("click", () => {
+          state.selected = state.filtered[index];
+          renderList();
+          renderDetail();
+        });
+      });
+    }
+
+    function renderDetail() {
+      const row = state.selected;
+      if (!row) {
+        detail.innerHTML = `<div class="empty">Select a row.</div>`;
+        return;
+      }
+
+      const top = parseJsonArray(row.top_logprobs_json);
+      const maxLogprob = Math.max(...top.map(item => numberOrNaN(item.logprob)).filter(Number.isFinite), 0);
+      const neighbors = embeddingNeighbors(row, 5);
+      detail.innerHTML = `
+        <div class="detail-head">
+          <div>
+            <div class="meta">${escapeHtml(row.example_id)} · source row ${escapeHtml(row.source_row || "")}</div>
+            <h2>${escapeHtml(row.review_title || "(untitled)")}</h2>
+          </div>
+          ${answerBadge(row)}
+        </div>
+
+        <div class="score-grid">
+          ${score("Rating", row.rating_value || row.rating || "n/a")}
+          ${score("Answer", row.judge_answer === "1" ? "positive" : "negative")}
+          ${score("prob_0", formatNum(row.prob_0))}
+          ${score("prob_1", formatNum(row.prob_1))}
+          ${score("logprob_0", formatNum(row.logprob_0))}
+          ${score("logprob_1", formatNum(row.logprob_1))}
+          ${score("source_0", compactSource(row.logprob_0_source))}
+          ${score("source_1", compactSource(row.logprob_1_source))}
+          ${score("Margin", formatNum(margin(row)))}
+          ${score("Ambiguity", formatNum(uncertainty(row)))}
+          ${score("First token", row.first_token || "n/a")}
+          ${score("Finish", row.judge_finish_reason || "n/a")}
+        </div>
+
+        <div class="review">${escapeHtml(row.review_text || "")}</div>
+
+        <section class="neighbors">
+          ${neighborGroup("Most Similar By Embedding", neighbors.similar)}
+          ${neighborGroup("Most Dissimilar By Embedding", neighbors.dissimilar)}
+        </section>
+
+        <h3>First-Token Top Logprobs</h3>
+        <div class="tokens">
+          ${top.map(item => tokenRow(item, maxLogprob)).join("") || "<div class='empty'>No top-logprob details.</div>"}
+        </div>
+      `;
+      bindNeighborClicks();
+    }
+
+    function answerBadge(row) {
+      const cls = hasInferredScore(row) ? "miss" : row.judge_answer === "1" ? "pos" : "neg";
+      const label = hasInferredScore(row) ? "inferred" : row.judge_answer === "1" ? "positive" : "negative";
+      return `<span class="badge ${cls}">${label}</span>`;
+    }
+
+    function score(label, value) {
+      return `<div class="score-card"><span>${escapeHtml(label)}</span><strong>${escapeHtml(String(value))}</strong></div>`;
+    }
+
+    function tokenRow(item, maxLogprob) {
+      const logprob = numberOrNaN(item.logprob);
+      const width = Number.isFinite(logprob) ? Math.max(1, Math.exp(logprob - maxLogprob) * 100) : 1;
+      return `
+        <div class="token">
+          <code>${escapeHtml(displayToken(item.token))}</code>
+          <div class="bar"><div style="width:${width}%"></div></div>
+          <span>${formatNum(logprob)}</span>
+        </div>
+      `;
+    }
+
+    function neighborGroup(title, items) {
+      return `
+        <div class="neighbor-group">
+          <h3>${escapeHtml(title)}</h3>
+          ${items.map(item => neighborRow(item)).join("") || "<div class='empty'>No embedding neighbors available.</div>"}
+        </div>
+      `;
+    }
+
+    function neighborRow(item) {
+      const row = item.row;
+      const label = row.judge_answer === "1" ? "positive" : row.judge_answer === "0" ? "negative" : "error";
+      return `
+        <article class="neighbor" data-neighbor-id="${escapeHtml(row.example_id)}">
+          <div class="neighbor-top">
+            <span>${escapeHtml(row.example_id)} · ${label}</span>
+            <span>cos ${formatNum(item.similarity)} · dist ${formatNum(item.distance)}</span>
+          </div>
+          <div class="neighbor-title">${escapeHtml(row.review_title || "(untitled)")}</div>
+          <div class="neighbor-text">${escapeHtml(truncate(row.review_text || "", 170))}</div>
+        </article>
+      `;
+    }
+
+    function bindNeighborClicks() {
+      detail.querySelectorAll("[data-neighbor-id]").forEach(node => {
+        node.addEventListener("click", () => {
+          const id = node.getAttribute("data-neighbor-id");
+          const row = state.rows.find(candidate => candidate.example_id === id);
+          if (!row) return;
+          state.selected = row;
+          renderList();
+          renderDetail();
+        });
+      });
+    }
+
+    function parseCsv(text) {
+      const rows = [];
+      let row = [];
+      let field = "";
+      let inQuotes = false;
+      for (let i = 0; i < text.length; i++) {
+        const char = text[i];
+        const next = text[i + 1];
+        if (inQuotes) {
+          if (char === '"' && next === '"') {
+            field += '"';
+            i++;
+          } else if (char === '"') {
+            inQuotes = false;
+          } else {
+            field += char;
+          }
+        } else if (char === '"') {
+          inQuotes = true;
+        } else if (char === ",") {
+          row.push(field);
+          field = "";
+        } else if (char === "\n") {
+          row.push(field);
+          rows.push(row);
+          row = [];
+          field = "";
+        } else if (char !== "\r") {
+          field += char;
+        }
+      }
+      if (field || row.length) {
+        row.push(field);
+        rows.push(row);
+      }
+      const header = rows.shift() || [];
+      const embeddingIndexes = header
+        .map((key, index) => ({ key, index }))
+        .filter(item => /^e\d+$/.test(item.key))
+        .sort((a, b) => Number(a.key.slice(1)) - Number(b.key.slice(1)));
+      return rows.filter(r => r.length > 1).map(values => {
+        const obj = {};
+        const embedding = new Float32Array(embeddingIndexes.length);
+        let normSq = 0;
+        embeddingIndexes.forEach((item, dim) => {
+          const value = Number(values[item.index]);
+          const finite = Number.isFinite(value) ? value : 0;
+          embedding[dim] = finite;
+          normSq += finite * finite;
+        });
+        header.forEach((key, index) => {
+          if (!/^e\d+$/.test(key)) obj[key] = values[index] ?? "";
+        });
+        obj._embedding = embedding;
+        obj._embeddingNorm = Math.sqrt(normSq);
+        return obj;
+      });
+    }
+
+    function hasMissingProb(row) {
+      return !isFiniteNumber(row.prob_0) || !isFiniteNumber(row.prob_1);
+    }
+
+    function embeddingNeighbors(row, k) {
+      if (!row._embedding || !row._embeddingNorm) {
+        return { similar: [], dissimilar: [] };
+      }
+
+      const scored = [];
+      for (const candidate of state.rows) {
+        if (candidate === row || !candidate._embedding || !candidate._embeddingNorm) continue;
+        const similarity = cosineSimilarity(row, candidate);
+        if (!Number.isFinite(similarity)) continue;
+        scored.push({
+          row: candidate,
+          similarity,
+          distance: 1 - similarity,
+        });
+      }
+      scored.sort((a, b) => b.similarity - a.similarity);
+      return {
+        similar: scored.slice(0, k),
+        dissimilar: scored.slice(-k).reverse(),
+      };
+    }
+
+    function cosineSimilarity(a, b) {
+      const av = a._embedding;
+      const bv = b._embedding;
+      const length = Math.min(av.length, bv.length);
+      let dot = 0;
+      for (let i = 0; i < length; i++) {
+        dot += av[i] * bv[i];
+      }
+      return dot / (a._embeddingNorm * b._embeddingNorm);
+    }
+
+    function hasInferredScore(row) {
+      return row.logprob_0_source === "inferred_top_logprobs_floor" ||
+        row.logprob_1_source === "inferred_top_logprobs_floor";
+    }
+
+    function confidence(row) {
+      return Math.max(numberOrNaN(row.prob_0), numberOrNaN(row.prob_1), 0);
+    }
+
+    function probability(row, label) {
+      const value = numberOrNaN(row[`prob_${label}`]);
+      return Number.isFinite(value) ? value : 0.5;
+    }
+
+    function margin(row) {
+      return Math.abs(probability(row, "0") - probability(row, "1"));
+    }
+
+    function uncertainty(row) {
+      const p0 = Math.max(1e-12, Math.min(1 - 1e-12, probability(row, "0")));
+      const p1 = Math.max(1e-12, Math.min(1 - 1e-12, probability(row, "1")));
+      return -(p0 * Math.log2(p0) + p1 * Math.log2(p1));
+    }
+
+    function compactSource(value) {
+      if (value === "inferred_top_logprobs_floor") return "inferred";
+      return value || "n/a";
+    }
+
+    function numberOrNaN(value) {
+      const num = Number(value);
+      return Number.isFinite(num) ? num : NaN;
+    }
+
+    function isFiniteNumber(value) {
+      return Number.isFinite(Number(value));
+    }
+
+    function formatNum(value) {
+      const num = Number(value);
+      if (!Number.isFinite(num)) return "n/a";
+      if (Math.abs(num) >= 100 || Math.abs(num) < 0.001 && num !== 0) return num.toExponential(2);
+      return num.toFixed(4).replace(/\.?0+$/, "");
+    }
+
+    function parseJsonArray(value) {
+      try {
+        const parsed = JSON.parse(value || "[]");
+        return Array.isArray(parsed) ? parsed : [];
+      } catch {
+        return [];
+      }
+    }
+
+    function displayToken(token) {
+      if (token === " ") return "space";
+      if (token === "  ") return "2 spaces";
+      if (token === "") return "empty";
+      return String(token ?? "null");
+    }
+
+    function truncate(value, max) {
+      return value.length > max ? `${value.slice(0, max)}…` : value;
+    }
+
+    function escapeHtml(value) {
+      return value
+        .replaceAll("&", "&amp;")
+        .replaceAll("<", "&lt;")
+        .replaceAll(">", "&gt;")
+        .replaceAll('"', "&quot;")
+        .replaceAll("'", "&#039;");
+    }
+  </script>
+</body>
+</html>

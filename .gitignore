@@ -5,4 +5,5 @@ lib
 results/*/results/
 results/*/logs/
 activate.fish
+.env
 **/.DS_Store

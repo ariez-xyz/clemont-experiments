@@ -1,0 +1,855 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Amazon Quantitative Monitor Viewer</title>
+  <style>
+    :root {
+      --paper: #f5efe2;
+      --ink: #15231f;
+      --muted: #66736b;
+      --line: #d6c8b3;
+      --hot: #b3342a;
+      --cool: #2c6c86;
+      --green: #24744b;
+      --panel: rgba(255, 250, 239, 0.9);
+      --shadow: 0 20px 55px rgba(62, 45, 25, 0.16);
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      color: var(--ink);
+      background:
+        radial-gradient(circle at 14% 8%, rgba(179, 52, 42, 0.18), transparent 28rem),
+        radial-gradient(circle at 88% 4%, rgba(44, 108, 134, 0.2), transparent 34rem),
+        linear-gradient(135deg, #fff8eb, var(--paper) 48%, #e8dbc7);
+      font-family: ui-serif, Georgia, "Times New Roman", serif;
+    }
+
+    header {
+      padding: 34px clamp(18px, 5vw, 70px) 24px;
+      border-bottom: 1px solid var(--line);
+    }
+
+    h1 {
+      margin: 0;
+      max-width: 1050px;
+      font-size: clamp(2.3rem, 5vw, 5.3rem);
+      line-height: 0.9;
+      letter-spacing: -0.06em;
+    }
+
+    .subhead {
+      margin-top: 14px;
+      max-width: 980px;
+      color: var(--muted);
+      font: 0.98rem/1.45 ui-sans-serif, "Avenir Next", "Segoe UI", sans-serif;
+    }
+
+    main {
+      display: grid;
+      grid-template-columns: minmax(310px, 460px) 1fr;
+      gap: 18px;
+      padding: 22px clamp(14px, 3vw, 44px) 36px;
+      height: calc(100vh - 178px);
+      min-height: 720px;
+      overflow: hidden;
+    }
+
+    .panel {
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 24px;
+      box-shadow: var(--shadow);
+      overflow: hidden;
+      min-width: 0;
+      min-height: 0;
+    }
+
+    .controls {
+      display: grid;
+      gap: 14px;
+      padding: 18px;
+    }
+
+    .control-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+    }
+
+    label {
+      display: grid;
+      gap: 6px;
+      color: var(--muted);
+      font: 800 0.7rem ui-sans-serif, "Avenir Next", "Segoe UI", sans-serif;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+    }
+
+    input, select, button {
+      width: 100%;
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      background: #fffdf7;
+      color: var(--ink);
+      font: 500 0.94rem ui-sans-serif, "Avenir Next", "Segoe UI", sans-serif;
+      padding: 10px 12px;
+    }
+
+    button {
+      cursor: pointer;
+      background: var(--ink);
+      color: #fffaf0;
+      border-color: var(--ink);
+    }
+
+    .load-status {
+      display: none;
+      border: 1px solid var(--line);
+      border-radius: 16px;
+      background: rgba(255, 255, 255, 0.48);
+      color: var(--muted);
+      padding: 11px 12px;
+      font: 0.82rem/1.35 ui-sans-serif, "Avenir Next", "Segoe UI", sans-serif;
+    }
+
+    .load-status.show { display: block; }
+    .load-status.warn {
+      border-color: rgba(179, 52, 42, 0.34);
+      background: rgba(179, 52, 42, 0.08);
+      color: #723326;
+    }
+
+    .load-status button {
+      display: inline-flex;
+      width: auto;
+      margin-left: 8px;
+      padding: 6px 10px;
+      border-radius: 999px;
+      font-size: 0.76rem;
+      vertical-align: baseline;
+    }
+
+    .stats {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 8px;
+      padding: 0 18px 18px;
+    }
+
+    .stat {
+      border: 1px solid var(--line);
+      border-radius: 16px;
+      padding: 10px;
+      background: rgba(255, 255, 255, 0.45);
+    }
+
+    .stat strong {
+      display: block;
+      font-size: 1.25rem;
+      letter-spacing: -0.04em;
+    }
+
+    .stat span {
+      color: var(--muted);
+      font: 800 0.63rem ui-sans-serif, "Avenir Next", "Segoe UI", sans-serif;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+    }
+
+    .list {
+      max-height: calc(100vh - 430px);
+      overflow: auto;
+      border-top: 1px solid var(--line);
+    }
+
+    .row {
+      border-bottom: 1px solid var(--line);
+      padding: 13px 16px;
+      cursor: pointer;
+      background: rgba(255, 250, 240, 0.62);
+    }
+
+    .row:hover, .row.active { background: #fff1d7; }
+
+    .row-top, .mini-meta {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      color: var(--muted);
+      font: 800 0.69rem ui-sans-serif, "Avenir Next", "Segoe UI", sans-serif;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+    }
+
+    .row-title {
+      margin-top: 7px;
+      font-weight: 900;
+      letter-spacing: -0.02em;
+    }
+
+    .row-text {
+      margin-top: 4px;
+      color: var(--muted);
+      font: 0.82rem/1.35 ui-sans-serif, "Avenir Next", "Segoe UI", sans-serif;
+    }
+
+    .score-strip {
+      margin-top: 10px;
+      height: 9px;
+      border-radius: 999px;
+      background: rgba(179, 52, 42, 0.12);
+      border: 1px solid rgba(21, 35, 31, 0.15);
+      overflow: hidden;
+    }
+
+    .score-strip > div {
+      height: 100%;
+      width: var(--w, 0%);
+      background: linear-gradient(90deg, var(--cool), var(--hot));
+    }
+
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      border-radius: 999px;
+      padding: 3px 9px;
+      color: #fff;
+      font: 900 0.68rem ui-sans-serif, "Avenir Next", "Segoe UI", sans-serif;
+      background: var(--cool);
+    }
+
+    .badge.hot { background: var(--hot); }
+    .badge.good { background: var(--green); }
+
+    .detail {
+      padding: clamp(18px, 3vw, 32px);
+      min-height: 0;
+      max-height: 100%;
+      overflow: auto;
+    }
+
+    .detail-head {
+      display: flex;
+      justify-content: space-between;
+      gap: 20px;
+      align-items: start;
+      margin-bottom: 18px;
+    }
+
+    .detail h2 {
+      margin: 0;
+      font-size: clamp(1.9rem, 3.2vw, 3.4rem);
+      line-height: 0.94;
+      letter-spacing: -0.055em;
+    }
+
+    .score-grid {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(130px, 1fr));
+      gap: 10px;
+      margin: 18px 0;
+    }
+
+    .score-card {
+      border: 1px solid var(--line);
+      border-radius: 18px;
+      background: rgba(255, 255, 255, 0.42);
+      padding: 12px;
+    }
+
+    .score-card span {
+      display: block;
+      color: var(--muted);
+      font: 900 0.65rem ui-sans-serif, "Avenir Next", "Segoe UI", sans-serif;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+    }
+
+    .score-card strong {
+      display: block;
+      margin-top: 5px;
+      font: 900 1.22rem ui-sans-serif, "Avenir Next", "Segoe UI", sans-serif;
+      letter-spacing: -0.04em;
+    }
+
+    .pair {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+      gap: 14px;
+      margin-top: 18px;
+      align-items: start;
+    }
+
+    .review-card {
+      border: 1px solid var(--line);
+      border-radius: 22px;
+      background: rgba(255, 255, 255, 0.36);
+      padding: 16px;
+      min-width: 0;
+    }
+
+    .review-card h3 {
+      margin: 0 0 8px;
+      font-size: 1.35rem;
+      letter-spacing: -0.035em;
+    }
+
+    .review-card .score-grid {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .review-text {
+      margin-top: 12px;
+      white-space: pre-wrap;
+      font-size: 0.98rem;
+      line-height: 1.48;
+      max-height: 32vh;
+      overflow: auto;
+      padding-right: 8px;
+    }
+
+    .progression {
+      margin-top: 20px;
+      border-top: 1px solid var(--line);
+      padding-top: 16px;
+    }
+
+    .bars {
+      display: grid;
+      gap: 8px;
+      margin-top: 10px;
+    }
+
+    .bar-row {
+      display: grid;
+      grid-template-columns: 70px 1fr 90px;
+      gap: 10px;
+      align-items: center;
+      font: 0.78rem ui-sans-serif, "Avenir Next", "Segoe UI", sans-serif;
+    }
+
+    .bar {
+      height: 10px;
+      border-radius: 999px;
+      background: #eadcc5;
+      overflow: hidden;
+    }
+
+    .bar > div {
+      height: 100%;
+      background: var(--hot);
+    }
+
+    .empty {
+      padding: 40px;
+      color: var(--muted);
+      font-family: ui-sans-serif, "Avenir Next", "Segoe UI", sans-serif;
+    }
+
+    @media (max-width: 1000px) {
+      main { height: auto; }
+      main, .pair { grid-template-columns: 1fr; }
+      .list { max-height: 420px; }
+      .score-grid { grid-template-columns: repeat(2, 1fr); }
+      .detail { max-height: none; }
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>Quantitative Monitor: Amazon Reviews</h1>
+    <div class="subhead">
+      Robustness score is the maximum observed output change divided by embedding-space input distance.
+      This viewer joins the monitor result JSON with the Amazon LLM-judge CSV by point index.
+    </div>
+  </header>
+
+  <main>
+    <section class="panel">
+      <div class="controls">
+        <div class="control-grid">
+          <label>
+            Monitor JSON
+            <input id="jsonInput" type="file" accept=".json,application/json">
+          </label>
+          <label>
+            Input CSV fallback
+            <input id="csvInput" type="file" accept=".csv,text/csv">
+          </label>
+        </div>
+        <div class="control-grid">
+          <label>
+            Search
+            <input id="searchInput" type="search" placeholder="title, text, id">
+          </label>
+          <label>
+            Filter
+            <select id="filterSelect">
+              <option value="all">All points</option>
+              <option value="high">High score (top 10%)</option>
+              <option value="flip">Large output shift</option>
+              <option value="near">Very near witness</option>
+              <option value="positive">Positive judge answer</option>
+              <option value="negative">Negative judge answer</option>
+            </select>
+          </label>
+        </div>
+        <div class="control-grid">
+          <label>
+            Sort
+            <select id="sortSelect">
+              <option value="score">Robustness score</option>
+              <option value="out">Output shift</option>
+              <option value="near">Nearest witness</option>
+              <option value="compared">Compared count</option>
+              <option value="time">Runtime</option>
+              <option value="index">Stream order</option>
+            </select>
+          </label>
+          <button id="loadDefault">Load Monitor JSON</button>
+        </div>
+        <div class="load-status" id="loadStatus"></div>
+      </div>
+      <div class="stats" id="stats"></div>
+      <div class="list" id="list"></div>
+    </section>
+
+    <section class="panel detail" id="detail">
+      <div class="empty">Load files, then select a point.</div>
+    </section>
+  </main>
+
+  <script>
+    const DEFAULT_JSON = "quant_run_20260426T101034.json";
+    const state = {
+      metadata: null,
+      records: [],
+      rows: [],
+      joined: [],
+      filtered: [],
+      selected: null,
+      p90: 0,
+      maxRatio: 1,
+      pendingInputPath: null,
+    };
+
+    const jsonInput = document.getElementById("jsonInput");
+    const csvInput = document.getElementById("csvInput");
+    const searchInput = document.getElementById("searchInput");
+    const filterSelect = document.getElementById("filterSelect");
+    const sortSelect = document.getElementById("sortSelect");
+    const stats = document.getElementById("stats");
+    const list = document.getElementById("list");
+    const detail = document.getElementById("detail");
+    const loadStatus = document.getElementById("loadStatus");
+
+    document.getElementById("loadDefault").addEventListener("click", loadDefaultFiles);
+    jsonInput.addEventListener("change", async (event) => {
+      const file = event.target.files[0];
+      if (!file) return;
+      await loadMonitorData(JSON.parse(await file.text()));
+    });
+    csvInput.addEventListener("change", async (event) => {
+      const file = event.target.files[0];
+      if (!file) return;
+      state.rows = parseCsv(await file.text());
+      state.pendingInputPath = null;
+      setStatus(`Loaded CSV: ${file.name}.`, "ok");
+      joinData();
+    });
+    searchInput.addEventListener("input", render);
+    filterSelect.addEventListener("change", render);
+    sortSelect.addEventListener("change", render);
+
+    loadDefaultFiles();
+
+    async function loadDefaultFiles() {
+      try {
+        setStatus("", "ok");
+        const jsonResponse = await fetch(DEFAULT_JSON);
+        if (!jsonResponse.ok) throw new Error(`${DEFAULT_JSON}: ${jsonResponse.status}`);
+        await loadMonitorData(await jsonResponse.json());
+      } catch (error) {
+        setStatus("Could not auto-load the default monitor JSON. Use the JSON picker above.", "warn");
+        list.innerHTML = `<div class="empty">Could not auto-load files. Use the file pickers above. ${escapeHtml(String(error))}</div>`;
+      }
+    }
+
+    async function loadMonitorData(data) {
+      state.metadata = data.metadata || {};
+      state.records = normalizeRecords(data);
+      state.rows = [];
+      state.joined = [];
+      state.pendingInputPath = null;
+      const inputPath = state.metadata.input_csv;
+      if (!inputPath) {
+        setStatus("Monitor JSON has no metadata.input_csv; choose the input CSV manually.", "warn");
+        joinData();
+        return;
+      }
+
+      try {
+        const result = await fetchFirstCsvCandidate(inputPath);
+        state.rows = parseCsv(result.text);
+        setStatus(`Loaded monitor JSON and CSV from ${result.url}.`, "ok");
+        joinData();
+      } catch (error) {
+        console.warn("CSV auto-load failed", { inputPath, error });
+        state.pendingInputPath = inputPath;
+        setStatus(`Monitor JSON loaded. Your browser blocked automatic CSV loading from ${inputPath}; choose that CSV manually.`, "warn", true);
+        joinData();
+      }
+    }
+
+    function setStatus(message, kind = "ok", includePickerButton = false) {
+      if (!message) {
+        loadStatus.className = "load-status";
+        loadStatus.textContent = "";
+        return;
+      }
+      loadStatus.className = `load-status show ${kind === "warn" ? "warn" : ""}`;
+      loadStatus.textContent = message;
+      if (includePickerButton) {
+        const button = document.createElement("button");
+        button.type = "button";
+        button.textContent = "Choose CSV";
+        button.addEventListener("click", () => csvInput.click());
+        loadStatus.appendChild(button);
+      }
+    }
+
+    async function fetchFirstCsvCandidate(inputPath) {
+      const candidates = csvUrlCandidates(inputPath);
+      const failures = [];
+      for (const candidate of candidates) {
+        try {
+          const response = await fetch(candidate);
+          if (!response.ok) {
+            failures.push(`${candidate} (${response.status})`);
+            continue;
+          }
+          return { url: candidate, text: await response.text() };
+        } catch (error) {
+          failures.push(`${candidate} (${error})`);
+        }
+      }
+      throw new Error(failures.join("; "));
+    }
+
+    function csvUrlCandidates(inputPath) {
+      if (/^https?:\/\//.test(inputPath)) return [inputPath];
+      const normalized = inputPath.replaceAll("\\", "/");
+      const basename = normalized.split("/").pop();
+      const candidates = [];
+      if (normalized.startsWith("/")) {
+        const marker = "/data/";
+        const markerIndex = normalized.indexOf(marker);
+        if (markerIndex >= 0) {
+          candidates.push("../../../data/" + normalized.slice(markerIndex + marker.length));
+        }
+      }
+      if (normalized.startsWith("data/")) {
+        candidates.push("../../../" + normalized);
+        candidates.push("../../" + normalized);
+        candidates.push("../" + normalized);
+        candidates.push(normalized);
+      } else {
+        candidates.push(normalized);
+      }
+      if (basename) {
+        candidates.push(basename);
+        candidates.push("../../../data/text/amazon/" + basename);
+      }
+      return [...new Set(candidates)];
+    }
+
+    function normalizeRecords(data) {
+      return (data.records || []).map(record => record.result ? { ...record.result, ...record } : record);
+    }
+
+    function joinData() {
+      if (!state.records.length || !state.rows.length) {
+        if (state.records.length && !state.rows.length) {
+          const filename = state.pendingInputPath ? state.pendingInputPath.split("/").pop() : "the input CSV";
+          stats.innerHTML = `
+            <div class="stat"><strong>${state.records.length.toLocaleString()}</strong><span>points</span></div>
+            <div class="stat"><strong>CSV</strong><span>needed</span></div>
+            <div class="stat"><strong>-</strong><span>joined</span></div>
+            <div class="stat"><strong>-</strong><span>selected</span></div>
+          `;
+          list.innerHTML = `<div class="empty">Monitor JSON loaded. Choose <code>${escapeHtml(filename)}</code> with the CSV picker to show review text and witnesses.</div>`;
+          detail.innerHTML = `<div class="empty">The monitor result is loaded, but browsers usually cannot auto-fetch local sibling files from a page opened with <code>file://</code>. Use the CSV picker once; no rerun is needed.</div>`;
+        }
+        return;
+      }
+      state.joined = state.records.map((record, index) => ({
+        record,
+        row: state.rows[record.index ?? record.point_id ?? index],
+      })).filter(item => item.row);
+      state.maxRatio = Math.max(...state.joined.map(item => value(item.record.max_ratio)).filter(Number.isFinite), 1);
+      state.p90 = percentile(state.joined.map(item => value(item.record.max_ratio)).filter(Number.isFinite), 90);
+      state.selected = state.joined[0] || null;
+      render();
+    }
+
+    function render() {
+      const query = searchInput.value.trim().toLowerCase();
+      const filter = filterSelect.value;
+      const sort = sortSelect.value;
+
+      let items = state.joined.filter(item => {
+        const row = item.row;
+        const record = item.record;
+        const haystack = `${row.example_id} ${row.review_title} ${row.review_text}`.toLowerCase();
+        if (query && !haystack.includes(query)) return false;
+        if (filter === "high" && value(record.max_ratio) < state.p90) return false;
+        if (filter === "flip" && value(record.witness_out_distance) < 0.9) return false;
+        if (filter === "near" && value(record.witness_in_distance) > 0.08) return false;
+        if (filter === "positive" && row.judge_answer !== "1.0" && row.judge_answer !== "1") return false;
+        if (filter === "negative" && row.judge_answer !== "0.0" && row.judge_answer !== "0") return false;
+        return true;
+      });
+
+      items = [...items].sort((a, b) => {
+        if (sort === "out") return value(b.record.witness_out_distance) - value(a.record.witness_out_distance);
+        if (sort === "near") return value(a.record.witness_in_distance, Infinity) - value(b.record.witness_in_distance, Infinity);
+        if (sort === "compared") return value(b.record.compared_count) - value(a.record.compared_count);
+        if (sort === "time") return value(b.record.time) - value(a.record.time);
+        if (sort === "index") return value(a.record.index) - value(b.record.index);
+        return value(b.record.max_ratio) - value(a.record.max_ratio);
+      });
+
+      state.filtered = items;
+      if (!items.includes(state.selected)) state.selected = items[0] || null;
+      renderStats();
+      renderList();
+      renderDetail();
+    }
+
+    function renderStats() {
+      const ratios = state.joined.map(item => value(item.record.max_ratio)).filter(Number.isFinite);
+      const high = state.joined.filter(item => value(item.record.max_ratio) >= state.p90).length;
+      const flips = state.joined.filter(item => value(item.record.witness_out_distance) >= 0.9).length;
+      stats.innerHTML = [
+        stat("Points", state.joined.length),
+        stat("Median", formatNum(percentile(ratios, 50))),
+        stat("P90", formatNum(state.p90)),
+        stat("High", high),
+      ].join("");
+    }
+
+    function stat(label, content) {
+      return `<div class="stat"><strong>${escapeHtml(String(content))}</strong><span>${label}</span></div>`;
+    }
+
+    function renderList() {
+      if (!state.filtered.length) {
+        list.innerHTML = `<div class="empty">No points match the current filters.</div>`;
+        return;
+      }
+      list.innerHTML = state.filtered.map(item => {
+        const record = item.record;
+        const row = item.row;
+        const active = item === state.selected ? " active" : "";
+        const ratio = value(record.max_ratio);
+        const hot = ratio >= state.p90;
+        return `
+          <article class="row${active}" data-index="${escapeHtml(String(record.index))}">
+            <div class="row-top">
+              <span>#${escapeHtml(String(record.index))} · ${escapeHtml(row.example_id || "")}</span>
+              <span class="badge ${hot ? "hot" : ""}">${formatNum(ratio)}</span>
+            </div>
+            <div class="row-title">${escapeHtml(row.review_title || "(untitled)")}</div>
+            <div class="row-text">${escapeHtml(truncate(row.review_text || "", 150))}</div>
+            <div class="score-strip"><div style="--w:${Math.min(100, ratio / state.maxRatio * 100)}%"></div></div>
+          </article>
+        `;
+      }).join("");
+
+      list.querySelectorAll(".row").forEach((node, idx) => {
+        node.addEventListener("click", () => {
+          state.selected = state.filtered[idx];
+          renderList();
+          renderDetail();
+        });
+      });
+    }
+
+    function renderDetail() {
+      const item = state.selected;
+      if (!item) {
+        detail.innerHTML = `<div class="empty">Select a point.</div>`;
+        return;
+      }
+      const record = item.record;
+      const row = item.row;
+      const witness = state.joined[record.witness_id] || null;
+      detail.innerHTML = `
+        <div class="detail-head">
+          <div>
+            <div class="mini-meta">point #${escapeHtml(String(record.index))} · ${escapeHtml(row.example_id || "")}</div>
+            <h2>${escapeHtml(row.review_title || "(untitled)")}</h2>
+          </div>
+          <span class="badge ${value(record.max_ratio) >= state.p90 ? "hot" : ""}">score ${formatNum(record.max_ratio)}</span>
+        </div>
+
+        <div class="score-grid">
+          ${score("Robustness", formatNum(record.max_ratio))}
+          ${score("Input dist", formatNum(record.witness_in_distance))}
+          ${score("Output shift", formatNum(record.witness_out_distance))}
+          ${score("Witness", record.witness_id ?? "none")}
+          ${score("Compared", record.compared_count)}
+          ${score("Runtime ms", formatNum(record.time))}
+          ${score("Stopped bound", yesNo(record.stopped_by_bound))}
+          ${score("Largest k", last(record.k_progression) ?? "n/a")}
+        </div>
+
+        <section class="pair">
+          ${reviewCard("Selected Point", row, record)}
+          ${witness ? reviewCard("Witness Point", witness.row, witness.record, true) : "<div class='review-card'><h3>No witness</h3><p class='review-text'>First point or no comparator found.</p></div>"}
+        </section>
+
+        <section class="progression">
+          <h3>k Progression</h3>
+          <div class="bars">
+            ${progressionRows(record).join("") || "<div class='empty'>No progression for this point.</div>"}
+          </div>
+        </section>
+      `;
+    }
+
+    function reviewCard(title, row, record, isWitness = false) {
+      const answer = row.judge_answer === "1" || row.judge_answer === "1.0" ? "positive" : "negative";
+      return `
+        <article class="review-card">
+          <div class="mini-meta">${escapeHtml(title)} · #${escapeHtml(String(record.index))} · ${escapeHtml(row.example_id || "")}</div>
+          <h3>${escapeHtml(row.review_title || "(untitled)")}</h3>
+          <div class="score-grid">
+            ${score("Answer", answer)}
+            ${score("prob_0", formatNum(row.prob_0))}
+            ${score("prob_1", formatNum(row.prob_1))}
+            ${score("Rating", row.rating_value || row.rating || "n/a")}
+          </div>
+          <div class="review-text">${escapeHtml(row.review_text || "")}</div>
+        </article>
+      `;
+    }
+
+    function score(label, content) {
+      return `<div class="score-card"><span>${escapeHtml(label)}</span><strong>${escapeHtml(String(content))}</strong></div>`;
+    }
+
+    function progressionRows(record) {
+      const ks = record.k_progression || [];
+      const ratios = record.ratio_progression || [];
+      const bounds = record.bound_progression || [];
+      const max = Math.max(...ratios.filter(Number.isFinite), 1);
+      return ks.map((k, idx) => {
+        const ratio = value(ratios[idx]);
+        const width = Math.min(100, ratio / max * 100);
+        return `
+          <div class="bar-row">
+            <span>k=${escapeHtml(String(k))}</span>
+            <div class="bar"><div style="width:${width}%"></div></div>
+            <span>${formatNum(ratio)} / ${formatNum(bounds[idx])}</span>
+          </div>
+        `;
+      });
+    }
+
+    function parseCsv(text) {
+      const rows = [];
+      let row = [];
+      let field = "";
+      let inQuotes = false;
+      for (let i = 0; i < text.length; i++) {
+        const char = text[i];
+        const next = text[i + 1];
+        if (inQuotes) {
+          if (char === '"' && next === '"') {
+            field += '"';
+            i++;
+          } else if (char === '"') {
+            inQuotes = false;
+          } else {
+            field += char;
+          }
+        } else if (char === '"') {
+          inQuotes = true;
+        } else if (char === ",") {
+          row.push(field);
+          field = "";
+        } else if (char === "\n") {
+          row.push(field);
+          rows.push(row);
+          row = [];
+          field = "";
+        } else if (char !== "\r") {
+          field += char;
+        }
+      }
+      if (field || row.length) {
+        row.push(field);
+        rows.push(row);
+      }
+      const header = rows.shift() || [];
+      return rows.filter(r => r.length > 1).map(values => {
+        const obj = {};
+        header.forEach((key, idx) => {
+          if (!/^e\d+$/.test(key)) obj[key] = values[idx] ?? "";
+        });
+        return obj;
+      });
+    }
+
+    function percentile(values, p) {
+      if (!values.length) return 0;
+      const sorted = [...values].sort((a, b) => a - b);
+      const idx = (sorted.length - 1) * (p / 100);
+      const lo = Math.floor(idx);
+      const hi = Math.ceil(idx);
+      if (lo === hi) return sorted[lo];
+      return sorted[lo] + (sorted[hi] - sorted[lo]) * (idx - lo);
+    }
+
+    function value(input, fallback = 0) {
+      const num = Number(input);
+      return Number.isFinite(num) ? num : fallback;
+    }
+
+    function formatNum(input) {
+      const num = Number(input);
+      if (!Number.isFinite(num)) return "n/a";
+      if (Math.abs(num) >= 100 || (Math.abs(num) < 0.001 && num !== 0)) return num.toExponential(2);
+      return num.toFixed(4).replace(/\.?0+$/, "");
+    }
+
+    function last(values) {
+      return Array.isArray(values) && values.length ? values[values.length - 1] : null;
+    }
+
+    function yesNo(value) {
+      return value ? "yes" : "no";
+    }
+
+    function truncate(value, max) {
+      return value.length > max ? `${value.slice(0, max)}…` : value;
+    }
+
+    function escapeHtml(value) {
+      return String(value)
+        .replaceAll("&", "&amp;")
+        .replaceAll("<", "&lt;")
+        .replaceAll(">", "&gt;")
+        .replaceAll('"', "&quot;")
+        .replaceAll("'", "&#039;");
+    }
+  </script>
+</body>
+</html>
