@@ -400,11 +400,10 @@ class OpenRouterClient:
                 sources[normalized] = "exact"
 
         missing = [label for label, score in scores.items() if score is None]
-        exact_count = len(scores) - len(missing)
-        if floor is not None and exact_count == 1 and len(missing) == 1:
-            label = missing[0]
-            scores[label] = floor
-            sources[label] = "inferred_top_logprobs_floor"
+        if floor is not None:
+            for label in missing:
+                scores[label] = floor
+                sources[label] = "inferred_top_logprobs_floor"
 
         return scores, sources, floor
 
@@ -471,7 +470,10 @@ def load_env_file(explicit_path: Optional[Path] = None) -> None:
 def filter_monitorable_rows(frame: pd.DataFrame) -> tuple[pd.DataFrame, int]:
     """Drop rows that cannot be consumed by the quantitative monitor."""
 
-    required = [col for col in ("prob_0", "prob_1") if col in frame.columns]
+    required = sorted(
+        [col for col in frame.columns if col.startswith("prob_")],
+        key=probability_column_sort_key,
+    )
     if not required:
         return frame, 0
 
@@ -481,6 +483,14 @@ def filter_monitorable_rows(frame: pd.DataFrame) -> tuple[pd.DataFrame, int]:
     if dropped == 0:
         return frame, 0
     return frame.loc[mask].copy(), dropped
+
+
+def probability_column_sort_key(name: str) -> tuple[int, str]:
+    suffix = name.removeprefix("prob_")
+    try:
+        return (int(suffix), suffix)
+    except ValueError:
+        return (10**9, suffix)
 
 
 def candidate_env_paths(explicit_path: Optional[Path] = None) -> list[Path]:

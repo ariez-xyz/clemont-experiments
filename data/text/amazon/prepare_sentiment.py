@@ -1,8 +1,8 @@
 """Prepare Amazon review sentiment data for Clemont monitoring.
 
-This script samples reviews, asks an OpenRouter-hosted LLM to judge binary
-sentiment, embeds the exact judge prompt, and writes a monitor-ready CSV plus a
-JSON manifest.
+This script samples reviews, asks an OpenRouter-hosted LLM to judge sentiment,
+embeds the exact judge prompt, and writes a monitor-ready CSV plus a JSON
+manifest.
 """
 
 from __future__ import annotations
@@ -95,6 +95,18 @@ def parse_args() -> argparse.Namespace:
         default=None,
         help="Judge nucleus sampling value. Default: OpenRouterClient default.",
     )
+    parser.add_argument(
+        "--multiclass",
+        action="store_true",
+        help="Alias for --classes 10.",
+    )
+    parser.add_argument(
+        "--classes",
+        type=int,
+        choices=(2, 5, 10),
+        default=2,
+        help="Number of sentiment classes: 2 uses 0/1, 5 uses 1-5, 10 uses 0-9. Default: 2.",
+    )
     return parser.parse_args()
 
 
@@ -102,9 +114,14 @@ def main() -> None:
     args = parse_args()
     if args.sample_size <= 0:
         raise ValueError("--sample-size must be positive")
+    class_count = 10 if args.multiclass else args.classes
+    label_tokens = sentiment_label_tokens_for_classes(class_count)
 
     run_timestamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
-    output_json = args.output_json or default_output_json(run_timestamp)
+    output_json = args.output_json or default_output_json(
+        run_timestamp,
+        class_count=class_count,
+    )
     output_csv = args.output_csv or output_json.with_suffix(".csv")
 
     reviews = load_reviews(INPUT_CSV)
@@ -116,7 +133,11 @@ def main() -> None:
     )
 
     prompts = [
-        build_sentiment_prompt(row, max_chars=args.max_review_chars)
+        build_sentiment_prompt(
+            row,
+            max_chars=args.max_review_chars,
+            class_count=class_count,
+        )
         for _, row in sampled.iterrows()
     ]
 
@@ -129,7 +150,7 @@ def main() -> None:
     print(f"Judging {len(prompts)} Amazon reviews with {client.chat_model}...")
     judge_results = client.judge_prompts(
         prompts,
-        label_tokens=("0", "1"),
+        label_tokens=label_tokens,
         system_prompt=(
             "You are a sentiment classifier. Follow the requested output format exactly."
         ),
@@ -141,7 +162,7 @@ def main() -> None:
     frame = build_output_frame(sampled, prompts, judge_results, embeddings)
     metadata: dict[str, Any] = {
         "dataset": "amazon_reviews",
-        "task": "binary_sentiment",
+        "task": sentiment_task_name(class_count),
         "input_csv": str(INPUT_CSV),
         "sample_size_requested": args.sample_size,
         "sample_size_actual": sample_size,
@@ -150,15 +171,16 @@ def main() -> None:
         "max_review_chars": args.max_review_chars,
         "created_at": datetime.now(timezone.utc).isoformat(),
         "run_timestamp": run_timestamp,
-        "label_tokens": {"0": "negative", "1": "positive"},
+        "class_count": class_count,
+        "label_tokens": sentiment_label_token_descriptions(class_count),
         "embedding_columns": embedding_columns(frame),
-        "output_columns": ["prob_0", "prob_1"],
-        "score_columns": ["logprob_0", "logprob_1"],
-        "score_source_columns": ["logprob_0_source", "logprob_1_source"],
+        "output_columns": probability_columns(label_tokens),
+        "score_columns": logprob_columns(label_tokens),
+        "score_source_columns": logprob_source_columns(label_tokens),
         "score_type": "first_token_top_logprobs",
         "score_inference": (
-            "missing binary label logprob is filled with the minimum returned "
-            "first-token top_logprobs value when exactly one label is present"
+            "missing label logprobs are filled with the minimum returned "
+            "first-token top_logprobs value before label probabilities are normalized"
         ),
         "prompt_embedding": "exact_prompt_sent_to_judge",
     }
@@ -172,8 +194,13 @@ def main() -> None:
     print(f"Wrote {output_csv}")
 
 
-def default_output_json(timestamp: str) -> Path:
-    return Path(__file__).with_name(f"amazon_sentiment_openrouter_{timestamp}.json")
+def default_output_json(timestamp: str, *, class_count: int) -> Path:
+    prefix = (
+        f"amazon_{class_count}class_sentiment"
+        if class_count != 2
+        else "amazon_sentiment"
+    )
+    return Path(__file__).with_name(f"{prefix}_openrouter_{timestamp}.json")
 
 
 def load_reviews(path: Path) -> pd.DataFrame:
@@ -201,11 +228,31 @@ def parse_rating(value: object) -> float | None:
     return float(match.group(1))
 
 
-def build_sentiment_prompt(row: pd.Series, *, max_chars: int) -> str:
+def build_sentiment_prompt(row: pd.Series, *, max_chars: int, class_count: int) -> str:
     title = clean_text(row.get("Review Title", ""))
     text = clean_text(row.get("Review Text", ""))
     review = f"Title: {title}\n\nReview: {text}" if title else f"Review: {text}"
     review = review[:max_chars]
+    if class_count == 10:
+        return (
+            "Analyze the sentiment of this Amazon customer review.\n\n"
+            "Return exactly one digit from 0 to 9:\n"
+            "0 = extremely negative sentiment\n"
+            "5 = mixed or neutral sentiment\n"
+            "9 = extremely positive sentiment\n\n"
+            f"{review}\n\n"
+            "Answer with one digit from 0 to 9 only."
+        )
+    if class_count == 5:
+        return (
+            "Analyze the sentiment of this Amazon customer review.\n\n"
+            "Return exactly one digit from 1 to 5:\n"
+            "1 = very negative sentiment\n"
+            "3 = mixed or neutral sentiment\n"
+            "5 = very positive sentiment\n\n"
+            f"{review}\n\n"
+            "Answer with one digit from 1 to 5 only."
+        )
     return (
         "Analyze the sentiment of this Amazon customer review.\n\n"
         "Return exactly one digit:\n"
@@ -254,10 +301,11 @@ def build_output_frame(
         rows.append(row)
 
     frame = pd.DataFrame(rows)
-    missing_probs = frame[["prob_0", "prob_1"]].isna().any(axis=1).sum()
+    prob_cols = [col for col in frame.columns if re.fullmatch(r"prob_\d+", col)]
+    missing_probs = frame[prob_cols].isna().any(axis=1).sum() if prob_cols else 0
     if missing_probs:
         print(
-            f"Warning: {missing_probs} rows are missing one or both label probabilities "
+            f"Warning: {missing_probs} rows are missing one or more label probabilities "
             "because the labels were absent from top_logprobs."
         )
     return frame
@@ -265,6 +313,76 @@ def build_output_frame(
 
 def embedding_columns(frame: pd.DataFrame) -> list[str]:
     return [col for col in frame.columns if re.fullmatch(r"e\d+", col)]
+
+
+def probability_columns(label_tokens: tuple[str, ...]) -> list[str]:
+    return [f"prob_{label}" for label in label_tokens]
+
+
+def logprob_columns(label_tokens: tuple[str, ...]) -> list[str]:
+    return [f"logprob_{label}" for label in label_tokens]
+
+
+def logprob_source_columns(label_tokens: tuple[str, ...]) -> list[str]:
+    return [f"logprob_{label}_source" for label in label_tokens]
+
+
+def sentiment_label_tokens_for_classes(class_count: int) -> tuple[str, ...]:
+    if class_count == 2:
+        return ("0", "1")
+    if class_count == 5:
+        return tuple(str(i) for i in range(1, 6))
+    if class_count == 10:
+        return tuple(str(i) for i in range(10))
+    raise ValueError(f"unsupported class count: {class_count}")
+
+
+def sentiment_task_name(class_count: int) -> str:
+    if class_count == 2:
+        return "binary_sentiment"
+    if class_count == 5:
+        return "5class_sentiment_1_5"
+    if class_count == 10:
+        return "10class_sentiment_0_9"
+    raise ValueError(f"unsupported class count: {class_count}")
+
+
+def sentiment_label_token_descriptions(class_count: int) -> dict[str, str]:
+    if class_count == 2:
+        return {"0": "negative", "1": "positive"}
+    if class_count == 5:
+        return {
+            str(score): description
+            for score, description in zip(
+                range(1, 6),
+                [
+                    "very_negative",
+                    "negative",
+                    "mixed_or_neutral",
+                    "positive",
+                    "very_positive",
+                ],
+            )
+        }
+    if class_count == 10:
+        return {
+            str(score): description
+            for score, description in enumerate(
+                [
+                    "extremely_negative",
+                    "very_negative",
+                    "negative",
+                    "somewhat_negative",
+                    "slightly_negative",
+                    "mixed_or_neutral",
+                    "slightly_positive",
+                    "somewhat_positive",
+                    "positive",
+                    "extremely_positive",
+                ]
+            )
+        }
+    raise ValueError(f"unsupported class count: {class_count}")
 
 
 if __name__ == "__main__":

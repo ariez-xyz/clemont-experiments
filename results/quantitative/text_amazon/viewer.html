@@ -395,8 +395,8 @@
               <option value="high">High score (top 10%)</option>
               <option value="flip">Large output shift</option>
               <option value="near">Very near witness</option>
-              <option value="positive">Positive judge answer</option>
-              <option value="negative">Negative judge answer</option>
+              <option value="positive">High / positive output</option>
+              <option value="negative">Low / negative output</option>
             </select>
           </label>
         </div>
@@ -437,6 +437,7 @@
       p90: 0,
       maxRatio: 1,
       pendingInputPath: null,
+      probLabels: [],
     };
 
     const jsonInput = document.getElementById("jsonInput");
@@ -592,6 +593,7 @@
         record,
         row: state.rows[record.index ?? record.point_id ?? index],
       })).filter(item => item.row);
+      state.probLabels = inferProbLabels(state.rows);
       state.maxRatio = Math.max(...state.joined.map(item => value(item.record.max_ratio)).filter(Number.isFinite), 1);
       state.p90 = percentile(state.joined.map(item => value(item.record.max_ratio)).filter(Number.isFinite), 90);
       state.selected = state.joined[0] || null;
@@ -611,8 +613,8 @@
         if (filter === "high" && value(record.max_ratio) < state.p90) return false;
         if (filter === "flip" && value(record.witness_out_distance) < 0.9) return false;
         if (filter === "near" && value(record.witness_in_distance) > 0.08) return false;
-        if (filter === "positive" && row.judge_answer !== "1.0" && row.judge_answer !== "1") return false;
-        if (filter === "negative" && row.judge_answer !== "0.0" && row.judge_answer !== "0") return false;
+        if (filter === "positive" && expectedScore(row) < positiveThreshold()) return false;
+        if (filter === "negative" && expectedScore(row) > negativeThreshold()) return false;
         return true;
       });
 
@@ -725,17 +727,18 @@
     }
 
     function reviewCard(title, row, record, isWitness = false) {
-      const answer = row.judge_answer === "1" || row.judge_answer === "1.0" ? "positive" : "negative";
       return `
         <article class="review-card">
           <div class="mini-meta">${escapeHtml(title)} · #${escapeHtml(String(record.index))} · ${escapeHtml(row.example_id || "")}</div>
           <h3>${escapeHtml(row.review_title || "(untitled)")}</h3>
           <div class="score-grid">
-            ${score("Answer", answer)}
-            ${score("prob_0", formatNum(row.prob_0))}
-            ${score("prob_1", formatNum(row.prob_1))}
+            ${score("Answer", answerLabel(row))}
+            ${score("Expected", formatNum(expectedScore(row)))}
+            ${score("Top prob", formatNum(confidence(row)))}
+            ${score("Margin", formatNum(margin(row)))}
             ${score("Rating", row.rating_value || row.rating || "n/a")}
           </div>
+          ${labelDistribution(row)}
           <div class="review-text">${escapeHtml(row.review_text || "")}</div>
         </article>
       `;
@@ -806,6 +809,67 @@
         });
         return obj;
       });
+    }
+
+    function inferProbLabels(rows) {
+      const first = rows[0] || {};
+      return Object.keys(first)
+        .filter(key => /^prob_\d+$/.test(key))
+        .map(key => key.slice(5))
+        .sort((a, b) => Number(a) - Number(b));
+    }
+
+    function probability(row, label) {
+      const num = Number(row && row[`prob_${label}`]);
+      return Number.isFinite(num) ? num : 0;
+    }
+
+    function expectedScore(row) {
+      const labels = state.probLabels.length ? state.probLabels : ["0", "1"];
+      return labels.reduce((sum, label) => sum + Number(label) * probability(row, label), 0);
+    }
+
+    function predictedLabel(row) {
+      const labels = state.probLabels.length ? state.probLabels : ["0", "1"];
+      return labels.reduce((best, label) => probability(row, label) > probability(row, best) ? label : best, labels[0]);
+    }
+
+    function answerLabel(row) {
+      if (row.judge_error) return "error";
+      const answer = String(row.judge_answer || "").trim();
+      const label = state.probLabels.includes(answer) ? answer : predictedLabel(row);
+      if (state.probLabels.length <= 2) return label === "1" ? "positive" : "negative";
+      return `score ${label}`;
+    }
+
+    function confidence(row) {
+      return Math.max(...(state.probLabels.length ? state.probLabels : ["0", "1"]).map(label => probability(row, label)), 0);
+    }
+
+    function margin(row) {
+      const values = (state.probLabels.length ? state.probLabels : ["0", "1"])
+        .map(label => probability(row, label))
+        .sort((a, b) => b - a);
+      return (values[0] || 0) - (values[1] || 0);
+    }
+
+    function positiveThreshold() {
+      if (state.probLabels.length <= 2) return 0.5;
+      return Number(state.probLabels.at(-1)) <= 5 ? 4 : 7;
+    }
+
+    function negativeThreshold() {
+      if (state.probLabels.length <= 2) return 0.5;
+      return 2;
+    }
+
+    function labelDistribution(row) {
+      const labels = state.probLabels.length ? state.probLabels : ["0", "1"];
+      return `
+        <div class="score-grid">
+          ${labels.map(label => score(`prob_${label}`, formatNum(row[`prob_${label}`]))).join("")}
+        </div>
+      `;
     }
 
     function percentile(values, p) {
