@@ -1,0 +1,907 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>ToxicChat Monitor Histogram</title>
+  <style>
+    :root {
+      --paper: #f4efe4;
+      --ink: #15211d;
+      --muted: #66726c;
+      --line: #d3c6b4;
+      --safe: #1f7460;
+      --toxic: #b24030;
+      --gold: #b97822;
+      --blue: #2b647e;
+      --panel: rgba(255, 250, 239, 0.9);
+      --shadow: 0 20px 55px rgba(58, 43, 24, 0.15);
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      color: var(--ink);
+      background:
+        radial-gradient(circle at 10% 10%, rgba(178, 64, 48, 0.18), transparent 30rem),
+        radial-gradient(circle at 92% 4%, rgba(43, 100, 126, 0.22), transparent 34rem),
+        linear-gradient(135deg, #fff9ee 0%, var(--paper) 50%, #e3d7c5 100%);
+      font-family: ui-serif, Georgia, "Times New Roman", serif;
+    }
+
+    header {
+      padding: 32px clamp(18px, 5vw, 70px) 22px;
+      border-bottom: 1px solid var(--line);
+    }
+
+    h1 {
+      margin: 0;
+      max-width: 1050px;
+      font-size: clamp(2.25rem, 5vw, 5.2rem);
+      line-height: 0.9;
+      letter-spacing: -0.06em;
+    }
+
+    .subhead {
+      margin-top: 14px;
+      max-width: 980px;
+      color: var(--muted);
+      font: 0.98rem/1.45 ui-sans-serif, "Avenir Next", "Segoe UI", sans-serif;
+    }
+
+    main {
+      display: grid;
+      gap: 18px;
+      padding: 22px clamp(14px, 3vw, 44px) 36px;
+    }
+
+    .panel {
+      min-width: 0;
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 24px;
+      box-shadow: var(--shadow);
+      overflow: hidden;
+    }
+
+    .controls {
+      display: grid;
+      grid-template-columns: minmax(220px, 1fr) minmax(220px, 1fr) repeat(3, minmax(160px, 220px));
+      gap: 12px;
+      padding: 18px;
+      align-items: end;
+    }
+
+    label {
+      display: grid;
+      gap: 6px;
+      color: var(--muted);
+      font: 800 0.7rem ui-sans-serif, "Avenir Next", "Segoe UI", sans-serif;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+    }
+
+    input, select, button {
+      width: 100%;
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      background: #fffdf7;
+      color: var(--ink);
+      font: 500 0.94rem ui-sans-serif, "Avenir Next", "Segoe UI", sans-serif;
+      padding: 10px 12px;
+    }
+
+    input[type="range"] { padding: 10px 0; }
+
+    button {
+      cursor: pointer;
+      background: var(--ink);
+      color: #fffaf0;
+      border-color: var(--ink);
+    }
+
+    .status {
+      display: none;
+      margin: 0 18px 18px;
+      border: 1px solid rgba(178, 64, 48, 0.32);
+      border-radius: 16px;
+      background: rgba(178, 64, 48, 0.08);
+      color: #713226;
+      padding: 11px 12px;
+      font: 0.84rem/1.35 ui-sans-serif, "Avenir Next", "Segoe UI", sans-serif;
+    }
+
+    .status.show { display: block; }
+
+    .stats {
+      display: grid;
+      grid-template-columns: repeat(6, 1fr);
+      gap: 8px;
+      padding: 0 18px 18px;
+    }
+
+    .stat {
+      border: 1px solid var(--line);
+      border-radius: 16px;
+      padding: 10px;
+      background: rgba(255, 255, 255, 0.45);
+    }
+
+    .stat strong {
+      display: block;
+      font-size: 1.32rem;
+      letter-spacing: -0.04em;
+    }
+
+    .stat span {
+      color: var(--muted);
+      font: 800 0.62rem ui-sans-serif, "Avenir Next", "Segoe UI", sans-serif;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+    }
+
+    .hist-wrap {
+      padding: 20px 22px 26px;
+      border-top: 1px solid var(--line);
+    }
+
+    .hist-head {
+      display: flex;
+      justify-content: space-between;
+      gap: 18px;
+      align-items: end;
+      margin-bottom: 12px;
+      color: var(--muted);
+      font: 800 0.72rem ui-sans-serif, "Avenir Next", "Segoe UI", sans-serif;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+    }
+
+    .histogram {
+      display: grid;
+      grid-template-columns: repeat(var(--bins, 24), minmax(0, 1fr));
+      align-items: end;
+      gap: 5px;
+      height: 330px;
+      padding: 12px 0 0;
+      border-bottom: 1px solid var(--line);
+    }
+
+    .bin {
+      position: relative;
+      min-height: 2px;
+      height: var(--h);
+      border: 1px solid rgba(21, 33, 29, 0.16);
+      border-bottom: 0;
+      border-radius: 10px 10px 0 0;
+      background: linear-gradient(180deg, var(--toxic), var(--gold));
+      cursor: pointer;
+    }
+
+    .bin:hover, .bin.active {
+      outline: 3px solid rgba(43, 100, 126, 0.32);
+      background: linear-gradient(180deg, var(--blue), var(--safe));
+    }
+
+    .bin.empty {
+      background: rgba(102, 114, 108, 0.14);
+      cursor: default;
+    }
+
+    .bin span {
+      position: absolute;
+      left: 50%;
+      bottom: calc(100% + 5px);
+      transform: translateX(-50%);
+      color: var(--muted);
+      font: 800 0.62rem ui-sans-serif, "Avenir Next", "Segoe UI", sans-serif;
+    }
+
+    .bin-labels {
+      display: grid;
+      grid-template-columns: repeat(var(--bins, 24), minmax(0, 1fr));
+      gap: 5px;
+      margin-top: 8px;
+      color: var(--muted);
+      font: 700 0.62rem ui-sans-serif, "Avenir Next", "Segoe UI", sans-serif;
+    }
+
+    .bin-labels div {
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      text-align: center;
+    }
+
+    .table-panel {
+      padding: 18px;
+    }
+
+    .table-head {
+      display: flex;
+      justify-content: space-between;
+      gap: 18px;
+      align-items: baseline;
+      margin-bottom: 12px;
+    }
+
+    .table-head h2 {
+      margin: 0;
+      font-size: clamp(1.6rem, 3vw, 3rem);
+      line-height: 0.95;
+      letter-spacing: -0.05em;
+    }
+
+    .pairs {
+      display: grid;
+      gap: 12px;
+    }
+
+    .pair {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+      gap: 12px;
+      border: 1px solid var(--line);
+      border-radius: 22px;
+      padding: 12px;
+      background: rgba(255, 255, 255, 0.36);
+    }
+
+    .pair-meta {
+      grid-column: 1 / -1;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      align-items: center;
+      color: var(--muted);
+      font: 800 0.68rem ui-sans-serif, "Avenir Next", "Segoe UI", sans-serif;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+    }
+
+    .card {
+      min-width: 0;
+      border: 1px solid var(--line);
+      border-radius: 18px;
+      padding: 12px;
+      background: rgba(255, 255, 255, 0.42);
+    }
+
+    .card h3 {
+      margin: 0 0 8px;
+      font-size: 1.25rem;
+      letter-spacing: -0.035em;
+    }
+
+    .text {
+      margin-top: 8px;
+      color: var(--ink);
+      font: 0.92rem/1.45 ui-sans-serif, "Avenir Next", "Segoe UI", sans-serif;
+      max-height: 10rem;
+      overflow: auto;
+      white-space: pre-wrap;
+    }
+
+    .mini {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 7px;
+      color: var(--muted);
+      font: 800 0.66rem ui-sans-serif, "Avenir Next", "Segoe UI", sans-serif;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+    }
+
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      border-radius: 999px;
+      padding: 3px 9px;
+      color: #fff;
+      font: 900 0.66rem ui-sans-serif, "Avenir Next", "Segoe UI", sans-serif;
+      white-space: nowrap;
+    }
+
+    .badge.safe { background: var(--safe); }
+    .badge.toxic { background: var(--toxic); }
+    .badge.gold { background: var(--gold); }
+    .badge.blue { background: var(--blue); }
+
+    .empty {
+      padding: 34px;
+      color: var(--muted);
+      font-family: ui-sans-serif, "Avenir Next", "Segoe UI", sans-serif;
+    }
+
+    @media (max-width: 1000px) {
+      .controls { grid-template-columns: 1fr 1fr; }
+      .stats { grid-template-columns: repeat(3, 1fr); }
+      .pair { grid-template-columns: 1fr; }
+    }
+
+    @media (max-width: 680px) {
+      .controls, .stats { grid-template-columns: 1fr; }
+      .histogram { height: 240px; }
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>ToxicChat Monitor Histogram</h1>
+    <div class="subhead">
+      Load a quantitative monitor JSON and the matching ToxicChat CSV. The histogram bins robustness scores;
+      click a bin to inspect point/witness pairs.
+    </div>
+  </header>
+
+  <main>
+    <section class="panel">
+      <div class="controls">
+        <label>
+          Monitor JSON
+          <input id="jsonInput" type="file" accept=".json,application/json">
+        </label>
+        <label>
+          Input CSV fallback
+          <input id="csvInput" type="file" accept=".csv,text/csv">
+        </label>
+        <label>
+          Disagreement
+          <select id="disagreeFilter">
+            <option value="all">All points</option>
+            <option value="disagree">Label disagree</option>
+            <option value="agree">Label agree</option>
+          </select>
+        </label>
+        <label>
+          Max k reached <= <span id="maxKValue">all</span>
+          <input id="maxKSlider" type="range" min="0" max="0" value="0" disabled>
+        </label>
+        <label>
+          Histogram bins
+          <select id="binCount">
+            <option value="16">16</option>
+            <option value="24" selected>24</option>
+            <option value="32">32</option>
+            <option value="48">48</option>
+          </select>
+        </label>
+      </div>
+      <div class="status" id="status"></div>
+      <div class="stats" id="stats"></div>
+      <div class="hist-wrap">
+        <div class="hist-head">
+          <span id="histTitle">Load monitor data</span>
+          <span id="histRange"></span>
+        </div>
+        <div class="histogram" id="histogram"></div>
+        <div class="bin-labels" id="binLabels"></div>
+      </div>
+    </section>
+
+    <section class="panel table-panel">
+      <div class="table-head">
+        <h2 id="selectionTitle">Selected Bin</h2>
+        <div class="mini" id="selectionMeta"></div>
+      </div>
+      <div class="pairs" id="pairs">
+        <div class="empty">Load files, then click a histogram bin.</div>
+      </div>
+    </section>
+  </main>
+
+  <script>
+    const state = {
+      metadata: null,
+      records: [],
+      rows: [],
+      joined: [],
+      filtered: [],
+      bins: [],
+      selectedBin: null,
+      maxObservedK: 0,
+      probLabels: [],
+    };
+
+    const jsonInput = document.getElementById("jsonInput");
+    const csvInput = document.getElementById("csvInput");
+    const disagreeFilter = document.getElementById("disagreeFilter");
+    const maxKSlider = document.getElementById("maxKSlider");
+    const maxKValue = document.getElementById("maxKValue");
+    const binCount = document.getElementById("binCount");
+    const status = document.getElementById("status");
+    const stats = document.getElementById("stats");
+    const histogram = document.getElementById("histogram");
+    const binLabels = document.getElementById("binLabels");
+    const histTitle = document.getElementById("histTitle");
+    const histRange = document.getElementById("histRange");
+    const selectionTitle = document.getElementById("selectionTitle");
+    const selectionMeta = document.getElementById("selectionMeta");
+    const pairs = document.getElementById("pairs");
+
+    jsonInput.addEventListener("change", async (event) => {
+      const file = event.target.files[0];
+      if (!file) return;
+      await loadMonitorData(JSON.parse(await file.text()));
+    });
+
+    csvInput.addEventListener("change", async (event) => {
+      const file = event.target.files[0];
+      if (!file) return;
+      state.rows = parseCsv(await file.text());
+      setStatus("");
+      joinData();
+    });
+
+    disagreeFilter.addEventListener("change", render);
+    binCount.addEventListener("change", render);
+    maxKSlider.addEventListener("input", () => {
+      maxKValue.textContent = maxKSlider.value === maxKSlider.max ? "all" : maxKSlider.value;
+      render();
+    });
+
+    async function loadMonitorData(data) {
+      state.metadata = data.metadata || {};
+      state.records = normalizeRecords(data);
+      state.rows = [];
+      state.joined = [];
+      state.selectedBin = null;
+      configureMaxKSlider();
+
+      const inputPath = state.metadata.input_csv;
+      if (!inputPath) {
+        setStatus("Monitor JSON has no metadata.input_csv; choose the input CSV manually.");
+        joinData();
+        return;
+      }
+
+      try {
+        const loaded = await fetchFirstCsvCandidate(inputPath);
+        state.rows = parseCsv(loaded.text);
+        setStatus("");
+        joinData();
+      } catch (error) {
+        console.warn("CSV auto-load failed", { inputPath, error });
+        setStatus(`Monitor JSON loaded. Browser could not auto-fetch ${inputPath}; choose the matching CSV manually.`);
+        joinData();
+      }
+    }
+
+    function configureMaxKSlider() {
+      state.maxObservedK = Math.max(
+        0,
+        ...state.records.map(record => finalK(record)).filter(Number.isFinite),
+      );
+      maxKSlider.disabled = state.maxObservedK <= 0;
+      maxKSlider.max = String(state.maxObservedK || 0);
+      maxKSlider.value = String(state.maxObservedK || 0);
+      maxKValue.textContent = state.maxObservedK > 0 ? "all" : "all";
+    }
+
+    function joinData() {
+      if (!state.records.length || !state.rows.length) {
+        renderStats([]);
+        histogram.innerHTML = "";
+        binLabels.innerHTML = "";
+        histTitle.textContent = state.records.length ? "Monitor JSON loaded; CSV needed" : "Load monitor data";
+        histRange.textContent = "";
+        pairs.innerHTML = `<div class="empty">Choose the matching input CSV to inspect points and witnesses.</div>`;
+        return;
+      }
+      const csvProblem = validateInputCsv(state.rows);
+      if (csvProblem) {
+        setStatus(csvProblem);
+        state.joined = [];
+        renderStats([]);
+        histogram.innerHTML = "";
+        binLabels.innerHTML = "";
+        histTitle.textContent = "Wrong CSV selected";
+        histRange.textContent = "";
+        selectionTitle.textContent = "Selected Bin";
+        selectionMeta.innerHTML = "";
+        pairs.innerHTML = `<div class="empty">${escapeHtml(csvProblem)}</div>`;
+        return;
+      }
+      state.joined = state.records.map((record, streamIndex) => {
+        const pointIndex = record.index ?? record.point_id ?? streamIndex;
+        return {
+          record,
+          row: state.rows[pointIndex],
+          witness: state.rows[record.witness_id],
+        };
+      }).filter(item => item.row);
+      render();
+    }
+
+    function validateInputCsv(rows) {
+      const first = rows[0] || {};
+      const required = ["judge_answer", "toxicity_label", "jailbreaking_label", "user_input"];
+      const missing = required.filter(key => !(key in first));
+      const probLabels = inferProbLabels(rows);
+      if (!probLabels.length) missing.push("prob_*");
+      if (!missing.length) {
+        const maxReferencedRow = Math.max(
+          -1,
+          ...state.records.flatMap((record, streamIndex) => [
+            Number(record.index ?? record.point_id ?? streamIndex),
+            Number(record.witness_id),
+          ]).filter(Number.isFinite),
+        );
+        if (maxReferencedRow >= rows.length) {
+          return `The selected CSV has ${rows.length} rows, but the monitor JSON references row ${maxReferencedRow}. Choose the exact OpenRouter CSV used by this monitor run.`;
+        }
+        state.probLabels = probLabels;
+        return "";
+      }
+      if ("toxicity" in first && "jailbreaking" in first && !("prob_1" in first)) {
+        return "This is the raw ToxicChat CSV. The monitor JSON indexes the OpenRouter output CSV row order, so raw source rows cannot be joined correctly. Choose toxic_chat_toxicity_openrouter_*.csv.";
+      }
+      return `The selected CSV is missing monitor-ready columns: ${missing.join(", ")}. Choose the OpenRouter output CSV, not toxic-chat_annotation_all.csv.`;
+    }
+
+    function render() {
+      const mode = disagreeFilter.value;
+      const kLimit = Number(maxKSlider.value || state.maxObservedK || 0);
+      const enforceK = !maxKSlider.disabled && kLimit < state.maxObservedK;
+
+      state.filtered = state.joined.filter(item => {
+        const isDisagree = disagrees(item.row);
+        if (mode === "disagree" && !isDisagree) return false;
+        if (mode === "agree" && isDisagree) return false;
+        if (enforceK && finalK(item.record) > kLimit) return false;
+        return Number.isFinite(score(item.record));
+      });
+
+      buildBins();
+      renderStats(state.filtered);
+      renderHistogram();
+      renderSelectedBin();
+    }
+
+    function buildBins() {
+      const count = Number(binCount.value);
+      const values = state.filtered.map(item => score(item.record)).filter(Number.isFinite);
+      if (!values.length) {
+        state.bins = [];
+        state.selectedBin = null;
+        return;
+      }
+      const min = Math.min(...values);
+      const max = Math.max(...values);
+      const width = max > min ? (max - min) / count : 1;
+      state.bins = Array.from({ length: count }, (_, index) => ({
+        index,
+        lo: min + index * width,
+        hi: index === count - 1 ? max : min + (index + 1) * width,
+        items: [],
+      }));
+      for (const item of state.filtered) {
+        const value = score(item.record);
+        const idx = max > min ? Math.min(count - 1, Math.floor((value - min) / width)) : 0;
+        state.bins[idx].items.push(item);
+      }
+      if (!state.selectedBin || !state.bins[state.selectedBin.index]) {
+        state.selectedBin = state.bins.reduce((best, bin) => bin.items.length > best.items.length ? bin : best, state.bins[0]);
+      } else {
+        state.selectedBin = state.bins[state.selectedBin.index];
+      }
+    }
+
+    function renderStats(items) {
+      const all = state.joined;
+      const values = items.map(item => score(item.record)).filter(Number.isFinite);
+      const maxScore = values.length ? Math.max(...values) : NaN;
+      const medianScore = percentile(values, 50);
+      stats.innerHTML = [
+        stat("Loaded", all.length),
+        stat("Filtered", items.length),
+        stat("Disagree", items.filter(item => disagrees(item.row)).length),
+        stat("Max k", state.maxObservedK || "n/a"),
+        stat("Median r", formatNum(medianScore)),
+        stat("Max r", formatNum(maxScore)),
+      ].join("");
+    }
+
+    function renderHistogram() {
+      const maxCount = Math.max(1, ...state.bins.map(bin => bin.items.length));
+      histogram.style.setProperty("--bins", String(state.bins.length || Number(binCount.value)));
+      binLabels.style.setProperty("--bins", String(state.bins.length || Number(binCount.value)));
+      histTitle.textContent = state.bins.length ? "Robustness score histogram" : "No points match filters";
+      histRange.textContent = state.bins.length
+        ? `${formatNum(state.bins[0].lo)} to ${formatNum(state.bins[state.bins.length - 1].hi)}`
+        : "";
+      histogram.innerHTML = state.bins.map(bin => {
+        const active = state.selectedBin && bin.index === state.selectedBin.index ? " active" : "";
+        const empty = bin.items.length ? "" : " empty";
+        const height = `${Math.max(1, (bin.items.length / maxCount) * 100)}%`;
+        return `<button class="bin${active}${empty}" data-bin="${bin.index}" style="--h:${height}" title="${formatNum(bin.lo)} - ${formatNum(bin.hi)}: ${bin.items.length}"><span>${bin.items.length || ""}</span></button>`;
+      }).join("");
+      binLabels.innerHTML = state.bins.map(bin => `<div>${formatNum(bin.lo)}</div>`).join("");
+      histogram.querySelectorAll("[data-bin]").forEach(node => {
+        node.addEventListener("click", () => {
+          const bin = state.bins[Number(node.getAttribute("data-bin"))];
+          if (!bin || !bin.items.length) return;
+          state.selectedBin = bin;
+          renderHistogram();
+          renderSelectedBin();
+        });
+      });
+    }
+
+    function renderSelectedBin() {
+      const bin = state.selectedBin;
+      if (!bin || !bin.items.length) {
+        selectionTitle.textContent = "Selected Bin";
+        selectionMeta.innerHTML = "";
+        pairs.innerHTML = `<div class="empty">Click a non-empty histogram bin.</div>`;
+        return;
+      }
+
+      const sorted = [...bin.items].sort((a, b) => score(b.record) - score(a.record));
+      selectionTitle.textContent = `Scores ${formatNum(bin.lo)} to ${formatNum(bin.hi)}`;
+      selectionMeta.innerHTML = [
+        pill(`${sorted.length} points`, "blue"),
+        pill(`${sorted.filter(item => disagrees(item.row)).length} disagree`, "gold"),
+      ].join("");
+      pairs.innerHTML = sorted.map(renderPair).join("");
+    }
+
+    function renderPair(item) {
+      const record = item.record;
+      const row = item.row;
+      const witness = item.witness;
+      return `
+        <article class="pair">
+          <div class="pair-meta">
+            ${pill(`point ${record.index ?? record.point_id}`, "blue")}
+            ${pill(`robustness ${formatNum(score(record))}`, "gold")}
+            ${pill(`in ${formatNum(record.witness_in_distance)}`, "blue")}
+            ${pill(`out ${formatNum(record.witness_out_distance)}`, "gold")}
+            ${pill(`k ${finalK(record) || "n/a"}`, "blue")}
+            ${disagrees(row) ? pill("label disagree", "gold") : ""}
+          </div>
+          ${renderCard("Point", row)}
+          ${renderCard("Witness", witness)}
+        </article>
+      `;
+    }
+
+    function renderCard(title, row) {
+      if (!row) {
+        return `<div class="card"><h3>${escapeHtml(title)}</h3><div class="empty">No witness row available.</div></div>`;
+      }
+      return `
+        <div class="card">
+          <h3>${escapeHtml(title)}: ${escapeHtml(row.example_id || "")}</h3>
+          <div class="mini">
+            ${pill(label(row) === "1" ? "label toxic" : "label safe", label(row) === "1" ? "toxic" : "safe")}
+            ${pill(judgeSummary(row), judgeIsToxic(row) ? "toxic" : judgeSummary(row) === "judge error" ? "gold" : "safe")}
+            ${jailbreakLabel(row) === "1" ? pill("jailbreak", "blue") : ""}
+            ${disagrees(row) ? pill("disagree", "gold") : ""}
+            <span>p(toxic) ${formatNum(toxicProbability(row))}</span>
+            <span>expected ${formatNum(expectedScore(row))}</span>
+          </div>
+          <div class="text">${escapeHtml(row.user_input || "")}</div>
+        </div>
+      `;
+    }
+
+    async function fetchFirstCsvCandidate(inputPath) {
+      const candidates = csvUrlCandidates(inputPath);
+      const failures = [];
+      for (const candidate of candidates) {
+        try {
+          const response = await fetch(candidate);
+          if (!response.ok) {
+            failures.push(`${candidate} (${response.status})`);
+            continue;
+          }
+          return { url: candidate, text: await response.text() };
+        } catch (error) {
+          failures.push(`${candidate} (${error})`);
+        }
+      }
+      throw new Error(failures.join("; "));
+    }
+
+    function csvUrlCandidates(inputPath) {
+      if (/^https?:\/\//.test(inputPath)) return [inputPath];
+      const normalized = String(inputPath).replaceAll("\\", "/");
+      const basename = normalized.split("/").pop();
+      const candidates = [];
+      if (normalized.startsWith("/")) {
+        const marker = "/data/";
+        const markerIndex = normalized.indexOf(marker);
+        if (markerIndex >= 0) {
+          candidates.push("../../../data/" + normalized.slice(markerIndex + marker.length));
+        }
+      }
+      if (normalized.startsWith("data/")) {
+        candidates.push("../../../" + normalized);
+        candidates.push("../../" + normalized);
+        candidates.push("../" + normalized);
+        candidates.push(normalized);
+      } else {
+        candidates.push(normalized);
+      }
+      if (basename) {
+        candidates.push(basename);
+        candidates.push("../../../data/text/toxic-chat/" + basename);
+      }
+      return [...new Set(candidates)];
+    }
+
+    function parseCsv(text) {
+      const rawRows = [];
+      let row = [];
+      let field = "";
+      let inQuotes = false;
+      for (let i = 0; i < text.length; i++) {
+        const char = text[i];
+        const next = text[i + 1];
+        if (inQuotes) {
+          if (char === '"' && next === '"') {
+            field += '"';
+            i++;
+          } else if (char === '"') {
+            inQuotes = false;
+          } else {
+            field += char;
+          }
+        } else if (char === '"') {
+          inQuotes = true;
+        } else if (char === ",") {
+          row.push(field);
+          field = "";
+        } else if (char === "\n") {
+          row.push(field);
+          rawRows.push(row);
+          row = [];
+          field = "";
+        } else if (char !== "\r") {
+          field += char;
+        }
+      }
+      if (field || row.length) {
+        row.push(field);
+        rawRows.push(row);
+      }
+      const header = rawRows.shift() || [];
+      return rawRows.filter(values => values.length > 1).map(values => {
+        const obj = {};
+        header.forEach((key, index) => {
+          if (!/^e\d+$/.test(key)) obj[key] = values[index] ?? "";
+        });
+        return obj;
+      });
+    }
+
+    function normalizeRecords(data) {
+      return (data.records || []).map(record => record.result ? { ...record.result, ...record } : record);
+    }
+
+    function score(record) {
+      const value = Number(record.max_ratio);
+      return Number.isFinite(value) ? value : NaN;
+    }
+
+    function finalK(record) {
+      const progression = Array.isArray(record.k_progression) ? record.k_progression : [];
+      if (progression.length) return Number(progression[progression.length - 1]);
+      return Number(record.compared_count || 0);
+    }
+
+    function label(row) {
+      return binaryValue(row && row.toxicity_label) === "1" ? "1" : "0";
+    }
+
+    function jailbreakLabel(row) {
+      return binaryValue(row && row.jailbreaking_label);
+    }
+
+    function disagrees(row) {
+      return Boolean(row) && (judgeIsToxic(row) ? "1" : "0") !== label(row);
+    }
+
+    function binaryValue(value) {
+      const text = String(value ?? "").trim();
+      if (text === "0" || text === "0.0") return "0";
+      if (text === "1" || text === "1.0") return "1";
+      const num = Number(text);
+      if (num === 0) return "0";
+      if (num === 1) return "1";
+      return "";
+    }
+
+    function inferProbLabels(rows) {
+      const first = rows[0] || {};
+      return Object.keys(first)
+        .filter(key => /^prob_\d+$/.test(key))
+        .map(key => key.slice(5))
+        .sort((a, b) => Number(a) - Number(b));
+    }
+
+    function probability(row, label) {
+      const num = Number(row && row[`prob_${label}`]);
+      return Number.isFinite(num) ? num : 0;
+    }
+
+    function expectedScore(row) {
+      const labels = state.probLabels.length ? state.probLabels : ["0", "1"];
+      return labels.reduce((sum, label) => sum + Number(label) * probability(row, label), 0);
+    }
+
+    function predictedLabel(row) {
+      const labels = state.probLabels.length ? state.probLabels : ["0", "1"];
+      return labels.reduce((best, label) => probability(row, label) > probability(row, best) ? label : best, labels[0]);
+    }
+
+    function judgeSummary(row) {
+      if (!row || row.judge_error) return "judge error";
+      const answer = String(row.judge_answer || "").trim();
+      const judge = state.probLabels.includes(answer) ? answer : predictedLabel(row);
+      if (state.probLabels.length <= 2) return judge === "1" ? "judge toxic" : "judge safe";
+      return `judge score ${judge}`;
+    }
+
+    function judgeIsToxic(row) {
+      if (state.probLabels.length <= 2) {
+        const answer = binaryValue(row && row.judge_answer);
+        return (answer || predictedLabel(row)) === "1";
+      }
+      return expectedScore(row) >= toxicScoreThreshold();
+    }
+
+    function toxicProbability(row) {
+      if (state.probLabels.length <= 2) return probability(row, "1");
+      return state.probLabels
+        .filter(label => Number(label) >= toxicScoreThreshold())
+        .reduce((sum, label) => sum + probability(row, label), 0);
+    }
+
+    function toxicScoreThreshold() {
+      return Number(state.probLabels.at(-1)) <= 5 ? 3 : 5;
+    }
+
+    function percentile(values, p) {
+      const finite = values.filter(Number.isFinite).sort((a, b) => a - b);
+      if (!finite.length) return NaN;
+      const idx = (finite.length - 1) * (p / 100);
+      const lo = Math.floor(idx);
+      const hi = Math.ceil(idx);
+      if (lo === hi) return finite[lo];
+      return finite[lo] + (finite[hi] - finite[lo]) * (idx - lo);
+    }
+
+    function stat(label, value) {
+      return `<div class="stat"><strong>${escapeHtml(String(value))}</strong><span>${escapeHtml(label)}</span></div>`;
+    }
+
+    function pill(text, kind) {
+      return `<span class="badge ${escapeHtml(kind)}">${escapeHtml(String(text))}</span>`;
+    }
+
+    function setStatus(message) {
+      status.textContent = message;
+      status.className = message ? "status show" : "status";
+    }
+
+    function formatNum(input) {
+      const num = Number(input);
+      if (!Number.isFinite(num)) return "n/a";
+      if (Math.abs(num) >= 100 || (Math.abs(num) < 0.001 && num !== 0)) return num.toExponential(2);
+      return num.toFixed(4).replace(/\.?0+$/, "");
+    }
+
+    function escapeHtml(value) {
+      return String(value)
+        .replaceAll("&", "&amp;")
+        .replaceAll("<", "&lt;")
+        .replaceAll(">", "&gt;")
+        .replaceAll('"', "&quot;")
+        .replaceAll("'", "&#039;");
+    }
+  </script>
+</body>
+</html>

@@ -1,0 +1,930 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>ToxicChat LLM Judge Results</title>
+  <style>
+    :root {
+      --paper: #f2efe7;
+      --ink: #17201d;
+      --muted: #65716c;
+      --line: #d2c8b8;
+      --safe: #1f7460;
+      --toxic: #b34232;
+      --jail: #7b4ea3;
+      --amber: #b77924;
+      --blue: #28637d;
+      --panel: rgba(255, 251, 241, 0.9);
+      --shadow: 0 18px 55px rgba(56, 43, 29, 0.15);
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      color: var(--ink);
+      background:
+        radial-gradient(circle at 16% 8%, rgba(179, 66, 50, 0.2), transparent 30rem),
+        radial-gradient(circle at 92% 10%, rgba(31, 116, 96, 0.22), transparent 32rem),
+        linear-gradient(135deg, #fffaf0 0%, var(--paper) 50%, #e4dacb 100%);
+      font-family: ui-serif, Georgia, "Times New Roman", serif;
+    }
+
+    header {
+      padding: 34px clamp(18px, 5vw, 70px) 24px;
+      border-bottom: 1px solid var(--line);
+    }
+
+    h1 {
+      margin: 0;
+      max-width: 980px;
+      font-size: clamp(2.25rem, 5vw, 5.25rem);
+      line-height: 0.9;
+      letter-spacing: -0.06em;
+    }
+
+    .subhead {
+      margin-top: 14px;
+      max-width: 940px;
+      color: var(--muted);
+      font: 0.98rem/1.45 ui-sans-serif, "Avenir Next", "Segoe UI", sans-serif;
+    }
+
+    main {
+      display: grid;
+      grid-template-columns: minmax(300px, 460px) 1fr;
+      gap: 18px;
+      padding: 22px clamp(14px, 3vw, 44px) 36px;
+    }
+
+    .panel {
+      min-width: 0;
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 24px;
+      box-shadow: var(--shadow);
+      overflow: hidden;
+    }
+
+    .controls {
+      padding: 18px;
+      display: grid;
+      gap: 14px;
+    }
+
+    .control-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+    }
+
+    label {
+      display: grid;
+      gap: 6px;
+      color: var(--muted);
+      font: 800 0.72rem ui-sans-serif, "Avenir Next", "Segoe UI", sans-serif;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+    }
+
+    input, select, button {
+      width: 100%;
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      background: #fffdf7;
+      color: var(--ink);
+      font: 500 0.94rem ui-sans-serif, "Avenir Next", "Segoe UI", sans-serif;
+      padding: 10px 12px;
+    }
+
+    button {
+      cursor: pointer;
+      background: var(--ink);
+      color: #fffaf0;
+      border-color: var(--ink);
+    }
+
+    .stats {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 8px;
+      padding: 0 18px 18px;
+    }
+
+    .stat {
+      border: 1px solid var(--line);
+      border-radius: 16px;
+      padding: 10px;
+      background: rgba(255, 255, 255, 0.48);
+    }
+
+    .stat strong {
+      display: block;
+      font-size: 1.26rem;
+      letter-spacing: -0.04em;
+    }
+
+    .stat span {
+      color: var(--muted);
+      font: 800 0.62rem ui-sans-serif, "Avenir Next", "Segoe UI", sans-serif;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+    }
+
+    .list {
+      max-height: calc(100vh - 410px);
+      overflow: auto;
+      border-top: 1px solid var(--line);
+    }
+
+    .row {
+      border-bottom: 1px solid var(--line);
+      padding: 13px 16px;
+      cursor: pointer;
+      background: rgba(255, 250, 240, 0.68);
+    }
+
+    .row:hover, .row.active { background: #fff2dc; }
+
+    .row-top, .mini-meta {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      color: var(--muted);
+      font: 800 0.68rem ui-sans-serif, "Avenir Next", "Segoe UI", sans-serif;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+    }
+
+    .title {
+      margin-top: 7px;
+      font-weight: 900;
+      letter-spacing: -0.02em;
+    }
+
+    .excerpt {
+      margin-top: 4px;
+      color: var(--muted);
+      font: 0.82rem/1.35 ui-sans-serif, "Avenir Next", "Segoe UI", sans-serif;
+    }
+
+    .prob-line {
+      display: grid;
+      grid-template-columns: 1fr auto;
+      gap: 10px;
+      align-items: center;
+      margin-top: 10px;
+      color: var(--muted);
+      font: 800 0.66rem ui-sans-serif, "Avenir Next", "Segoe UI", sans-serif;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+    }
+
+    .prob-strip {
+      position: relative;
+      height: 9px;
+      border-radius: 999px;
+      overflow: hidden;
+      border: 1px solid rgba(23, 32, 29, 0.16);
+      background: rgba(31, 116, 96, 0.18);
+    }
+
+    .prob-strip::before {
+      content: "";
+      position: absolute;
+      inset: 0 auto 0 0;
+      width: var(--p1, 0%);
+      background: linear-gradient(90deg, var(--amber), var(--toxic));
+    }
+
+    .prob-strip::after {
+      content: "";
+      position: absolute;
+      top: -4px;
+      bottom: -4px;
+      left: 50%;
+      width: 1px;
+      background: rgba(23, 32, 29, 0.35);
+    }
+
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      border-radius: 999px;
+      padding: 3px 9px;
+      color: #fff;
+      font: 900 0.68rem ui-sans-serif, "Avenir Next", "Segoe UI", sans-serif;
+      white-space: nowrap;
+    }
+
+    .badge.safe { background: var(--safe); }
+    .badge.toxic { background: var(--toxic); }
+    .badge.jail { background: var(--jail); }
+    .badge.warn { background: var(--amber); }
+    .badge.err { background: #555; }
+
+    .detail {
+      padding: clamp(18px, 3vw, 32px);
+      min-height: 650px;
+    }
+
+    .detail-head {
+      display: flex;
+      justify-content: space-between;
+      gap: 20px;
+      align-items: start;
+      margin-bottom: 18px;
+    }
+
+    .detail h2 {
+      margin: 0;
+      font-size: clamp(1.85rem, 3.2vw, 3.4rem);
+      line-height: 0.94;
+      letter-spacing: -0.055em;
+    }
+
+    .meta {
+      color: var(--muted);
+      font: 800 0.72rem ui-sans-serif, "Avenir Next", "Segoe UI", sans-serif;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+    }
+
+    .score-grid {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(120px, 1fr));
+      gap: 10px;
+      margin: 18px 0;
+    }
+
+    .score-card {
+      border: 1px solid var(--line);
+      border-radius: 18px;
+      background: rgba(255, 255, 255, 0.45);
+      padding: 12px;
+      min-width: 0;
+    }
+
+    .score-card span {
+      display: block;
+      color: var(--muted);
+      font: 900 0.64rem ui-sans-serif, "Avenir Next", "Segoe UI", sans-serif;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+    }
+
+    .score-card strong {
+      display: block;
+      margin-top: 5px;
+      overflow-wrap: anywhere;
+      font: 900 1.16rem ui-sans-serif, "Avenir Next", "Segoe UI", sans-serif;
+      letter-spacing: -0.04em;
+    }
+
+    .input-text {
+      margin-top: 18px;
+      border-top: 1px solid var(--line);
+      padding-top: 18px;
+      white-space: pre-wrap;
+      font-size: 1.04rem;
+      line-height: 1.55;
+    }
+
+    .neighbors {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+      margin-top: 22px;
+    }
+
+    .neighbor-group {
+      border: 1px solid var(--line);
+      border-radius: 20px;
+      background: rgba(255, 255, 255, 0.36);
+      padding: 12px;
+      min-width: 0;
+    }
+
+    .neighbor-group h3 { margin: 0 0 10px; }
+
+    .neighbor {
+      border-top: 1px solid var(--line);
+      padding: 10px 0;
+      cursor: pointer;
+    }
+
+    .neighbor:first-of-type { border-top: 0; }
+    .neighbor:hover .neighbor-title { text-decoration: underline; }
+
+    .neighbor-title {
+      margin-top: 5px;
+      font-weight: 900;
+      letter-spacing: -0.02em;
+    }
+
+    .neighbor-text {
+      margin-top: 4px;
+      color: var(--muted);
+      font: 0.8rem/1.35 ui-sans-serif, "Avenir Next", "Segoe UI", sans-serif;
+    }
+
+    .tokens {
+      margin-top: 12px;
+      display: grid;
+      gap: 8px;
+    }
+
+    .token {
+      display: grid;
+      grid-template-columns: minmax(70px, 130px) 1fr 90px;
+      align-items: center;
+      gap: 10px;
+      font-family: ui-sans-serif, "Avenir Next", "Segoe UI", sans-serif;
+    }
+
+    .bar {
+      height: 10px;
+      border-radius: 999px;
+      background: #eadcc5;
+      overflow: hidden;
+    }
+
+    .bar > div {
+      height: 100%;
+      background: var(--blue);
+    }
+
+    .moderation {
+      margin-top: 20px;
+      border-top: 1px solid var(--line);
+      padding-top: 16px;
+      color: var(--muted);
+      font: 0.85rem/1.45 ui-sans-serif, "Avenir Next", "Segoe UI", sans-serif;
+      overflow-wrap: anywhere;
+    }
+
+    .empty {
+      padding: 40px;
+      color: var(--muted);
+      font-family: ui-sans-serif, "Avenir Next", "Segoe UI", sans-serif;
+    }
+
+    @media (max-width: 980px) {
+      main { grid-template-columns: 1fr; }
+      .list { max-height: 420px; }
+      .score-grid { grid-template-columns: repeat(2, 1fr); }
+      .neighbors { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>ToxicChat Judge Results</h1>
+    <div class="subhead">
+      Browse monitor-ready toxicity judge outputs without rendering 1024 embedding dimensions.
+      Default data: <code>toxic_chat_toxicity_openrouter_20260426T155609Z.csv</code>.
+    </div>
+  </header>
+
+  <main>
+    <section class="panel">
+      <div class="controls">
+        <label>
+          Load CSV
+          <input id="fileInput" type="file" accept=".csv,text/csv">
+        </label>
+        <div class="control-grid">
+          <label>
+            Search
+            <input id="searchInput" type="search" placeholder="input, conv id, source row">
+          </label>
+          <label>
+            Filter
+            <select id="filterSelect">
+              <option value="all">All rows</option>
+              <option value="label-toxic">Label: toxic</option>
+              <option value="label-safe">Label: not toxic</option>
+              <option value="jailbreak">Jailbreak labeled</option>
+              <option value="judge-toxic">Judge: toxic</option>
+              <option value="judge-safe">Judge: not toxic</option>
+              <option value="disagree">Judge/label disagree</option>
+              <option value="uncertain">Ambiguous judge</option>
+              <option value="inferred">Inferred score</option>
+              <option value="error">Judge error</option>
+            </select>
+          </label>
+        </div>
+        <div class="control-grid">
+          <label>
+            Sort
+            <select id="sortSelect">
+              <option value="source">Source order</option>
+              <option value="uncertainty">Most ambiguous</option>
+              <option value="confidence">Most certain</option>
+              <option value="margin">Smallest margin</option>
+              <option value="prob1">prob toxic high</option>
+              <option value="prob0">prob safe high</option>
+              <option value="disagree">Disagreements first</option>
+              <option value="jailbreak">Jailbreak first</option>
+            </select>
+          </label>
+          <button id="loadDefault">Load Default CSV</button>
+        </div>
+      </div>
+      <div class="stats" id="stats"></div>
+      <div class="list" id="list"></div>
+    </section>
+
+    <section class="panel detail" id="detail">
+      <div class="empty">Load a CSV, then select a row.</div>
+    </section>
+  </main>
+
+  <script>
+    const DEFAULT_CSV = "toxic_chat_toxicity_openrouter_20260426T155609Z.csv";
+    const state = { rows: [], filtered: [], selected: null, probLabels: [] };
+
+    const fileInput = document.getElementById("fileInput");
+    const searchInput = document.getElementById("searchInput");
+    const filterSelect = document.getElementById("filterSelect");
+    const sortSelect = document.getElementById("sortSelect");
+    const list = document.getElementById("list");
+    const detail = document.getElementById("detail");
+    const stats = document.getElementById("stats");
+
+    document.getElementById("loadDefault").addEventListener("click", () => loadDefaultCsv());
+    fileInput.addEventListener("change", async (event) => {
+      const file = event.target.files[0];
+      if (!file) return;
+      setRows(parseCsv(await file.text()));
+    });
+    searchInput.addEventListener("input", render);
+    filterSelect.addEventListener("change", render);
+    sortSelect.addEventListener("change", render);
+
+    loadDefaultCsv();
+
+    async function loadDefaultCsv() {
+      try {
+        const response = await fetch(DEFAULT_CSV);
+        if (!response.ok) throw new Error(`${response.status} ${response.statusText}`);
+        setRows(parseCsv(await response.text()));
+      } catch {
+        list.innerHTML = `<div class="empty">Could not fetch ${DEFAULT_CSV}. If opened via <code>file://</code>, use the file picker above.</div>`;
+      }
+    }
+
+    function setRows(rows) {
+      state.rows = rows;
+      state.probLabels = inferProbLabels(rows);
+      state.selected = rows[0] || null;
+      render();
+    }
+
+    function render() {
+      const query = searchInput.value.trim().toLowerCase();
+      const filter = filterSelect.value;
+      const sort = sortSelect.value;
+
+      let rows = state.rows.filter(row => {
+        const haystack = `${row.example_id} ${row.conv_id} ${row.source_row} ${row.user_input}`.toLowerCase();
+        if (query && !haystack.includes(query)) return false;
+        if (filter === "label-toxic" && label(row) !== "1") return false;
+        if (filter === "label-safe" && label(row) !== "0") return false;
+        if (filter === "jailbreak" && binaryValue(row.jailbreaking_label) !== "1") return false;
+        if (filter === "judge-toxic" && !judgeIsToxic(row)) return false;
+        if (filter === "judge-safe" && judgeIsToxic(row)) return false;
+        if (filter === "disagree" && !disagrees(row)) return false;
+        if (filter === "uncertain" && uncertainty(row) < 0.6) return false;
+        if (filter === "inferred" && !hasInferredScore(row)) return false;
+        if (filter === "error" && !row.judge_error) return false;
+        return true;
+      });
+
+      rows = [...rows].sort((a, b) => {
+        if (sort === "uncertainty") return uncertainty(b) - uncertainty(a);
+        if (sort === "confidence") return confidence(b) - confidence(a);
+        if (sort === "margin") return margin(a) - margin(b);
+        if (sort === "prob1") return toxicProbability(b) - toxicProbability(a);
+        if (sort === "prob0") return numberOrNaN(b.prob_0) - numberOrNaN(a.prob_0);
+        if (sort === "disagree") return Number(disagrees(b)) - Number(disagrees(a));
+        if (sort === "jailbreak") return numberOrNaN(b.jailbreaking_label) - numberOrNaN(a.jailbreaking_label);
+        return numberOrNaN(a.source_row) - numberOrNaN(b.source_row);
+      });
+
+      state.filtered = rows;
+      if (!rows.includes(state.selected)) state.selected = rows[0] || null;
+      renderStats();
+      renderList();
+      renderDetail();
+    }
+
+    function renderStats() {
+      const rows = state.rows;
+      const toxicLabels = rows.filter(row => label(row) === "1").length;
+      const judgeToxic = rows.filter(judgeIsToxic).length;
+      const disagreements = rows.filter(disagrees).length;
+      stats.innerHTML = [
+        stat("Rows", rows.length),
+        stat("Label Toxic", toxicLabels),
+        stat("Judge Toxic", judgeToxic),
+        stat("Disagree", disagreements),
+      ].join("");
+    }
+
+    function stat(label, value) {
+      return `<div class="stat"><strong>${escapeHtml(String(value))}</strong><span>${label}</span></div>`;
+    }
+
+    function renderList() {
+      if (!state.filtered.length) {
+        list.innerHTML = `<div class="empty">No rows match the current filters.</div>`;
+        return;
+      }
+      list.innerHTML = state.filtered.map(row => {
+        const active = row === state.selected ? " active" : "";
+        const p1 = toxicProbability(row);
+        return `
+          <article class="row${active}" data-id="${escapeHtml(row.example_id)}">
+            <div class="row-top">
+              <span>${escapeHtml(row.example_id)} · source ${escapeHtml(row.source_row || "")}</span>
+              ${badges(row)}
+            </div>
+            <div class="title">${escapeHtml(titleFor(row))}</div>
+            <div class="excerpt">${escapeHtml(truncate(row.user_input || "", 170))}</div>
+            <div class="prob-line">
+              <div class="prob-strip" style="--p1:${Math.max(0, Math.min(100, p1 * 100))}%"></div>
+              <span>tox ${formatNum(p1)} · amb ${formatNum(uncertainty(row))}</span>
+            </div>
+          </article>
+        `;
+      }).join("");
+
+      list.querySelectorAll(".row").forEach((node, index) => {
+        node.addEventListener("click", () => {
+          state.selected = state.filtered[index];
+          renderList();
+          renderDetail();
+        });
+      });
+    }
+
+    function renderDetail() {
+      const row = state.selected;
+      if (!row) {
+        detail.innerHTML = `<div class="empty">Select a row.</div>`;
+        return;
+      }
+
+      const top = parseJsonArray(row.top_logprobs_json);
+      const maxLogprob = Math.max(...top.map(item => numberOrNaN(item.logprob)).filter(Number.isFinite), 0);
+      const neighbors = embeddingNeighbors(row, 5);
+      detail.innerHTML = `
+        <div class="detail-head">
+          <div>
+            <div class="meta">${escapeHtml(row.example_id)} · source row ${escapeHtml(row.source_row || "")}</div>
+            <h2>${escapeHtml(titleFor(row))}</h2>
+          </div>
+          <div>${badges(row)}</div>
+        </div>
+
+        <div class="score-grid">
+          ${score("Human label", label(row) === "1" ? "toxic" : "not toxic")}
+          ${score("Jailbreak", binaryValue(row.jailbreaking_label) === "1" ? "yes" : "no")}
+          ${score("Judge answer", judgeSummary(row))}
+          ${score("Agreement", disagrees(row) ? "disagree" : "agree")}
+          ${score("prob_not_toxic", formatNum(row.prob_0))}
+          ${score("prob_toxic", formatNum(toxicProbability(row)))}
+          ${score("Expected", formatNum(expectedScore(row)))}
+          ${score("Top Prob", formatNum(confidence(row)))}
+          ${score("Margin", formatNum(margin(row)))}
+          ${score("Ambiguity", formatNum(uncertainty(row)))}
+          ${score("First token", row.first_token || "n/a")}
+          ${score("Finish", row.judge_finish_reason || "n/a")}
+          ${probabilityCards(row)}
+        </div>
+
+        <div class="input-text">${escapeHtml(row.user_input || "")}</div>
+
+        <section class="neighbors">
+          ${neighborGroup("Most Similar By Embedding", neighbors.similar)}
+          ${neighborGroup("Most Dissimilar By Embedding", neighbors.dissimilar)}
+        </section>
+
+        <div class="moderation">
+          <strong>OpenAI moderation sidecar:</strong>
+          ${escapeHtml(row.openai_moderation || "n/a")}
+        </div>
+
+        <h3>First-Token Top Logprobs</h3>
+        <div class="tokens">
+          ${top.map(item => tokenRow(item, maxLogprob)).join("") || "<div class='empty'>No top-logprob details.</div>"}
+        </div>
+      `;
+      bindNeighborClicks();
+    }
+
+    function badges(row) {
+      const parts = [];
+      parts.push(`<span class="badge ${label(row) === "1" ? "toxic" : "safe"}">label ${label(row) === "1" ? "toxic" : "safe"}</span>`);
+      parts.push(`<span class="badge ${judgeIsToxic(row) ? "toxic" : judgeSummary(row) === "error" ? "err" : "safe"}">judge ${escapeHtml(judgeSummary(row))}</span>`);
+      if (binaryValue(row.jailbreaking_label) === "1") parts.push(`<span class="badge jail">jailbreak</span>`);
+      if (disagrees(row)) parts.push(`<span class="badge warn">disagree</span>`);
+      if (hasInferredScore(row)) parts.push(`<span class="badge warn">inferred</span>`);
+      return parts.join(" ");
+    }
+
+    function score(label, value) {
+      return `<div class="score-card"><span>${escapeHtml(label)}</span><strong>${escapeHtml(String(value))}</strong></div>`;
+    }
+
+    function tokenRow(item, maxLogprob) {
+      const logprob = numberOrNaN(item.logprob);
+      const width = Number.isFinite(logprob) ? Math.max(1, Math.exp(logprob - maxLogprob) * 100) : 1;
+      return `
+        <div class="token">
+          <code>${escapeHtml(displayToken(item.token))}</code>
+          <div class="bar"><div style="width:${width}%"></div></div>
+          <span>${formatNum(logprob)}</span>
+        </div>
+      `;
+    }
+
+    function neighborGroup(title, items) {
+      return `
+        <div class="neighbor-group">
+          <h3>${escapeHtml(title)}</h3>
+          ${items.map(item => neighborRow(item)).join("") || "<div class='empty'>No embedding neighbors available.</div>"}
+        </div>
+      `;
+    }
+
+    function neighborRow(item) {
+      const row = item.row;
+      return `
+        <article class="neighbor" data-neighbor-id="${escapeHtml(row.example_id)}">
+          <div class="mini-meta">
+            <span>${escapeHtml(row.example_id)} · ${label(row) === "1" ? "toxic" : "safe"} · judge ${escapeHtml(judgeSummary(row))}</span>
+            <span>cos ${formatNum(item.similarity)} · dist ${formatNum(item.distance)}</span>
+          </div>
+          <div class="neighbor-title">${escapeHtml(titleFor(row))}</div>
+          <div class="neighbor-text">${escapeHtml(truncate(row.user_input || "", 190))}</div>
+        </article>
+      `;
+    }
+
+    function bindNeighborClicks() {
+      detail.querySelectorAll("[data-neighbor-id]").forEach(node => {
+        node.addEventListener("click", () => {
+          const id = node.getAttribute("data-neighbor-id");
+          const row = state.rows.find(candidate => candidate.example_id === id);
+          if (!row) return;
+          state.selected = row;
+          renderList();
+          renderDetail();
+        });
+      });
+    }
+
+    function parseCsv(text) {
+      const rows = [];
+      let row = [];
+      let field = "";
+      let inQuotes = false;
+      for (let i = 0; i < text.length; i++) {
+        const char = text[i];
+        const next = text[i + 1];
+        if (inQuotes) {
+          if (char === '"' && next === '"') {
+            field += '"';
+            i++;
+          } else if (char === '"') {
+            inQuotes = false;
+          } else {
+            field += char;
+          }
+        } else if (char === '"') {
+          inQuotes = true;
+        } else if (char === ",") {
+          row.push(field);
+          field = "";
+        } else if (char === "\n") {
+          row.push(field);
+          rows.push(row);
+          row = [];
+          field = "";
+        } else if (char !== "\r") {
+          field += char;
+        }
+      }
+      if (field || row.length) {
+        row.push(field);
+        rows.push(row);
+      }
+      const header = rows.shift() || [];
+      const embeddingIndexes = header
+        .map((key, index) => ({ key, index }))
+        .filter(item => /^e\d+$/.test(item.key))
+        .sort((a, b) => Number(a.key.slice(1)) - Number(b.key.slice(1)));
+      return rows.filter(r => r.length > 1).map(values => {
+        const obj = {};
+        const embedding = new Float32Array(embeddingIndexes.length);
+        let normSq = 0;
+        embeddingIndexes.forEach((item, dim) => {
+          const value = Number(values[item.index]);
+          const finite = Number.isFinite(value) ? value : 0;
+          embedding[dim] = finite;
+          normSq += finite * finite;
+        });
+        header.forEach((key, index) => {
+          if (!/^e\d+$/.test(key)) obj[key] = values[index] ?? "";
+        });
+        obj._embedding = embedding;
+        obj._embeddingNorm = Math.sqrt(normSq);
+        return obj;
+      });
+    }
+
+    function embeddingNeighbors(row, k) {
+      if (!row._embedding || !row._embeddingNorm) {
+        return { similar: [], dissimilar: [] };
+      }
+
+      const scored = [];
+      for (const candidate of state.rows) {
+        if (candidate === row || !candidate._embedding || !candidate._embeddingNorm) continue;
+        const similarity = cosineSimilarity(row, candidate);
+        if (!Number.isFinite(similarity)) continue;
+        scored.push({ row: candidate, similarity, distance: 1 - similarity });
+      }
+      scored.sort((a, b) => b.similarity - a.similarity);
+      return {
+        similar: scored.slice(0, k),
+        dissimilar: scored.slice(-k).reverse(),
+      };
+    }
+
+    function cosineSimilarity(a, b) {
+      const av = a._embedding;
+      const bv = b._embedding;
+      const length = Math.min(av.length, bv.length);
+      let dot = 0;
+      for (let i = 0; i < length; i++) {
+        dot += av[i] * bv[i];
+      }
+      return dot / (a._embeddingNorm * b._embeddingNorm);
+    }
+
+    function label(row) {
+      return binaryValue(row.toxicity_label) === "1" ? "1" : "0";
+    }
+
+    function disagrees(row) {
+      return label(row) !== (judgeIsToxic(row) ? "1" : "0");
+    }
+
+    function hasInferredScore(row) {
+      return state.probLabels.some(label => row[`logprob_${label}_source`] === "inferred_top_logprobs_floor");
+    }
+
+    function confidence(row) {
+      return Math.max(...state.probLabels.map(label => probability(row, label)), 0);
+    }
+
+    function probability(row, label) {
+      const value = numberOrNaN(row[`prob_${label}`]);
+      return Number.isFinite(value) ? value : 0;
+    }
+
+    function margin(row) {
+      const values = state.probLabels.map(label => probability(row, label)).sort((a, b) => b - a);
+      return (values[0] || 0) - (values[1] || 0);
+    }
+
+    function uncertainty(row) {
+      return -state.probLabels.reduce((sum, label) => {
+        const p = Math.max(1e-12, Math.min(1, probability(row, label)));
+        return sum + p * Math.log2(p);
+      }, 0);
+    }
+
+    function titleFor(row) {
+      const kind = label(row) === "1" ? "Toxic" : "Not toxic";
+      const jail = binaryValue(row.jailbreaking_label) === "1" ? " · jailbreak" : "";
+      return `${kind}${jail}`;
+    }
+
+    function inferProbLabels(rows) {
+      const first = rows[0] || {};
+      return Object.keys(first)
+        .filter(key => /^prob_\d+$/.test(key))
+        .map(key => key.slice(5))
+        .sort((a, b) => Number(a) - Number(b));
+    }
+
+    function binaryValue(value) {
+      const text = String(value ?? "").trim();
+      if (text === "0" || text === "0.0") return "0";
+      if (text === "1" || text === "1.0") return "1";
+      const num = Number(text);
+      if (num === 0) return "0";
+      if (num === 1) return "1";
+      return "";
+    }
+
+    function expectedScore(row) {
+      const labels = state.probLabels.length ? state.probLabels : ["0", "1"];
+      return labels.reduce((sum, label) => sum + Number(label) * probability(row, label), 0);
+    }
+
+    function predictedLabel(row) {
+      const labels = state.probLabels.length ? state.probLabels : ["0", "1"];
+      return labels.reduce((best, label) => probability(row, label) > probability(row, best) ? label : best, labels[0]);
+    }
+
+    function judgeSummary(row) {
+      if (row.judge_error) return "error";
+      const answer = String(row.judge_answer || "").trim();
+      const label = state.probLabels.includes(answer) ? answer : predictedLabel(row);
+      if (state.probLabels.length <= 2) return label === "1" ? "toxic" : "safe";
+      return `score ${label}`;
+    }
+
+    function judgeIsToxic(row) {
+      if (state.probLabels.length <= 2) {
+        const answer = String(row.judge_answer || "").trim();
+        const binary = binaryValue(answer || predictedLabel(row));
+        return binary === "1";
+      }
+      return expectedScore(row) >= toxicScoreThreshold();
+    }
+
+    function toxicProbability(row) {
+      if (state.probLabels.length <= 2) return probability(row, "1");
+      return state.probLabels
+        .filter(label => Number(label) >= toxicScoreThreshold())
+        .reduce((sum, label) => sum + probability(row, label), 0);
+    }
+
+    function toxicScoreThreshold() {
+      return Number(state.probLabels.at(-1)) <= 5 ? 3 : 5;
+    }
+
+    function probabilityCards(row) {
+      return state.probLabels.map(label => [
+        score(`prob_${label}`, formatNum(row[`prob_${label}`])),
+        score(`logprob_${label}`, formatNum(row[`logprob_${label}`])),
+        score(`source_${label}`, compactSource(row[`logprob_${label}_source`])),
+      ].join("")).join("");
+    }
+
+    function compactSource(value) {
+      if (value === "inferred_top_logprobs_floor") return "inferred";
+      return value || "n/a";
+    }
+
+    function numberOrNaN(value) {
+      const num = Number(value);
+      return Number.isFinite(num) ? num : NaN;
+    }
+
+    function formatNum(value) {
+      const num = Number(value);
+      if (!Number.isFinite(num)) return "n/a";
+      if (Math.abs(num) >= 100 || (Math.abs(num) < 0.001 && num !== 0)) return num.toExponential(2);
+      return num.toFixed(4).replace(/\.?0+$/, "");
+    }
+
+    function parseJsonArray(value) {
+      try {
+        const parsed = JSON.parse(value || "[]");
+        return Array.isArray(parsed) ? parsed : [];
+      } catch {
+        return [];
+      }
+    }
+
+    function displayToken(token) {
+      if (token === " ") return "space";
+      if (token === "  ") return "2 spaces";
+      if (token === "") return "empty";
+      return String(token ?? "null");
+    }
+
+    function truncate(value, max) {
+      return value.length > max ? `${value.slice(0, max)}...` : value;
+    }
+
+    function escapeHtml(value) {
+      return String(value)
+        .replaceAll("&", "&amp;")
+        .replaceAll("<", "&lt;")
+        .replaceAll(">", "&gt;")
+        .replaceAll('"', "&quot;")
+        .replaceAll("'", "&#039;");
+    }
+  </script>
+</body>
+</html>
