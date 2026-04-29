@@ -4,18 +4,15 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 
-INPUT_CSV="${1:-$PROJECT_ROOT/data/text/toxic-chat/toxic_chat_toxicity_openrouter_20260426T155800Z.csv}"
-RESULTS_DIR="${RESULTS_DIR:-$PROJECT_ROOT/results/quantitative/text_toxic_chat}"
+INPUT_CSV="$PROJECT_ROOT/data/text/toxic-chat/toxic-chat-judge-gemma-4-26b-a4b-it_embed-pplx-embed-v1-0-6b_2class_n1000.csv"
+RESULTS_DIR="$PROJECT_ROOT/results/quantitative/text_toxic_chat/2class_probs"
 
 if [[ ! -f "$INPUT_CSV" ]]; then
   echo "Input CSV not found: $INPUT_CSV" >&2
-  echo "Usage: $0 [monitor-ready-toxic-chat-csv] [extra quant_runner args...]" >&2
   exit 1
 fi
 
 mkdir -p "$RESULTS_DIR"
-
-shift $(( $# > 0 ? 1 : 0 ))
 
 INPUT_COLS="$(
   python - "$INPUT_CSV" <<'PY'
@@ -39,27 +36,7 @@ print(",".join(embedding_cols))
 PY
 )"
 
-PRED_COLS="$(
-  python - "$INPUT_CSV" <<'PY'
-import csv
-import re
-import sys
-
-with open(sys.argv[1], newline="") as fh:
-    fieldnames = csv.DictReader(fh).fieldnames or []
-
-prob_cols = [
-    name for name in fieldnames
-    if re.fullmatch(r"prob_\d+", name)
-]
-prob_cols.sort(key=lambda name: int(name.split("_", 1)[1]))
-
-if not prob_cols:
-    raise SystemExit("no probability columns prob_0..prob_N found")
-
-print(",".join(prob_cols))
-PY
-)"
+PRED_COLS="prob_0,prob_1"
 
 echo "[quant-runner] input: $INPUT_CSV"
 echo "[quant-runner] embedding columns: $(awk -F, '{print NF}' <<< "$INPUT_COLS")"
@@ -77,5 +54,4 @@ python "$SCRIPT_DIR/quant_runner.py" \
   --out-metric tv \
   --backend faiss \
   --normalize \
-  --display-stride 1000 \
-  "$@"
+  --display-stride 1000
