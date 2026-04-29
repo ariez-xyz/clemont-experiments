@@ -384,7 +384,7 @@
     <h1>ToxicChat Judge Results</h1>
     <div class="subhead">
       Browse monitor-ready toxicity judge outputs without rendering 1024 embedding dimensions.
-      Default data: <code>toxic_chat_toxicity_openrouter_20260426T155609Z.csv</code>.
+      Default data: <code>toxic-chat-judge-gemma-4-26b-a4b-it_embed-pplx-embed-v1-0-6b_2class_n1000.csv</code>.
     </div>
   </header>
 
@@ -443,7 +443,7 @@
   </main>
 
   <script>
-    const DEFAULT_CSV = "toxic_chat_toxicity_openrouter_20260426T155609Z.csv";
+    const DEFAULT_CSV = "toxic-chat-judge-gemma-4-26b-a4b-it_embed-pplx-embed-v1-0-6b_2class_n1000.csv";
     const state = { rows: [], filtered: [], selected: null, probLabels: [] };
 
     const fileInput = document.getElementById("fileInput");
@@ -464,16 +464,35 @@
     filterSelect.addEventListener("change", render);
     sortSelect.addEventListener("change", render);
 
-    loadDefaultCsv();
+    loadInitialCsv();
+
+    async function loadInitialCsv() {
+      const csvPath = new URLSearchParams(window.location.search).get("csv");
+      if (csvPath) {
+        await loadCsvFromUrl(csvPath);
+        return;
+      }
+      await loadDefaultCsv();
+    }
 
     async function loadDefaultCsv() {
+      await loadCsvFromUrl(DEFAULT_CSV);
+    }
+
+    async function loadCsvFromUrl(csvPath) {
       try {
-        const response = await fetch(DEFAULT_CSV);
+        const response = await fetch(resourceUrl(csvPath));
         if (!response.ok) throw new Error(`${response.status} ${response.statusText}`);
         setRows(parseCsv(await response.text()));
       } catch {
-        list.innerHTML = `<div class="empty">Could not fetch ${DEFAULT_CSV}. If opened via <code>file://</code>, use the file picker above.</div>`;
+        list.innerHTML = `<div class="empty">Could not fetch ${escapeHtml(csvPath)}. If opened via <code>file://</code>, use the file picker above.</div>`;
       }
+    }
+
+    function resourceUrl(path) {
+      if (/^https?:\/\//.test(path) || path.startsWith("/")) return path;
+      if (/^(data|results|experiments)\//.test(path)) return `/${path}`;
+      return path;
     }
 
     function setRows(rows) {

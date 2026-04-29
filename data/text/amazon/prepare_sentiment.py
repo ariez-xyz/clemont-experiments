@@ -25,6 +25,7 @@ from openrouter_client import OpenRouterClient  # noqa: E402
 
 
 INPUT_CSV = Path(__file__).with_name("Amazon_Reviews.csv")
+OUTPUT_PREFIX = Path(__file__).with_name("amazon-")
 TEXT_COLUMNS = ["Review Title", "Review Text"]
 META_COLUMNS = [
     "Reviewer Name",
@@ -45,15 +46,18 @@ def parse_args() -> argparse.Namespace:
         type=Path,
         default=None,
         help=(
-            "JSON manifest path. Default: timestamped "
-            "amazon_sentiment_openrouter_YYYYMMDDTHHMMSSZ.json next to this script."
+            "JSON manifest path. Default: deterministic name next to this script "
+            "derived from models, class count, and sample size."
         ),
     )
     parser.add_argument(
         "--output-csv",
         type=Path,
         default=None,
-        help="Monitor-ready CSV path. Default: same stem as --output-json with .csv suffix.",
+        help=(
+            "Monitor-ready CSV path. Default: deterministic name next to this script "
+            "derived from models, class count, and sample size."
+        ),
     )
     parser.add_argument(
         "--sample-size",
@@ -118,11 +122,8 @@ def main() -> None:
     label_tokens = sentiment_label_tokens_for_classes(class_count)
 
     run_timestamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
-    output_json = args.output_json or default_output_json(
-        run_timestamp,
-        class_count=class_count,
-    )
-    output_csv = args.output_csv or output_json.with_suffix(".csv")
+    output_json = args.output_json
+    output_csv = args.output_csv
 
     reviews = load_reviews(INPUT_CSV)
     sample_size = min(args.sample_size, len(reviews))
@@ -145,6 +146,13 @@ def main() -> None:
         temperature=args.temperature,
         top_p=args.top_p,
         max_workers=args.max_workers,
+    )
+    client.warn_if_dataset_outputs_exist(
+        json_path=output_json,
+        csv_path=output_csv,
+        output_prefix=OUTPUT_PREFIX,
+        class_count=class_count,
+        sample_size=sample_size,
     )
 
     print(f"Judging {len(prompts)} Amazon reviews with {client.chat_model}...")
@@ -184,24 +192,17 @@ def main() -> None:
         ),
         "prompt_embedding": "exact_prompt_sent_to_judge",
     }
-    client.write_dataset_output(
+    output_json, output_csv = client.write_dataset_output(
         json_path=output_json,
         csv_path=output_csv,
+        output_prefix=OUTPUT_PREFIX,
+        class_count=class_count,
+        sample_size=sample_size,
         frame=frame,
         metadata=metadata,
     )
     print(f"Wrote {output_json}")
     print(f"Wrote {output_csv}")
-
-
-def default_output_json(timestamp: str, *, class_count: int) -> Path:
-    prefix = (
-        f"amazon_{class_count}class_sentiment"
-        if class_count != 2
-        else "amazon_sentiment"
-    )
-    return Path(__file__).with_name(f"{prefix}_openrouter_{timestamp}.json")
-
 
 def load_reviews(path: Path) -> pd.DataFrame:
     if not path.exists():

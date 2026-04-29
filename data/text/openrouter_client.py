@@ -10,6 +10,8 @@ from __future__ import annotations
 import json
 import math
 import os
+import re
+import sys
 import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import asdict, dataclass
@@ -22,15 +24,16 @@ import pandas as pd
 
 
 DEFAULT_CHAT_MODEL = "google/gemma-4-26b-a4b-it"
-DEFAULT_EMBEDDING_MODEL = "perplexity/pplx-embed-v1-0.6b"
+DEFAULT_EMBEDDING_MODEL = "perplexity/pplx-embed-v1-4b"
 DEFAULT_CHAT_PROVIDER = {
     "only": ["nextbit"],
     "allow_fallbacks": False,
     "require_parameters": True,
 }
 DEFAULT_REASONING = {"effort": "none"}
-DEFAULT_TEMPERATURE = 0.0
-DEFAULT_TOP_P = 1.0
+DEFAULT_TEMPERATURE = 1.0
+DEFAULT_TOP_P = 0.95
+DEFAULT_TOP_K = 64
 DEFAULT_MAX_TOKENS = 1
 DEFAULT_TOP_LOGPROBS = 20
 DEFAULT_MAX_WORKERS = 8
@@ -227,12 +230,23 @@ class OpenRouterClient:
     def write_dataset_output(
         self,
         *,
-        json_path: Path,
-        csv_path: Path,
+        json_path: Optional[Path] = None,
+        csv_path: Optional[Path] = None,
+        output_prefix: Optional[Path] = None,
+        class_count: Optional[int] = None,
+        sample_size: Optional[int] = None,
         frame: pd.DataFrame,
         metadata: Mapping[str, Any],
-    ) -> None:
+    ) -> tuple[Path, Path]:
         """Write the monitor-ready CSV and a JSON manifest pointing at it."""
+
+        json_path, csv_path = self.resolve_dataset_output_paths(
+            json_path=json_path,
+            csv_path=csv_path,
+            output_prefix=output_prefix,
+            class_count=class_count,
+            sample_size=sample_size,
+        )
 
         json_path.parent.mkdir(parents=True, exist_ok=True)
         csv_path.parent.mkdir(parents=True, exist_ok=True)
@@ -263,6 +277,70 @@ class OpenRouterClient:
             "metadata": metadata_dict,
         }
         json_path.write_text(json.dumps(manifest, indent=2, sort_keys=True) + "\n")
+        return json_path, csv_path
+
+    def warn_if_dataset_outputs_exist(
+        self,
+        *,
+        json_path: Optional[Path] = None,
+        csv_path: Optional[Path] = None,
+        output_prefix: Optional[Path] = None,
+        class_count: Optional[int] = None,
+        sample_size: Optional[int] = None,
+    ) -> tuple[Path, Path]:
+        """Warn if the resolved CSV or JSON output paths already exist."""
+
+        json_path, csv_path = self.resolve_dataset_output_paths(
+            json_path=json_path,
+            csv_path=csv_path,
+            output_prefix=output_prefix,
+            class_count=class_count,
+            sample_size=sample_size,
+        )
+        existing = [path for path in (csv_path, json_path) if path.exists()]
+        if existing:
+            print(
+                "Warning: output file(s) already exist and will be overwritten:\n"
+                + "\n".join(f"  {path}" for path in existing),
+                file=sys.stderr,
+            )
+        return json_path, csv_path
+
+    def resolve_dataset_output_paths(
+        self,
+        *,
+        json_path: Optional[Path] = None,
+        csv_path: Optional[Path] = None,
+        output_prefix: Optional[Path] = None,
+        class_count: Optional[int] = None,
+        sample_size: Optional[int] = None,
+    ) -> tuple[Path, Path]:
+        """Resolve deterministic CSV/JSON output paths for a text dataset run."""
+
+        if json_path is not None and csv_path is None:
+            return json_path, json_path.with_suffix(".csv")
+        if csv_path is not None and json_path is None:
+            return csv_path.with_suffix(".json"), csv_path
+        if json_path is not None and csv_path is not None:
+            return json_path, csv_path
+
+        if output_prefix is None:
+            raise ValueError("output_prefix is required when output paths are not explicit")
+        if class_count is None:
+            raise ValueError("class_count is required when output paths are not explicit")
+        if sample_size is None:
+            raise ValueError("sample_size is required when output paths are not explicit")
+
+        stem = (
+            f"{output_prefix.name}"
+            f"judge-{model_name_slug(self.chat_model)}_"
+            f"embed-{model_name_slug(self.embedding_model)}_"
+            f"{class_count}class_"
+            f"n{sample_size}"
+        )
+        csv_path = output_prefix.with_name(stem).with_suffix(".csv")
+        json_path = csv_path.with_suffix(".json")
+        return json_path, csv_path
 
     def _judge_one(
         self,
@@ -491,6 +569,14 @@ def probability_column_sort_key(name: str) -> tuple[int, str]:
         return (int(suffix), suffix)
     except ValueError:
         return (10**9, suffix)
+
+
+def model_name_slug(model: str) -> str:
+    """Return a filename-safe model slug without the OpenRouter provider prefix."""
+
+    short = model.split("/", 1)[-1]
+    slug = re.sub(r"[^A-Za-z0-9]+", "-", short).strip("-").lower()
+    return slug or "model"
 
 
 def candidate_env_paths(explicit_path: Optional[Path] = None) -> list[Path]:
