@@ -441,6 +441,20 @@
       render();
     });
 
+    loadInitialFiles();
+
+    async function loadInitialFiles() {
+      const jsonPath = new URLSearchParams(window.location.search).get("json");
+      if (!jsonPath) return;
+      try {
+        const response = await fetch(resourceUrl(jsonPath));
+        if (!response.ok) throw new Error(`${jsonPath}: ${response.status}`);
+        await loadMonitorData(await response.json());
+      } catch (error) {
+        setStatus(`Could not auto-load ${jsonPath}. Use the JSON picker above. ${String(error)}`);
+      }
+    }
+
     async function loadMonitorData(data) {
       state.metadata = data.metadata || {};
       state.records = normalizeRecords(data);
@@ -535,7 +549,7 @@
         return "";
       }
       if ("toxicity" in first && "jailbreaking" in first && !("prob_1" in first)) {
-        return "This is the raw ToxicChat CSV. The monitor JSON indexes the OpenRouter output CSV row order, so raw source rows cannot be joined correctly. Choose toxic_chat_toxicity_openrouter_*.csv.";
+        return "This is the raw ToxicChat CSV. The monitor JSON indexes the OpenRouter output CSV row order, so raw source rows cannot be joined correctly. Choose toxic-chat-judge-*.csv.";
       }
       return `The selected CSV is missing monitor-ready columns: ${missing.join(", ")}. Choose the OpenRouter output CSV, not toxic-chat_annotation_all.csv.`;
     }
@@ -718,6 +732,7 @@
         }
       }
       if (normalized.startsWith("data/")) {
+        candidates.push("/" + normalized);
         candidates.push("../../../" + normalized);
         candidates.push("../../" + normalized);
         candidates.push("../" + normalized);
@@ -730,6 +745,12 @@
         candidates.push("../../../data/text/toxic-chat/" + basename);
       }
       return [...new Set(candidates)];
+    }
+
+    function resourceUrl(path) {
+      if (/^https?:\/\//.test(path) || path.startsWith("/")) return path;
+      if (/^(data|results|experiments)\//.test(path)) return `/${path}`;
+      return path;
     }
 
     function parseCsv(text) {

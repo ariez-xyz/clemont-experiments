@@ -468,16 +468,29 @@
     filterSelect.addEventListener("change", render);
     sortSelect.addEventListener("change", render);
 
-    loadDefaultFiles();
+    loadInitialFiles();
+
+    async function loadInitialFiles() {
+      const jsonPath = new URLSearchParams(window.location.search).get("json");
+      if (jsonPath) {
+        await loadMonitorJsonFromUrl(jsonPath);
+        return;
+      }
+      await loadDefaultFiles();
+    }
 
     async function loadDefaultFiles() {
+      await loadMonitorJsonFromUrl(DEFAULT_JSON);
+    }
+
+    async function loadMonitorJsonFromUrl(jsonPath) {
       try {
         setStatus("", "ok");
-        const jsonResponse = await fetch(DEFAULT_JSON);
-        if (!jsonResponse.ok) throw new Error(`${DEFAULT_JSON}: ${jsonResponse.status}`);
+        const jsonResponse = await fetch(resourceUrl(jsonPath));
+        if (!jsonResponse.ok) throw new Error(`${jsonPath}: ${jsonResponse.status}`);
         await loadMonitorData(await jsonResponse.json());
       } catch (error) {
-        setStatus("Could not auto-load the default monitor JSON. Use the JSON picker above.", "warn");
+        setStatus(`Could not auto-load ${jsonPath}. Use the JSON picker above.`, "warn");
         list.innerHTML = `<div class="empty">Could not auto-load files. Use the file pickers above. ${escapeHtml(String(error))}</div>`;
       }
     }
@@ -556,6 +569,7 @@
         }
       }
       if (normalized.startsWith("data/")) {
+        candidates.push("/" + normalized);
         candidates.push("../../../" + normalized);
         candidates.push("../../" + normalized);
         candidates.push("../" + normalized);
@@ -568,6 +582,12 @@
         candidates.push("../../../data/text/amazon/" + basename);
       }
       return [...new Set(candidates)];
+    }
+
+    function resourceUrl(path) {
+      if (/^https?:\/\//.test(path) || path.startsWith("/")) return path;
+      if (/^(data|results|experiments)\//.test(path)) return `/${path}`;
+      return path;
     }
 
     function normalizeRecords(data) {

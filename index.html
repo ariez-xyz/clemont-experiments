@@ -1,0 +1,341 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Clemont Experiment Viewers</title>
+  <style>
+    :root {
+      --ink: #18231f;
+      --muted: #65716c;
+      --paper: #f7f0e3;
+      --card: #fffaf0;
+      --line: #d7c9ad;
+      --blue: #2f6480;
+      --green: #377963;
+      --gold: #b77a25;
+      --red: #a64d36;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      min-height: 100vh;
+      color: var(--ink);
+      background:
+        radial-gradient(circle at 12% 8%, rgba(47, 100, 128, 0.16), transparent 28rem),
+        radial-gradient(circle at 90% 20%, rgba(183, 122, 37, 0.14), transparent 24rem),
+        linear-gradient(135deg, #f7f0e3 0%, #efe5d2 100%);
+      font: 16px/1.45 Georgia, "Times New Roman", serif;
+    }
+    header {
+      max-width: 1180px;
+      margin: 0 auto;
+      padding: 64px 24px 28px;
+    }
+    h1 {
+      margin: 0;
+      max-width: 900px;
+      font-size: clamp(44px, 7vw, 92px);
+      line-height: 0.9;
+      letter-spacing: -0.06em;
+    }
+    .subhead {
+      max-width: 820px;
+      margin-top: 20px;
+      color: var(--muted);
+      font: 17px/1.55 ui-sans-serif, system-ui, sans-serif;
+    }
+    main {
+      max-width: 1180px;
+      margin: 0 auto;
+      padding: 12px 24px 72px;
+      display: grid;
+      gap: 18px;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+    .card {
+      background: color-mix(in srgb, var(--card) 90%, white);
+      border: 1px solid var(--line);
+      border-radius: 28px;
+      padding: 24px;
+      box-shadow: 0 20px 50px rgba(53, 42, 24, 0.08);
+    }
+    .card.wide { grid-column: 1 / -1; }
+    .eyebrow {
+      color: var(--green);
+      font: 800 12px/1 ui-sans-serif, system-ui, sans-serif;
+      letter-spacing: 0.16em;
+      text-transform: uppercase;
+    }
+    h2 {
+      margin: 10px 0 8px;
+      font-size: 32px;
+      line-height: 1;
+      letter-spacing: -0.04em;
+    }
+    p {
+      margin: 0 0 18px;
+      color: var(--muted);
+      font-family: ui-sans-serif, system-ui, sans-serif;
+    }
+    label {
+      display: block;
+      color: var(--muted);
+      font: 800 12px/1 ui-sans-serif, system-ui, sans-serif;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+    }
+    select {
+      width: 100%;
+      margin-top: 8px;
+      padding: 12px 14px;
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      background: #fffdf7;
+      color: var(--ink);
+      font: 14px/1.2 ui-sans-serif, system-ui, sans-serif;
+    }
+    .actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      margin-top: 14px;
+    }
+    a.button, button {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 42px;
+      padding: 0 16px;
+      border: 0;
+      border-radius: 999px;
+      background: var(--blue);
+      color: white;
+      cursor: pointer;
+      text-decoration: none;
+      font: 900 13px/1 ui-sans-serif, system-ui, sans-serif;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+    }
+    a.button.secondary {
+      background: var(--gold);
+    }
+    a.button.ghost {
+      background: transparent;
+      color: var(--blue);
+      border: 1px solid color-mix(in srgb, var(--blue) 45%, transparent);
+    }
+    .status {
+      grid-column: 1 / -1;
+      padding: 14px 18px;
+      border: 1px dashed var(--line);
+      border-radius: 18px;
+      color: var(--muted);
+      font: 14px/1.4 ui-sans-serif, system-ui, sans-serif;
+    }
+    code {
+      color: var(--red);
+      font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+      font-size: 0.92em;
+    }
+    @media (max-width: 820px) {
+      main { grid-template-columns: 1fr; }
+      header { padding-top: 38px; }
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>Clemont Experiment Viewers</h1>
+    <div class="subhead">
+      Start the local server, choose a prepared dataset or monitor result, and jump directly into the matching viewer.
+      The result viewers can load the monitor JSON, its input CSV, and the paired dataset JSON without extra file pickers when served over HTTP.
+    </div>
+  </header>
+
+  <main>
+    <div class="status" id="status">Scanning local result and dataset folders...</div>
+
+    <section class="card">
+      <div class="eyebrow">Dataset CSV</div>
+      <h2>Amazon Reviews</h2>
+      <p>Browse LLM sentiment outputs, probabilities, logprobs, and embedding neighbors.</p>
+      <label>
+        Prepared CSV
+        <select id="amazonCsv"></select>
+      </label>
+      <div class="actions">
+        <a class="button" id="openAmazonDataset" href="data/text/amazon/viewer.html">Open Dataset</a>
+        <a class="button ghost" href="data/text/amazon/viewer.html">Open Viewer Only</a>
+      </div>
+    </section>
+
+    <section class="card">
+      <div class="eyebrow">Dataset CSV</div>
+      <h2>ToxicChat</h2>
+      <p>Browse toxicity judge outputs with multiclass-aware probability summaries.</p>
+      <label>
+        Prepared CSV
+        <select id="toxicCsv"></select>
+      </label>
+      <div class="actions">
+        <a class="button" id="openToxicDataset" href="data/text/toxic-chat/viewer.html">Open Dataset</a>
+        <a class="button ghost" href="data/text/toxic-chat/viewer.html">Open Viewer Only</a>
+      </div>
+    </section>
+
+    <section class="card">
+      <div class="eyebrow">Monitor JSON</div>
+      <h2>Amazon Monitor</h2>
+      <p>Open a quantitative monitor run joined against the Amazon OpenRouter CSV.</p>
+      <label>
+        Monitor JSON
+        <select id="amazonJson"></select>
+      </label>
+      <div class="actions">
+        <a class="button secondary" id="openAmazonMonitor" href="results/quantitative/text_amazon/viewer.html">Open Result</a>
+        <a class="button ghost" href="results/quantitative/text_amazon/viewer.html">Open Viewer Only</a>
+      </div>
+    </section>
+
+    <section class="card">
+      <div class="eyebrow">Monitor JSON</div>
+      <h2>ToxicChat Monitor</h2>
+      <p>Open the robustness histogram viewer for a ToxicChat quantitative run.</p>
+      <label>
+        Monitor JSON
+        <select id="toxicJson"></select>
+      </label>
+      <div class="actions">
+        <a class="button secondary" id="openToxicMonitor" href="results/quantitative/text_toxic_chat/viewer.html">Open Result</a>
+        <a class="button ghost" href="results/quantitative/text_toxic_chat/viewer.html">Open Viewer Only</a>
+      </div>
+    </section>
+
+    <section class="card wide">
+      <div class="eyebrow">Other Viewers</div>
+      <h2>Generic Quantitative Views</h2>
+      <p>These older viewers still use their own loading controls.</p>
+      <div class="actions">
+        <a class="button ghost" href="results/quantitative/quant_table_viewer.html">Quant Table</a>
+        <a class="button ghost" href="results/quantitative/quant_high_ratio_viewer.html">High Ratio</a>
+      </div>
+    </section>
+  </main>
+
+  <script>
+    const CONFIG = {
+      amazonCsv: {
+        select: "amazonCsv",
+        open: "openAmazonDataset",
+        viewer: "data/text/amazon/viewer.html",
+        param: "csv",
+        dirs: ["data/text/amazon/"],
+        pattern: /^amazon-judge-.*\.csv$/,
+      },
+      toxicCsv: {
+        select: "toxicCsv",
+        open: "openToxicDataset",
+        viewer: "data/text/toxic-chat/viewer.html",
+        param: "csv",
+        dirs: ["data/text/toxic-chat/"],
+        pattern: /^toxic-chat-judge-.*\.csv$/,
+      },
+      amazonJson: {
+        select: "amazonJson",
+        open: "openAmazonMonitor",
+        viewer: "results/quantitative/text_amazon/viewer.html",
+        param: "json",
+        dirs: ["results/quantitative/text_amazon/"],
+        pattern: /^quant_run_.*\.json$/,
+        recursive: true,
+      },
+      toxicJson: {
+        select: "toxicJson",
+        open: "openToxicMonitor",
+        viewer: "results/quantitative/text_toxic_chat/viewer.html",
+        param: "json",
+        dirs: ["results/quantitative/text_toxic_chat/"],
+        pattern: /^quant_run_.*\.json$/,
+        recursive: true,
+      },
+    };
+
+    const status = document.getElementById("status");
+
+    init();
+
+    async function init() {
+      const results = await Promise.all(Object.values(CONFIG).map(populateCard));
+      const found = results.reduce((sum, count) => sum + count, 0);
+      status.innerHTML = found
+        ? `Found ${found} selectable local files. If a dropdown is empty, run the corresponding preparation or monitor script first.`
+        : `Could not discover files. Make sure you opened this through <code>./serve_viewers.sh</code>, not <code>file://</code>.`;
+    }
+
+    async function populateCard(config) {
+      const select = document.getElementById(config.select);
+      const open = document.getElementById(config.open);
+      const files = await discoverFiles(config.dirs, config.pattern, config.recursive ? 2 : 0);
+
+      select.innerHTML = "";
+      if (!files.length) {
+        select.innerHTML = `<option value="">No matching files found</option>`;
+        open.href = config.viewer;
+        return 0;
+      }
+
+      for (const file of files) {
+        const option = document.createElement("option");
+        option.value = file;
+        option.textContent = file;
+        select.appendChild(option);
+      }
+      const updateHref = () => {
+        const chosen = select.value;
+        open.href = chosen
+          ? `${config.viewer}?${config.param}=${encodeURIComponent(chosen)}`
+          : config.viewer;
+      };
+      select.addEventListener("change", updateHref);
+      updateHref();
+      return files.length;
+    }
+
+    async function discoverFiles(dirs, pattern, depth) {
+      const out = [];
+      const seenDirs = new Set();
+      for (const dir of dirs) {
+        await scanDir(dir, pattern, depth, out, seenDirs);
+      }
+      return [...new Set(out)].sort((a, b) => b.localeCompare(a));
+    }
+
+    async function scanDir(dir, pattern, depth, out, seenDirs) {
+      if (seenDirs.has(dir)) return;
+      seenDirs.add(dir);
+      let doc;
+      try {
+        const response = await fetch("/" + dir);
+        if (!response.ok) return;
+        doc = new DOMParser().parseFromString(await response.text(), "text/html");
+      } catch {
+        return;
+      }
+      for (const link of doc.querySelectorAll("a")) {
+        const href = link.getAttribute("href") || "";
+        if (!href || href === "../") continue;
+        const decoded = decodeURIComponent(href);
+        if (decoded.endsWith("/") && depth > 0) {
+          await scanDir(dir + decoded, pattern, depth - 1, out, seenDirs);
+          continue;
+        }
+        const filename = decoded.split("/").pop();
+        if (pattern.test(filename)) {
+          out.push(dir + filename);
+        }
+      }
+    }
+  </script>
+</body>
+</html>
