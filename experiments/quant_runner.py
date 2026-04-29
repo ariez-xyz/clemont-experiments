@@ -18,7 +18,7 @@ import sys
 from dataclasses import asdict, dataclass, fields
 from datetime import datetime
 from pathlib import Path
-from typing import Iterable, List, Optional, Sequence, Tuple, Literal
+from typing import Iterable, List, Mapping, Optional, Sequence, Tuple, Literal
 
 import numpy as np
 
@@ -116,6 +116,7 @@ class Config:
     ignore_columns: Tuple[str, ...] = ("row_id",)
     frnn_metric: Literal["linf", "l1", "l2", "tv", "cosine"] = "l2"
     out_metric: Literal["linf", "l1", "l2", "tv", "cosine"] = "tv"
+    output_transform: Literal["probs", "argmax-normalized"] = "probs"
     backend: Literal["kdtree", "faiss"] = "kdtree"
     display_stride: int = 1000
     frnn_threads: int = 4
@@ -141,7 +142,7 @@ class Config:
 
 def main() -> None:
     cfg = parse_args()
-    inputs, probs, fair_probs, input_names, prob_names = load_data(cfg)
+    inputs, probs, fair_probs, input_names, prob_names, raw_prob_names = load_data(cfg)
     num_points = inputs.shape[0]
     probs_run = probs
     if fair_probs is not None:
@@ -159,6 +160,13 @@ def main() -> None:
         else:
             blends = np.array([0.0])
         probs_run = (1.0 - blends[:, None]) * probs + blends[:, None] * fair_probs
+
+    monitor_outputs, output_names, output_transform_metadata = transform_outputs(
+        probs_run,
+        prob_names,
+        raw_prob_names,
+        cfg.output_transform,
+    )
 
     if cfg.backend == "kdtree":
         backend_factory = lambda: KdTreeFRNN(
@@ -189,7 +197,7 @@ def main() -> None:
         epsilon_monitor = Monitor(backend_factory)
 
     if cfg.static:
-        monitor.batch_add(zip(inputs, probs_run))
+        monitor.batch_add(zip(inputs, monitor_outputs))
 
     full_records: List[
         Tuple[
@@ -208,7 +216,7 @@ def main() -> None:
 
     print("=== Streaming quantitative monitoring demo ===")
     print(
-        f"Points={num_points}, input-dim={inputs.shape[1]}, probs-dim={probs.shape[1]}, "
+        f"Points={num_points}, input-dim={inputs.shape[1]}, output-dim={monitor_outputs.shape[1]}, "
         f"FRNN metric={cfg.frnn_metric}, output metric={cfg.out_metric}"
     )
     print(f"Every {cfg.display_stride}th observation (• denotes early stop via bound):")
@@ -221,9 +229,9 @@ def main() -> None:
     epsilon_timings: List[float] = []
 
     try:
-        for idx, (x_vec, p_vec) in enumerate(zip(inputs, probs_run)):
+        for idx, (x_vec, y_vec, p_vec) in enumerate(zip(inputs, monitor_outputs, probs_run)):
             start_time = time.time()
-            res = monitor.observe(x_vec, p_vec, dry_run=cfg.static)
+            res = monitor.observe(x_vec, y_vec, dry_run=cfg.static)
             iter_time = (time.time() - start_time) * 1000
 
             eps_res: Optional[ObservationResult] = None
@@ -235,7 +243,7 @@ def main() -> None:
                 total_epsilon_time += eps_time_ms
                 epsilon_timings.append(eps_time_ms)
 
-            full_records.append((res, x_vec, p_vec, iter_time, eps_res, eps_time_ms))
+            full_records.append((res, x_vec, y_vec, iter_time, eps_res, eps_time_ms))
             total_time += iter_time
 
             if idx in display_indices:
@@ -243,10 +251,10 @@ def main() -> None:
                     idx,
                     res,
                     x_vec,
-                    p_vec,
+                    y_vec,
                     inputs,
-                    probs_run,
-                    prob_names,
+                    monitor_outputs,
+                    output_names,
                     input_names,
                 )
 
@@ -311,8 +319,8 @@ def main() -> None:
             x_vec,
             p_vec,
             inputs,
-            probs_run,
-            prob_names,
+            monitor_outputs,
+            output_names,
             input_names,
         )
 
@@ -339,8 +347,8 @@ def main() -> None:
                 x_vec,
                 p_vec,
                 inputs,
-                probs_run,
-                prob_names,
+                monitor_outputs,
+                output_names,
                 input_names,
             )
     else:
@@ -348,11 +356,12 @@ def main() -> None:
 
     output_path = save_results_json(
         cfg,
-            inputs,
-            probs_run,
-            full_records,
-            input_names,
-            prob_names,
+        inputs,
+        monitor_outputs,
+        full_records,
+        input_names,
+        output_names,
+        output_transform_metadata,
         total_time,
         total_epsilon_time,
         len(epsilon_timings),
@@ -412,6 +421,20 @@ def parse_args() -> Config:
         choices=["linf", "l1", "l2", "tv", "cosine"],
         default=argparse.SUPPRESS,
         help=f"Output metric (default: {defaults.out_metric})",
+    )
+    parser.add_argument(
+        "--output-transform",
+        dest="output_transform",
+        choices=["probs", "argmax-normalized"],
+        default=argparse.SUPPRESS,
+        help=(
+            "Transform probability columns before quantitative monitoring. "
+            "'probs' uses the distribution directly; 'argmax-normalized' uses "
+            "the normalized ordinal argmax label as a one-dimensional output."
+            "For example, with 5 class probabilities, 'probs' treats this as 5D output,"
+            "argmax-normalized takes the argmax and maps it to [0,1], if class 3"
+            "is the most likely then output is taken to be 0.75"
+        ),
     )
     parser.add_argument("--display-stride", dest="display_stride", type=int, default=argparse.SUPPRESS,
                         help=f"Print every Nth observation (default: {defaults.display_stride})")
@@ -519,6 +542,12 @@ def parse_args() -> Config:
     if "pred_columns" in provided and "preds_csv" not in provided:
         cfg_values["preds_csv"] = None
 
+    if (
+        cfg_values.get("output_transform") == "argmax-normalized"
+        and "out_metric" not in provided
+    ):
+        cfg_values["out_metric"] = "linf"
+
     if cfg_values.get("interpolate_csv") is not None:
         if "preds_csv" not in provided:
             cfg_values["preds_csv"] = None
@@ -549,7 +578,7 @@ def parse_args() -> Config:
 
 def load_data(
     cfg: Config,
-) -> Tuple[np.ndarray, np.ndarray, Optional[np.ndarray], List[str], List[str]]:
+) -> Tuple[np.ndarray, np.ndarray, Optional[np.ndarray], List[str], List[str], List[str]]:
     """Load feature and probability data from one or two CSV files."""
 
     def _ensure_exists(path: Path) -> Path:
@@ -825,7 +854,72 @@ def load_data(
 
     prob_names = _clean_prob_names(prob_columns)
 
-    return input_array, probs_array, fair_probs_array, list(feature_columns), prob_names
+    return input_array, probs_array, fair_probs_array, list(feature_columns), prob_names, list(prob_columns)
+
+
+def transform_outputs(
+    probs: np.ndarray,
+    prob_names: Sequence[str],
+    raw_prob_names: Sequence[str],
+    output_transform: Literal["probs", "argmax-normalized"],
+) -> tuple[np.ndarray, list[str], dict[str, object]]:
+    """Transform probability outputs before they are passed to the monitor."""
+
+    if output_transform == "probs":
+        return probs, list(prob_names), {
+            "name": "probs",
+            "description": "raw probability vector",
+            "source_probability_columns": list(prob_names),
+            "raw_probability_columns": list(raw_prob_names),
+        }
+
+    if output_transform != "argmax-normalized":
+        raise ValueError(f"unsupported output_transform: {output_transform}")
+
+    labels = numeric_labels_from_probability_names(raw_prob_names)
+    if len(labels) != probs.shape[1]:
+        raise ValueError(
+            f"probability label count mismatch: {len(labels)} labels for {probs.shape[1]} columns"
+        )
+
+    label_min = min(labels)
+    label_max = max(labels)
+    label_range = label_max - label_min
+    if label_range <= 0:
+        raise ValueError("--output-transform argmax-normalized requires at least two distinct numeric labels")
+
+    argmax_positions = np.argmax(probs, axis=1)
+    argmax_labels = np.asarray([labels[pos] for pos in argmax_positions], dtype=np.float64)
+    normalized = ((argmax_labels - label_min) / label_range).reshape(-1, 1)
+    return normalized, ["normalized_argmax_label"], {
+        "name": "argmax-normalized",
+        "description": "argmax label normalized to [0, 1]",
+        "source_probability_columns": list(prob_names),
+        "raw_probability_columns": list(raw_prob_names),
+        "label_values": labels,
+        "label_min": label_min,
+        "label_max": label_max,
+        "output_columns": ["normalized_argmax_label"],
+    }
+
+
+def numeric_labels_from_probability_names(prob_names: Sequence[str]) -> list[float]:
+    labels: list[float] = []
+    for name in prob_names:
+        if name.startswith("prob_"):
+            raw = name.removeprefix("prob_")
+        elif name.startswith("p(") and name.endswith(")"):
+            raw = name[2:-1]
+        else:
+            raise ValueError(
+                f"Cannot infer numeric label from probability column '{name}'. "
+                "Expected names like prob_0, prob_1, ..."
+            )
+        try:
+            labels.append(float(raw))
+        except ValueError as exc:
+            raise ValueError(f"Probability label '{raw}' is not numeric") from exc
+    return labels
 
 
 def save_results_json(
@@ -837,6 +931,7 @@ def save_results_json(
     ],
     feature_names: Sequence[str],
     prob_names: Sequence[str],
+    output_transform_metadata: Mapping[str, object],
     total_time: float,
     total_epsilon_time: float,
     epsilon_count: int,
@@ -889,6 +984,8 @@ def save_results_json(
             "discount_factor": cfg.discount_factor,
             "frnn_metric": cfg.frnn_metric,
             "out_metric": cfg.out_metric,
+            "output_transform": cfg.output_transform,
+            "output_transform_metadata": dict(output_transform_metadata),
             "display_stride": cfg.display_stride,
             "backend": cfg.backend,
             "batchsize": cfg.batchsize,
@@ -908,7 +1005,10 @@ def save_results_json(
             "epsilon_monitor_avg_time_ms": (total_epsilon_time / epsilon_count) if epsilon_count else None,
             "epsilon_monitor_observations": epsilon_count if epsilon_count else None,
             "feature_columns": list(feature_names),
-            "probability_columns": list(prob_names),
+            "probability_columns": list(
+                output_transform_metadata.get("source_probability_columns", prob_names)
+            ),
+            "output_columns": list(prob_names),
             "ignore_columns": list(cfg.ignore_columns),
         },
         "records": serializable_records,
