@@ -152,6 +152,9 @@
       display: block;
       font-size: 1.25rem;
       letter-spacing: -0.04em;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
     }
 
     .stat span {
@@ -314,6 +317,73 @@
       padding-right: 8px;
     }
 
+    .distribution {
+      display: grid;
+      gap: 8px;
+      margin: 12px 0 14px;
+      padding: 12px;
+      border: 1px solid var(--line);
+      border-radius: 18px;
+      background: rgba(255, 255, 255, 0.42);
+    }
+
+    .distribution-title {
+      display: flex;
+      justify-content: space-between;
+      gap: 10px;
+      color: var(--muted);
+      font: 900 0.68rem/1 ui-sans-serif, "Avenir Next", "Segoe UI", sans-serif;
+      letter-spacing: 0.09em;
+      text-transform: uppercase;
+    }
+
+    .prob-row {
+      display: grid;
+      grid-template-columns: 52px 1fr 64px;
+      align-items: center;
+      gap: 10px;
+      color: var(--muted);
+      font: 800 0.72rem/1 ui-sans-serif, "Avenir Next", "Segoe UI", sans-serif;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+    }
+
+    .prob-track {
+      height: 12px;
+      overflow: hidden;
+      border-radius: 999px;
+      background: rgba(21, 35, 31, 0.09);
+    }
+
+    .prob-fill {
+      height: 100%;
+      width: calc(var(--p) * 100%);
+      min-width: 2px;
+      border-radius: inherit;
+      background: linear-gradient(90deg, var(--cool), var(--green));
+    }
+
+    .scalar-rail {
+      position: relative;
+      height: 18px;
+      border-radius: 999px;
+      background: linear-gradient(90deg, var(--hot), #cf9b3f, var(--green));
+      box-shadow: inset 0 0 0 1px rgba(21, 35, 31, 0.14);
+    }
+
+    .scalar-marker {
+      position: absolute;
+      top: 50%;
+      left: calc(var(--x) * 100%);
+      width: 16px;
+      height: 16px;
+      border: 3px solid #fffaf0;
+      border-radius: 50%;
+      background: var(--ink);
+      transform: translate(-50%, -50%);
+      box-shadow: 0 2px 8px rgba(21, 35, 31, 0.3);
+    }
+
     .progression {
       margin-top: 20px;
       border-top: 1px solid var(--line);
@@ -429,6 +499,7 @@
     const DEFAULT_JSON = "quant_run_20260426T101034.json";
     const state = {
       metadata: null,
+      datasetManifest: null,
       records: [],
       rows: [],
       joined: [],
@@ -497,6 +568,7 @@
 
     async function loadMonitorData(data) {
       state.metadata = data.metadata || {};
+      state.datasetManifest = null;
       state.records = normalizeRecords(data);
       state.rows = [];
       state.joined = [];
@@ -511,6 +583,7 @@
       try {
         const result = await fetchFirstCsvCandidate(inputPath);
         state.rows = parseCsv(result.text);
+        state.datasetManifest = await fetchPairedDatasetManifest(inputPath);
         setStatus(`Loaded monitor JSON and CSV from ${result.url}.`, "ok");
         joinData();
       } catch (error) {
@@ -556,9 +629,23 @@
       throw new Error(failures.join("; "));
     }
 
+    async function fetchPairedDatasetManifest(inputPath) {
+      const jsonPath = String(inputPath).replace(/\.csv(?:$|\?)/, ".json");
+      const candidates = csvUrlCandidates(jsonPath);
+      for (const candidate of candidates) {
+        try {
+          const response = await fetch(candidate);
+          if (response.ok) return await response.json();
+        } catch {
+          // Best-effort metadata enrichment. The viewer still works without it.
+        }
+      }
+      return null;
+    }
+
     function csvUrlCandidates(inputPath) {
       if (/^https?:\/\//.test(inputPath)) return [inputPath];
-      const normalized = inputPath.replaceAll("\\", "/");
+      const normalized = inputPath.replace(/\\/g, "/");
       const basename = normalized.split("/").pop();
       const candidates = [];
       if (normalized.startsWith("/")) {
@@ -581,13 +668,46 @@
         candidates.push(basename);
         candidates.push("../../../data/text/amazon/" + basename);
       }
+      candidates.push(...legacyCsvFallbacks(basename));
       return [...new Set(candidates)];
     }
 
+    function legacyCsvFallbacks(basename) {
+      const fallbacks = [];
+      const mapping = {
+        "amazon_sentiment_openrouter_20260424T150523Z.csv": "amazon-judge-gemma-4-26b-a4b-it_embed-pplx-embed-v1-0-6b_2class_n10000.csv",
+        "amazon_5class_sentiment_openrouter_20260428T094315Z.csv": "amazon-judge-gemma-4-26b-a4b-it_embed-pplx-embed-v1-0-6b_5class_n1000.csv",
+        "amazon_multiclass_sentiment_openrouter_20260428T085315Z.csv": "amazon-judge-gemma-4-26b-a4b-it_embed-pplx-embed-v1-0-6b_10class_n10.csv",
+        "amazon_multiclass_sentiment_openrouter_20260428T090006Z.csv": "amazon-judge-gemma-4-26b-a4b-it_embed-pplx-embed-v1-0-6b_10class_n1000.csv",
+      };
+      const replacement = mapping[basename];
+      if (replacement) {
+        fallbacks.push(
+          `/data/text/amazon/${replacement}`,
+          `../../../data/text/amazon/${replacement}`,
+        );
+      }
+      return fallbacks;
+    }
+
     function resourceUrl(path) {
-      if (/^https?:\/\//.test(path) || path.startsWith("/")) return path;
-      if (/^(data|results|experiments)\//.test(path)) return `/${path}`;
-      return path;
+      const normalized = String(path || "").replace(/\\/g, "/");
+      if (/^https?:\/\//.test(normalized)) return normalized;
+      for (const marker of ["/results/", "/data/", "/experiments/"]) {
+        const markerIndex = normalized.indexOf(marker);
+        if (markerIndex >= 0) return repoRootPrefix() + normalized.slice(markerIndex + 1);
+      }
+      if (/^(data|results|experiments)\//.test(normalized)) {
+        return repoRootPrefix() + normalized;
+      }
+      if (normalized.startsWith("/")) return normalized;
+      return normalized;
+    }
+
+    function repoRootPrefix() {
+      const parts = window.location.pathname.split("/").filter(Boolean);
+      const directoryDepth = Math.max(0, parts.length - 1);
+      return "../".repeat(directoryDepth);
     }
 
     function normalizeRecords(data) {
@@ -656,13 +776,12 @@
 
     function renderStats() {
       const ratios = state.joined.map(item => value(item.record.max_ratio)).filter(Number.isFinite);
-      const high = state.joined.filter(item => value(item.record.max_ratio) >= state.p90).length;
-      const flips = state.joined.filter(item => value(item.record.witness_out_distance) >= 0.9).length;
+      const models = modelSummary();
       stats.innerHTML = [
         stat("Points", state.joined.length),
         stat("Median", formatNum(percentile(ratios, 50))),
-        stat("P90", formatNum(state.p90)),
-        stat("High", high),
+        stat("Judge", models.judge),
+        stat("Embed", models.embed),
       ].join("");
     }
 
@@ -751,15 +870,13 @@
         <article class="review-card">
           <div class="mini-meta">${escapeHtml(title)} · #${escapeHtml(String(record.index))} · ${escapeHtml(row.example_id || "")}</div>
           <h3>${escapeHtml(row.review_title || "(untitled)")}</h3>
-          <div class="score-grid">
-            ${score("Answer", answerLabel(row))}
-            ${score("Expected", formatNum(expectedScore(row)))}
-            ${score("Top prob", formatNum(confidence(row)))}
-            ${score("Margin", formatNum(margin(row)))}
-            ${score("Rating", row.rating_value || row.rating || "n/a")}
-          </div>
-          ${labelDistribution(row)}
           <div class="review-text">${escapeHtml(row.review_text || "")}</div>
+          <div class="score-grid">
+            ${score("Sampled token", answerLabel(row))}
+            ${score("True label", ratingLabel(row))}
+          </div>
+          ${monitorOutputVisual(row, record)}
+          ${labelDistribution(row)}
         </article>
       `;
     }
@@ -857,20 +974,15 @@
     function answerLabel(row) {
       if (row.judge_error) return "error";
       const answer = String(row.judge_answer || "").trim();
-      const label = state.probLabels.includes(answer) ? answer : predictedLabel(row);
-      if (state.probLabels.length <= 2) return label === "1" ? "positive" : "negative";
-      return `score ${label}`;
+      if (state.probLabels.includes(answer)) return answer;
+      return predictedLabel(row);
     }
 
-    function confidence(row) {
-      return Math.max(...(state.probLabels.length ? state.probLabels : ["0", "1"]).map(label => probability(row, label)), 0);
-    }
-
-    function margin(row) {
-      const values = (state.probLabels.length ? state.probLabels : ["0", "1"])
-        .map(label => probability(row, label))
-        .sort((a, b) => b - a);
-      return (values[0] || 0) - (values[1] || 0);
+    function ratingLabel(row) {
+      const rating = Number(row.rating_value || row.rating);
+      if (!Number.isFinite(rating)) return "n/a";
+      const formatted = Number.isInteger(rating) ? String(rating) : formatNum(rating);
+      return `${formatted} ${rating === 1 ? "star" : "stars"}`;
     }
 
     function positiveThreshold() {
@@ -883,13 +995,79 @@
       return 2;
     }
 
+    function monitorOutputVisual(row, record) {
+      if (state.metadata && state.metadata.output_transform === "argmax-normalized") {
+        const normalized = normalizedArgmax(row);
+        return `
+          <div class="distribution">
+            <div class="distribution-title">
+              <span>Monitor output</span>
+              <span>normalized argmax ${formatNum(normalized)}</span>
+            </div>
+            <div class="scalar-rail"><div class="scalar-marker" style="--x:${clamp01(normalized)}"></div></div>
+          </div>
+        `;
+      }
+      return "";
+    }
+
     function labelDistribution(row) {
       const labels = state.probLabels.length ? state.probLabels : ["0", "1"];
+      const total = labels.reduce((sum, label) => sum + probability(row, label), 0);
       return `
-        <div class="score-grid">
-          ${labels.map(label => score(`prob_${label}`, formatNum(row[`prob_${label}`]))).join("")}
+        <div class="distribution">
+          <div class="distribution-title">
+            <span>${state.metadata && state.metadata.output_transform === "argmax-normalized" ? "CSV probabilities" : "Output probabilities"}</span>
+            <span>sum ${formatNum(total)}</span>
+          </div>
+          ${labels.map(label => {
+            const prob = clamp01(probability(row, label));
+            const active = label === predictedLabel(row) ? " *" : "";
+            return `
+              <div class="prob-row">
+                <span>${escapeHtml(label)}${active}</span>
+                <div class="prob-track"><div class="prob-fill" style="--p:${prob}"></div></div>
+                <span>${formatPercent(prob)}</span>
+              </div>
+            `;
+          }).join("")}
         </div>
       `;
+    }
+
+    function normalizedArgmax(row) {
+      const labels = state.probLabels.length ? state.probLabels : ["0", "1"];
+      const numeric = labels.map(Number).filter(Number.isFinite);
+      if (numeric.length < 2) return 0;
+      const label = Number(predictedLabel(row));
+      const min = Math.min(...numeric);
+      const max = Math.max(...numeric);
+      return max > min ? (label - min) / (max - min) : 0;
+    }
+
+    function modelSummary() {
+      const openrouter = state.datasetManifest && state.datasetManifest.openrouter || {};
+      return {
+        judge: compactModelName(openrouter.chat_model || state.metadata?.output_transform_metadata?.chat_model || "n/a"),
+        embed: compactModelName(openrouter.embedding_model || "n/a"),
+      };
+    }
+
+    function compactModelName(name) {
+      return String(name || "n/a").split("/").pop();
+    }
+
+    function clamp01(num) {
+      const value = Number(num);
+      if (!Number.isFinite(value)) return 0;
+      return Math.max(0, Math.min(1, value));
+    }
+
+    function formatPercent(input) {
+      const num = Number(input);
+      if (!Number.isFinite(num)) return "n/a";
+      if (num > 0 && num < 0.001) return "<0.1%";
+      return `${(num * 100).toFixed(num < 0.01 ? 2 : 1).replace(/\.?0+$/, "")}%`;
     }
 
     function percentile(values, p) {

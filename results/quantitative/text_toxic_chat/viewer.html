@@ -278,9 +278,37 @@
       margin-top: 8px;
       color: var(--ink);
       font: 0.92rem/1.45 ui-sans-serif, "Avenir Next", "Segoe UI", sans-serif;
-      max-height: 10rem;
+      max-height: 20rem;
       overflow: auto;
       white-space: pre-wrap;
+    }
+
+    .logprob-table {
+      width: 100%;
+      margin-top: 10px;
+      border-collapse: collapse;
+      color: var(--muted);
+      font: 0.72rem/1.25 ui-sans-serif, "Avenir Next", "Segoe UI", sans-serif;
+    }
+
+    .logprob-table th,
+    .logprob-table td {
+      border-top: 1px solid rgba(205, 191, 170, 0.82);
+      padding: 5px 4px;
+      text-align: right;
+      vertical-align: top;
+    }
+
+    .logprob-table th:first-child,
+    .logprob-table td:first-child {
+      text-align: left;
+    }
+
+    .logprob-table th {
+      color: var(--ink);
+      font-weight: 900;
+      text-transform: uppercase;
+      letter-spacing: 0.07em;
     }
 
     .mini {
@@ -697,6 +725,7 @@
             <span>expected ${formatNum(expectedScore(row))}</span>
           </div>
           <div class="text">${escapeHtml(row.user_input || "")}</div>
+          ${logprobTable(row)}
         </div>
       `;
     }
@@ -721,7 +750,7 @@
 
     function csvUrlCandidates(inputPath) {
       if (/^https?:\/\//.test(inputPath)) return [inputPath];
-      const normalized = String(inputPath).replaceAll("\\", "/");
+      const normalized = String(inputPath).replace(/\\/g, "/");
       const basename = normalized.split("/").pop();
       const candidates = [];
       if (normalized.startsWith("/")) {
@@ -744,13 +773,45 @@
         candidates.push(basename);
         candidates.push("../../../data/text/toxic-chat/" + basename);
       }
+      candidates.push(...legacyCsvFallbacks(basename));
       return [...new Set(candidates)];
     }
 
+    function legacyCsvFallbacks(basename) {
+      const fallbacks = [];
+      if (basename === "toxic_chat_toxicity_openrouter_20260426T155800Z.csv") {
+        fallbacks.push(
+          "/data/text/toxic-chat/toxic-chat-judge-gemma-4-26b-a4b-it_embed-pplx-embed-v1-0-6b_2class_n1000.csv",
+          "../../../data/text/toxic-chat/toxic-chat-judge-gemma-4-26b-a4b-it_embed-pplx-embed-v1-0-6b_2class_n1000.csv",
+        );
+      }
+      if (basename === "toxic_chat_5class_toxicity_openrouter_20260428T101736Z.csv") {
+        fallbacks.push(
+          "/data/text/toxic-chat/toxic-chat-judge-gemma-4-26b-a4b-it_embed-pplx-embed-v1-0-6b_5class_n2000.csv",
+          "../../../data/text/toxic-chat/toxic-chat-judge-gemma-4-26b-a4b-it_embed-pplx-embed-v1-0-6b_5class_n2000.csv",
+        );
+      }
+      return fallbacks;
+    }
+
     function resourceUrl(path) {
-      if (/^https?:\/\//.test(path) || path.startsWith("/")) return path;
-      if (/^(data|results|experiments)\//.test(path)) return `/${path}`;
-      return path;
+      const normalized = String(path || "").replace(/\\/g, "/");
+      if (/^https?:\/\//.test(normalized)) return normalized;
+      for (const marker of ["/results/", "/data/", "/experiments/"]) {
+        const markerIndex = normalized.indexOf(marker);
+        if (markerIndex >= 0) return repoRootPrefix() + normalized.slice(markerIndex + 1);
+      }
+      if (/^(data|results|experiments)\//.test(normalized)) {
+        return repoRootPrefix() + normalized;
+      }
+      if (normalized.startsWith("/")) return normalized;
+      return normalized;
+    }
+
+    function repoRootPrefix() {
+      const parts = window.location.pathname.split("/").filter(Boolean);
+      const directoryDepth = Math.max(0, parts.length - 1);
+      return "../".repeat(directoryDepth);
     }
 
     function parseCsv(text) {
@@ -846,6 +907,37 @@
     function probability(row, label) {
       const num = Number(row && row[`prob_${label}`]);
       return Number.isFinite(num) ? num : 0;
+    }
+
+    function logprob(row, label) {
+      const num = Number(row && row[`logprob_${label}`]);
+      return Number.isFinite(num) ? num : NaN;
+    }
+
+    function logprobTable(row) {
+      const labels = state.probLabels.length ? state.probLabels : ["0", "1"];
+      return `
+        <table class="logprob-table">
+          <thead>
+            <tr>
+              <th>Label</th>
+              <th>Prob</th>
+              <th>Logprob</th>
+              <th>Source</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${labels.map(label => `
+              <tr>
+                <td>${escapeHtml(label)}${label === predictedLabel(row) ? " *" : ""}</td>
+                <td>${formatNum(probability(row, label))}</td>
+                <td>${formatNum(logprob(row, label))}</td>
+                <td>${escapeHtml(row[`logprob_${label}_source`] || "n/a")}</td>
+              </tr>
+            `).join("")}
+          </tbody>
+        </table>
+      `;
     }
 
     function expectedScore(row) {

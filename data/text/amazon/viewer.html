@@ -568,9 +568,23 @@
     }
 
     function resourceUrl(path) {
-      if (/^https?:\/\//.test(path) || path.startsWith("/")) return path;
-      if (/^(data|results|experiments)\//.test(path)) return `/${path}`;
-      return path;
+      const normalized = String(path || "").replace(/\\/g, "/");
+      if (/^https?:\/\//.test(normalized)) return normalized;
+      for (const marker of ["/results/", "/data/", "/experiments/"]) {
+        const markerIndex = normalized.indexOf(marker);
+        if (markerIndex >= 0) return repoRootPrefix() + normalized.slice(markerIndex + 1);
+      }
+      if (/^(data|results|experiments)\//.test(normalized)) {
+        return repoRootPrefix() + normalized;
+      }
+      if (normalized.startsWith("/")) return normalized;
+      return normalized;
+    }
+
+    function repoRootPrefix() {
+      const parts = window.location.pathname.split("/").filter(Boolean);
+      const directoryDepth = Math.max(0, parts.length - 1);
+      return "../".repeat(directoryDepth);
     }
 
     function setRows(rows) {
