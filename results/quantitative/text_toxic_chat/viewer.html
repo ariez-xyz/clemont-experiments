@@ -67,7 +67,7 @@
 
     .controls {
       display: grid;
-      grid-template-columns: minmax(220px, 1fr) minmax(220px, 1fr) repeat(3, minmax(160px, 220px));
+      grid-template-columns: minmax(220px, 1fr) minmax(220px, 1fr) repeat(4, minmax(150px, 210px));
       gap: 12px;
       padding: 18px;
       align-items: end;
@@ -395,6 +395,18 @@
             <option value="48">48</option>
           </select>
         </label>
+        <label>
+          Min input distance
+          <select id="minInputDistanceSelect">
+            <option value="0">Include exact duplicates</option>
+            <option value="0.00000001">&ge; 1e-8</option>
+            <option value="0.000001">&ge; 1e-6</option>
+            <option value="0.00001">&ge; 1e-5</option>
+            <option value="0.0001" selected>&ge; 1e-4</option>
+            <option value="0.001">&ge; 1e-3</option>
+            <option value="0.01">&ge; 1e-2</option>
+          </select>
+        </label>
       </div>
       <div class="status" id="status"></div>
       <div class="stats" id="stats"></div>
@@ -438,6 +450,7 @@
     const maxKSlider = document.getElementById("maxKSlider");
     const maxKValue = document.getElementById("maxKValue");
     const binCount = document.getElementById("binCount");
+    const minInputDistanceSelect = document.getElementById("minInputDistanceSelect");
     const status = document.getElementById("status");
     const stats = document.getElementById("stats");
     const histogram = document.getElementById("histogram");
@@ -464,6 +477,7 @@
 
     disagreeFilter.addEventListener("change", render);
     binCount.addEventListener("change", render);
+    minInputDistanceSelect.addEventListener("change", render);
     maxKSlider.addEventListener("input", () => {
       maxKValue.textContent = maxKSlider.value === maxKSlider.max ? "all" : maxKSlider.value;
       render();
@@ -589,6 +603,7 @@
 
       state.filtered = state.joined.filter(item => {
         const isDisagree = disagrees(item.row);
+        if (!passesMinInputDistance(item.record)) return false;
         if (mode === "disagree" && !isDisagree) return false;
         if (mode === "agree" && isDisagree) return false;
         if (enforceK && finalK(item.record) > kLimit) return false;
@@ -866,6 +881,13 @@
     function score(record) {
       const value = Number(record.max_ratio);
       return Number.isFinite(value) ? value : NaN;
+    }
+
+    function passesMinInputDistance(record) {
+      const threshold = Number(minInputDistanceSelect.value || 0);
+      if (!threshold) return true;
+      const distance = Number(record.witness_in_distance);
+      return !Number.isFinite(distance) || distance >= threshold;
     }
 
     function finalK(record) {

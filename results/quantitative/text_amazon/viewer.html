@@ -136,7 +136,7 @@
 
     .stats {
       display: grid;
-      grid-template-columns: repeat(4, 1fr);
+      grid-template-columns: repeat(5, 1fr);
       gap: 8px;
       padding: 0 18px 18px;
     }
@@ -482,6 +482,20 @@
               <option value="index">Stream order</option>
             </select>
           </label>
+          <label>
+            Min input distance
+            <select id="minInputDistanceSelect">
+              <option value="0">Include exact duplicates</option>
+              <option value="0.00000001">&ge; 1e-8</option>
+              <option value="0.000001">&ge; 1e-6</option>
+              <option value="0.00001">&ge; 1e-5</option>
+              <option value="0.0001" selected>&ge; 1e-4</option>
+              <option value="0.001">&ge; 1e-3</option>
+              <option value="0.01">&ge; 1e-2</option>
+            </select>
+          </label>
+        </div>
+        <div class="control-grid">
           <button id="loadDefault">Load Monitor JSON</button>
         </div>
         <div class="load-status" id="loadStatus"></div>
@@ -516,6 +530,7 @@
     const searchInput = document.getElementById("searchInput");
     const filterSelect = document.getElementById("filterSelect");
     const sortSelect = document.getElementById("sortSelect");
+    const minInputDistanceSelect = document.getElementById("minInputDistanceSelect");
     const stats = document.getElementById("stats");
     const list = document.getElementById("list");
     const detail = document.getElementById("detail");
@@ -538,6 +553,7 @@
     searchInput.addEventListener("input", render);
     filterSelect.addEventListener("change", render);
     sortSelect.addEventListener("change", render);
+    minInputDistanceSelect.addEventListener("change", render);
 
     loadInitialFiles();
 
@@ -749,6 +765,7 @@
         const row = item.row;
         const record = item.record;
         const haystack = `${row.example_id} ${row.review_title} ${row.review_text}`.toLowerCase();
+        if (!passesMinInputDistance(record)) return false;
         if (query && !haystack.includes(query)) return false;
         if (filter === "high" && value(record.max_ratio) < state.p90) return false;
         if (filter === "flip" && value(record.witness_out_distance) < 0.9) return false;
@@ -779,6 +796,7 @@
       const models = modelSummary();
       stats.innerHTML = [
         stat("Points", state.joined.length),
+        stat("Shown", state.filtered.length),
         stat("Median", formatNum(percentile(ratios, 50))),
         stat("Judge", models.judge),
         stat("Embed", models.embed),
@@ -1083,6 +1101,13 @@
     function value(input, fallback = 0) {
       const num = Number(input);
       return Number.isFinite(num) ? num : fallback;
+    }
+
+    function passesMinInputDistance(record) {
+      const threshold = Number(minInputDistanceSelect.value || 0);
+      if (!threshold) return true;
+      const distance = Number(record.witness_in_distance);
+      return !Number.isFinite(distance) || distance >= threshold;
     }
 
     function formatNum(input) {
