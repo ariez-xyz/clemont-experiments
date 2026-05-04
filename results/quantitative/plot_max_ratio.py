@@ -50,11 +50,13 @@ def main() -> None:
     script_dir = Path(__file__).resolve().parent
     json_paths = resolve_json_paths(args.json_path, default_dir=script_dir)
 
+    shared_limits = _shared_axis_limits(json_paths, args.bins) if len(json_paths) > 1 else None
+
     for json_path in json_paths:
-        _plot_histogram(json_path, args.output, args.bins)
+        _plot_histogram(json_path, args.output, args.bins, shared_limits)
 
 
-def _plot_histogram(json_path: Path, output_path: Optional[Path], bins: int) -> None:
+def _load_positive_finite_ratios(json_path: Path) -> Optional[np.ndarray]:
     with json_path.open("r", encoding="utf-8") as fh:
         payload = json.load(fh)
 
@@ -62,14 +64,59 @@ def _plot_histogram(json_path: Path, output_path: Optional[Path], bins: int) -> 
     finite_mask = np.isfinite(ratios)
     ratios = ratios[finite_mask & (ratios > 0)]
     if ratios.size == 0:
+        return None
+    return ratios
+
+
+def _shared_axis_limits(
+    json_paths: list[Path],
+    bins: int,
+) -> Optional[tuple[tuple[float, float], tuple[float, float], np.ndarray]]:
+    ratios_by_path = [
+        ratios
+        for json_path in json_paths
+        if (ratios := _load_positive_finite_ratios(json_path)) is not None
+    ]
+    if not ratios_by_path:
+        return None
+
+    global_min = min(float(ratios.min()) for ratios in ratios_by_path)
+    global_max = max(float(ratios.max()) for ratios in ratios_by_path)
+    if global_min == global_max:
+        pad = abs(global_min) * 0.05 or 1.0
+        global_min -= pad
+        global_max += pad
+
+    bin_edges = np.linspace(global_min, global_max, bins)
+    max_count = max(int(np.histogram(ratios, bins=bin_edges)[0].max()) for ratios in ratios_by_path)
+    y_top = max(1.0, max_count * 1.15)
+    return (global_min, global_max), (0.8, y_top), bin_edges
+
+
+def _plot_histogram(
+    json_path: Path,
+    output_path: Optional[Path],
+    bins: int,
+    shared_limits: Optional[tuple[tuple[float, float], tuple[float, float], np.ndarray]] = None,
+) -> None:
+    with json_path.open("r", encoding="utf-8") as fh:
+        payload = json.load(fh)
+
+    ratios = _load_positive_finite_ratios(json_path)
+    if ratios is None:
         print(f"No positive finite ratios available to plot for {json_path}")
         return
 
-    bin_edges = np.logspace(np.log10(ratios.min()), np.log10(ratios.max()), bins)
+    if shared_limits is None:
+        xlim = None
+        ylim = None
+        bin_edges = np.linspace(ratios.min(), ratios.max(), bins)
+    else:
+        xlim, ylim, bin_edges = shared_limits
 
     plt.figure(figsize=DEFAULT_FIGSIZE)
     plt.hist(ratios, bins=bin_edges, edgecolor="black", alpha=0.75)
-    plt.xscale("log")
+    #plt.xscale("log")
     plt.yscale("log")
     plt.xlabel("Max ratio")
     plt.ylabel("Frequency")
@@ -100,7 +147,12 @@ def _plot_histogram(json_path: Path, output_path: Optional[Path], bins: int) -> 
     plt.title(title)
     plt.grid(True, alpha=0.3)
     plt.tight_layout()
-    plt.ylim(top=10000)
+    if xlim is not None:
+        plt.xlim(*xlim)
+    if ylim is not None:
+        plt.ylim(*ylim)
+    else:
+        plt.ylim(top=10000)
 #    plt.xlim(left=10e-5, right=10e1)
 
     final_output_path = output_path or json_path.with_name(json_path.stem + "_ratios.png")
