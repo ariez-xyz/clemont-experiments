@@ -141,6 +141,10 @@ def main() -> None:
         )
         for _, row in sampled.iterrows()
     ]
+    embedding_texts = [
+        build_embedding_text(row, max_chars=args.max_review_chars)
+        for _, row in sampled.iterrows()
+    ]
 
     client = OpenRouterClient(
         temperature=args.temperature,
@@ -155,6 +159,12 @@ def main() -> None:
         sample_size=sample_size,
     )
 
+    print(f"Embedding {len(embedding_texts)} Amazon reviews with {client.embedding_model}...")
+    embeddings = client.embed_texts(
+        embedding_texts,
+        batch_size=args.embedding_batch_size,
+    )
+
     print(f"Judging {len(prompts)} Amazon reviews with {client.chat_model}...")
     judge_results = client.judge_prompts(
         prompts,
@@ -163,9 +173,6 @@ def main() -> None:
             "You are a sentiment classifier. Follow the requested output format exactly."
         ),
     )
-
-    print(f"Embedding {len(prompts)} prompts with {client.embedding_model}...")
-    embeddings = client.embed_texts(prompts, batch_size=args.embedding_batch_size)
 
     frame = build_output_frame(sampled, prompts, judge_results, embeddings)
     metadata: dict[str, Any] = {
@@ -190,7 +197,7 @@ def main() -> None:
             "missing label logprobs are filled with the minimum returned "
             "first-token top_logprobs value before label probabilities are normalized"
         ),
-        "prompt_embedding": "exact_prompt_sent_to_judge",
+        "embedding_text": "canonical_review_text",
     }
     output_json, output_csv = client.write_dataset_output(
         json_path=output_json,
@@ -230,10 +237,7 @@ def parse_rating(value: object) -> float | None:
 
 
 def build_sentiment_prompt(row: pd.Series, *, max_chars: int, class_count: int) -> str:
-    title = clean_text(row.get("Review Title", ""))
-    text = clean_text(row.get("Review Text", ""))
-    review = f"Title: {title}\n\nReview: {text}" if title else f"Review: {text}"
-    review = review[:max_chars]
+    review = build_embedding_text(row, max_chars=max_chars)
     if class_count == 10:
         return (
             "Analyze the sentiment of this Amazon customer review.\n\n"
@@ -262,6 +266,13 @@ def build_sentiment_prompt(row: pd.Series, *, max_chars: int, class_count: int) 
         f"{review}\n\n"
         "Answer with 0 or 1 only."
     )
+
+
+def build_embedding_text(row: pd.Series, *, max_chars: int) -> str:
+    title = clean_text(row.get("Review Title", ""))
+    text = clean_text(row.get("Review Text", ""))
+    review = f"Title: {title}\n\nReview: {text}" if title else f"Review: {text}"
+    return review[:max_chars]
 
 
 def clean_text(value: object) -> str:
