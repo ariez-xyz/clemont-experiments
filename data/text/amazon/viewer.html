@@ -464,7 +464,7 @@
     <h1>Amazon Review Judge Results</h1>
     <div class="subhead">
       Browse monitor-ready LLM judge outputs without rendering the embedding dimensions. Default data:
-      <code>amazon-judge-gemma-4-26b-a4b-it_embed-pplx-embed-v1-0-6b_2class_n10000.csv</code>
+      <code>amazon-judge-gemma-4-26b-a4b-it_embed-pplx-embed-v1-0-6b_temp-t0_2class_n10000.csv</code>
     </div>
   </header>
 
@@ -521,7 +521,7 @@
   </main>
 
   <script>
-    const DEFAULT_CSV = "amazon-judge-gemma-4-26b-a4b-it_embed-pplx-embed-v1-0-6b_2class_n10000.csv";
+    const DEFAULT_CSV = "amazon-judge-gemma-4-26b-a4b-it_embed-pplx-embed-v1-0-6b_temp-t0_2class_n10000.csv";
     const state = { rows: [], filtered: [], selected: null, probLabels: [] };
 
     const fileInput = document.getElementById("fileInput");

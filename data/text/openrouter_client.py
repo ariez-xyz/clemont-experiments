@@ -31,7 +31,7 @@ DEFAULT_CHAT_PROVIDER = {
     "require_parameters": True,
 }
 DEFAULT_REASONING = {"effort": "none"}
-DEFAULT_TEMPERATURE = 1.0
+DEFAULT_TEMPERATURE = 0.0
 DEFAULT_TOP_P = 0.95
 DEFAULT_TOP_K = 64
 DEFAULT_MAX_TOKENS = 1
@@ -335,6 +335,7 @@ class OpenRouterClient:
             f"{output_prefix.name}"
             f"judge-{model_name_slug(self.chat_model)}_"
             f"embed-{model_name_slug(self.embedding_model)}_"
+            f"temp-{temperature_slug(self.temperature)}_"
             f"{class_count}class_"
             f"n{sample_size}"
         )
@@ -577,6 +578,12 @@ def model_name_slug(model: str) -> str:
     short = model.split("/", 1)[-1]
     slug = re.sub(r"[^A-Za-z0-9]+", "-", short).strip("-").lower()
     return slug or "model"
+
+
+def temperature_slug(temperature: float) -> str:
+    """Return a compact filename-safe temperature slug."""
+
+    return "t" + ("%g" % float(temperature)).replace("-", "m").replace(".", "p")
 
 
 def candidate_env_paths(explicit_path: Optional[Path] = None) -> list[Path]:

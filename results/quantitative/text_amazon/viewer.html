@@ -675,10 +675,10 @@
     function legacyCsvFallbacks(basename) {
       const fallbacks = [];
       const mapping = {
-        "amazon_sentiment_openrouter_20260424T150523Z.csv": "amazon-judge-gemma-4-26b-a4b-it_embed-pplx-embed-v1-0-6b_2class_n10000.csv",
-        "amazon_5class_sentiment_openrouter_20260428T094315Z.csv": "amazon-judge-gemma-4-26b-a4b-it_embed-pplx-embed-v1-0-6b_5class_n1000.csv",
-        "amazon_multiclass_sentiment_openrouter_20260428T085315Z.csv": "amazon-judge-gemma-4-26b-a4b-it_embed-pplx-embed-v1-0-6b_10class_n10.csv",
-        "amazon_multiclass_sentiment_openrouter_20260428T090006Z.csv": "amazon-judge-gemma-4-26b-a4b-it_embed-pplx-embed-v1-0-6b_10class_n1000.csv",
+        "amazon_sentiment_openrouter_20260424T150523Z.csv": "amazon-judge-gemma-4-26b-a4b-it_embed-pplx-embed-v1-0-6b_temp-t0_2class_n10000.csv",
+        "amazon_5class_sentiment_openrouter_20260428T094315Z.csv": "amazon-judge-gemma-4-26b-a4b-it_embed-pplx-embed-v1-0-6b_temp-t0_5class_n1000.csv",
+        "amazon_multiclass_sentiment_openrouter_20260428T085315Z.csv": "amazon-judge-gemma-4-26b-a4b-it_embed-pplx-embed-v1-0-6b_temp-t0_10class_n10.csv",
+        "amazon_multiclass_sentiment_openrouter_20260428T090006Z.csv": "amazon-judge-gemma-4-26b-a4b-it_embed-pplx-embed-v1-0-6b_temp-t0_10class_n1000.csv",
       };
       const replacement = mapping[basename];
       if (replacement) {

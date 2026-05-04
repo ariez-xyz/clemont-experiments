@@ -4,7 +4,7 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 
-INPUT_CSV="$PROJECT_ROOT/data/text/amazon/amazon-judge-gemma-4-26b-a4b-it_embed-pplx-embed-v1-0-6b_10class_n1000.csv"
+INPUT_CSV="$PROJECT_ROOT/data/text/amazon/amazon-judge-gemma-4-26b-a4b-it_embed-pplx-embed-v1-0-6b_temp-t0_10class_n1000.csv"
 RESULTS_DIR="$PROJECT_ROOT/results/quantitative/text_amazon/10class_probs"
 
 if [[ ! -f "$INPUT_CSV" ]]; then
