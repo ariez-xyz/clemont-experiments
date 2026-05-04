@@ -1,5 +1,6 @@
 data_store
 *.json
+*.pdf
 *.png
 certifair/*/*.json
 certifair/*/*.log
