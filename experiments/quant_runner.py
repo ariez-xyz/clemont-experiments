@@ -1015,9 +1015,21 @@ def save_results_json(
     }
 
     with output_path.open("w", encoding="utf-8") as fh:
-        json.dump(payload, fh, indent=2)
+        json.dump(_json_finite(payload), fh, indent=2, allow_nan=False)
 
     return output_path
+
+
+def _json_finite(value):
+    """Convert non-finite floats to null so browser JSON.parse can read outputs."""
+
+    if isinstance(value, float):
+        return value if math.isfinite(value) else None
+    if isinstance(value, dict):
+        return {key: _json_finite(item) for key, item in value.items()}
+    if isinstance(value, (list, tuple)):
+        return [_json_finite(item) for item in value]
+    return value
 
 
 def _print_observation(
