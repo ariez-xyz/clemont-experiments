@@ -43,6 +43,43 @@ The final command should print output close to this:
 
 The quantitative monitor has its own runner script `experiments/quant_runner.py` that saves runs to `results/quantitative`, which contains scripts to generate various plots.
 
+### Text LLM judge experiments
+
+The text experiments are reproducible through fixed scripts. The preparation
+scripts generate deterministic monitor-ready CSV/JSON pairs whose filenames
+encode the judge model, embedding model, temperature, class count, and sample
+size. The monitor scripts in `experiments/` hardcode those exact filenames.
+
+```bash
+# STEP 1: prepare OpenRouter judge outputs and embeddings
+data/text/amazon/prepare.sh
+data/text/toxic-chat/prepare.sh
+
+# These generate the CSVs expected by the 4b text monitor experiments:
+# data/text/amazon/amazon-judge-gemma-4-26b-a4b-it_embed-pplx-embed-v1-4b_temp-t0_5class_n2000.csv
+# data/text/toxic-chat/toxic-chat-judge-gemma-4-26b-a4b-it_embed-pplx-embed-v1-4b_temp-t0_5class_n2000.csv
+
+# STEP 2: run the monitor experiments
+experiments/run_quant_text_amazon_5class_4b_probs.sh
+experiments/run_quant_text_amazon_5class_4b_argmax.sh
+experiments/run_quant_text_toxic_chat_5class_4b_probs.sh
+experiments/run_quant_text_toxic_chat_5class_4b_argmax.sh
+
+# STEP 3: browse results
+./serve_viewers.sh
+```
+
+Each 4b monitor script writes a `quant_run_*.json` under
+`results/quantitative/text_*/*` and then calls
+`results/quantitative/report_text_monitor.py` to generate a human-readable PDF
+report for the same run. The viewer landing page served by `serve_viewers.sh`
+links directly to dataset viewers and monitor result viewers.
+
+OpenRouter credentials are read from `.env` via `OPENROUTER_API_KEY`. The
+OpenRouter client defaults are centralized in `data/text/openrouter_client.py`;
+the current text experiments use temperature `0.0` for reproducible logprob
+outputs.
+
 
 ## Experimental procedure
 
