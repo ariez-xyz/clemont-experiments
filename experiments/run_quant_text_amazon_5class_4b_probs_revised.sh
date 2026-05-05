@@ -3,24 +3,13 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
-DATA_DIR="$PROJECT_ROOT/data/text/amazon"
 RESULTS_DIR="$PROJECT_ROOT/results/quantitative/text_amazon/5class_4b_probs_revised"
+INPUT_CSV="$PROJECT_ROOT/data/text/amazon/amazon-judge-gemma-4-26b-a4b-it_embed-pplx-embed-v1-4b_temp-t0_5class_n10000_witness_revised_all.csv"
 
-INPUT_CSV="$(
-  python - "$DATA_DIR" <<'PY'
-from pathlib import Path
-import sys
-
-root = Path(sys.argv[1])
-paths = list(root.glob("amazon-judge-*_5class_*_witness_revised_*.csv"))
-if not paths:
-    raise SystemExit(1)
-print(max(paths, key=lambda path: path.stat().st_mtime))
-PY
-)" || {
-  echo "No revised Amazon CSV found under $DATA_DIR" >&2
+if [[ ! -f "$INPUT_CSV" ]]; then
+  echo "Input CSV not found: $INPUT_CSV" >&2
   exit 1
-}
+fi
 
 mkdir -p "$RESULTS_DIR"
 
@@ -72,4 +61,6 @@ if [[ -z "$REPORT_JSON" ]]; then
 fi
 
 echo "[report] generating PDF report for $REPORT_JSON"
-python "$PROJECT_ROOT/results/quantitative/report_text_monitor.py" "$REPORT_JSON" --top-k 10
+if ! python "$PROJECT_ROOT/results/quantitative/report_text_monitor.py" "$REPORT_JSON" --top-k 10; then
+  echo "[report] warning: PDF report generation failed; monitor JSON was saved to $REPORT_JSON" >&2
+fi

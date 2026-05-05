@@ -317,7 +317,7 @@
 
     .dist-head, .dist-row {
       display: grid;
-      grid-template-columns: 68px minmax(90px, 1fr) minmax(90px, 1fr) 90px;
+      grid-template-columns: var(--dist-cols, 68px minmax(90px, 1fr) minmax(90px, 1fr));
       gap: 10px;
       align-items: center;
       font-family: ui-sans-serif, "Avenir Next", "Segoe UI", sans-serif;
@@ -989,14 +989,18 @@
     function labelDistribution(row) {
       const labels = state.probLabels.length ? state.probLabels : ["0", "1"];
       const maxProb = Math.max(...labels.map(label => probability(row, label)), 1e-12);
+      const hasBaseline = hasBaselineProbabilities(row, labels);
+      const distCols = hasBaseline
+        ? "68px minmax(90px, 1fr) minmax(90px, 1fr) minmax(90px, 1fr)"
+        : "68px minmax(90px, 1fr) minmax(90px, 1fr)";
       return `
-        <section class="distribution">
+        <section class="distribution" style="--dist-cols:${distCols}">
           <h3>Label Distribution</h3>
           <div class="dist-head">
             <span>label</span>
-            <span>probability</span>
-            <span>logprob</span>
-            <span>source</span>
+            ${hasBaseline ? "<span>pre-revision</span>" : ""}
+            <span>current</span>
+            <span>bar</span>
           </div>
           ${labels.map(label => distributionRow(row, label, maxProb)).join("")}
         </section>
@@ -1005,20 +1009,22 @@
 
     function distributionRow(row, label, maxProb) {
       const prob = probability(row, label);
-      const logprob = numberOrNaN(row[`logprob_${label}`]);
-      const source = compactSource(row[`logprob_${label}_source`]);
-      const sourceClass = source === "inferred" ? " inferred" : "";
+      const labels = state.probLabels.length ? state.probLabels : ["0", "1"];
+      const hasBaseline = hasBaselineProbabilities(row, labels);
       return `
         <div class="dist-row">
           <div class="dist-label">${escapeHtml(labelLabel(label))}</div>
+          ${hasBaseline ? `<div class="dist-logprob">${formatProb(row[`baseline_prob_${label}`])}</div>` : ""}
+          <div class="dist-logprob"><strong>${formatProb(prob)}</strong></div>
           <div>
-            <div class="dist-logprob"><strong>${formatNum(prob)}</strong></div>
             <div class="dist-bar"><div style="width:${Math.max(1, Math.min(100, (prob / maxProb) * 100))}%"></div></div>
           </div>
-          <div class="dist-logprob">${formatNum(logprob)}</div>
-          <div class="source-pill${sourceClass}">${escapeHtml(source)}</div>
         </div>
       `;
+    }
+
+    function hasBaselineProbabilities(row, labels) {
+      return labels.some(label => row[`baseline_prob_${label}`] !== undefined && row[`baseline_prob_${label}`] !== "");
     }
 
     function labelLabel(label) {
@@ -1043,8 +1049,12 @@
     function formatNum(value) {
       const num = Number(value);
       if (!Number.isFinite(num)) return "n/a";
-      if (Math.abs(num) >= 100 || Math.abs(num) < 0.001 && num !== 0) return num.toExponential(2);
-      return num.toFixed(4).replace(/\.?0+$/, "");
+      return num.toFixed(4);
+    }
+
+    function formatProb(value) {
+      const num = Number(value);
+      return Number.isFinite(num) ? num.toFixed(4) : "n/a";
     }
 
     function parseJsonArray(value) {
