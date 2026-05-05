@@ -45,7 +45,6 @@ python "$SCRIPT_DIR/quant_runner.py" \
   --preds-csv none \
   --input-cols "$INPUT_COLS" \
   --pred-cols "$PRED_COLS" \
-  --ignore-cols "row_id,example_id,source_row,prompt_hash,rating,rating_value,country,review_date,review_title,review_text,judge_answer,first_token,first_token_logprob,top_logprobs_json,label_logprob_floor,judge_finish_reason,judge_model_returned,judge_response_id,judge_error" \
   --results-dir "$RESULTS_DIR" \
   --frnn-metric cosine \
   --out-metric tv \
