@@ -281,6 +281,30 @@
       letter-spacing: -0.04em;
     }
 
+    .prompt-footnote {
+      margin: 12px 0 4px;
+      border-top: 1px dashed var(--line);
+      padding-top: 10px;
+      color: var(--muted);
+      font: 0.74rem/1.45 ui-sans-serif, "Avenir Next", "Segoe UI", sans-serif;
+    }
+
+    .prompt-footnote summary {
+      cursor: pointer;
+      font-weight: 900;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+    }
+
+    .prompt-footnote pre {
+      margin: 8px 0 0;
+      max-height: 18rem;
+      overflow: auto;
+      white-space: pre-wrap;
+      overflow-wrap: anywhere;
+      font: 0.74rem/1.45 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    }
+
     .pair {
       display: grid;
       grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
@@ -895,12 +919,28 @@
           </div>
           ${monitorOutputVisual(row, record)}
           ${labelDistribution(row)}
+          ${promptFootnotes(row)}
         </article>
       `;
     }
 
     function score(label, content) {
       return `<div class="score-card"><span>${escapeHtml(label)}</span><strong>${escapeHtml(String(content))}</strong></div>`;
+    }
+
+    function promptFootnotes(row) {
+      const prompts = [];
+      if (row.prompt) prompts.push(["Judge prompt", row.prompt]);
+      if (row.revision_prompt) prompts.push(["Revision prompt", row.revision_prompt]);
+      if (!prompts.length) return "";
+      return `<div class="prompt-footnote">${
+        prompts.map(([label, text]) => `
+          <details>
+            <summary>${escapeHtml(label)}</summary>
+            <pre>${escapeHtml(text)}</pre>
+          </details>
+        `).join("")
+      }</div>`;
     }
 
     function progressionRows(record) {

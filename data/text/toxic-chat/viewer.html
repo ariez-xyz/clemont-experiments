@@ -283,6 +283,28 @@
       letter-spacing: -0.04em;
     }
 
+    .prompt-footnote {
+      margin: 12px 0 18px;
+      border-top: 1px dashed var(--line);
+      padding-top: 10px;
+      color: var(--muted);
+      font: 0.76rem/1.45 ui-sans-serif, "Avenir Next", "Segoe UI", sans-serif;
+    }
+
+    .prompt-footnote summary {
+      cursor: pointer;
+      font-weight: 800;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+    }
+
+    .prompt-footnote pre {
+      margin: 8px 0 0;
+      white-space: pre-wrap;
+      overflow-wrap: anywhere;
+      font: 0.76rem/1.45 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    }
+
     .input-text {
       margin-top: 18px;
       border-top: 1px solid var(--line);
@@ -640,6 +662,7 @@
         </div>
 
         <div class="input-text">${escapeHtml(row.user_input || "")}</div>
+        ${promptFootnotes(row)}
 
         <section class="neighbors">
           ${neighborGroup("Most Similar By Embedding", neighbors.similar)}
@@ -671,6 +694,21 @@
 
     function score(label, value) {
       return `<div class="score-card"><span>${escapeHtml(label)}</span><strong>${escapeHtml(String(value))}</strong></div>`;
+    }
+
+    function promptFootnotes(row) {
+      const prompts = [];
+      if (row.prompt) prompts.push(["Judge prompt", row.prompt]);
+      if (row.revision_prompt) prompts.push(["Revision prompt", row.revision_prompt]);
+      if (!prompts.length) return "";
+      return `<div class="prompt-footnote">${
+        prompts.map(([label, text]) => `
+          <details>
+            <summary>${escapeHtml(label)}</summary>
+            <pre>${escapeHtml(text)}</pre>
+          </details>
+        `).join("")
+      }</div>`;
     }
 
     function tokenRow(item, maxLogprob) {

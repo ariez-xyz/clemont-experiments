@@ -283,6 +283,30 @@
       white-space: pre-wrap;
     }
 
+    .prompt-footnote {
+      margin: 12px 0 4px;
+      border-top: 1px dashed var(--line);
+      padding-top: 10px;
+      color: var(--muted);
+      font: 0.74rem/1.45 ui-sans-serif, "Avenir Next", "Segoe UI", sans-serif;
+    }
+
+    .prompt-footnote summary {
+      cursor: pointer;
+      font-weight: 900;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+    }
+
+    .prompt-footnote pre {
+      margin: 8px 0 0;
+      max-height: 18rem;
+      overflow: auto;
+      white-space: pre-wrap;
+      overflow-wrap: anywhere;
+      font: 0.74rem/1.45 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    }
+
     .logprob-table {
       width: 100%;
       margin-top: 10px;
@@ -740,9 +764,25 @@
             <span>expected ${formatNum(expectedScore(row))}</span>
           </div>
           <div class="text">${escapeHtml(row.user_input || "")}</div>
+          ${promptFootnotes(row)}
           ${logprobTable(row)}
         </div>
       `;
+    }
+
+    function promptFootnotes(row) {
+      const prompts = [];
+      if (row.prompt) prompts.push(["Judge prompt", row.prompt]);
+      if (row.revision_prompt) prompts.push(["Revision prompt", row.revision_prompt]);
+      if (!prompts.length) return "";
+      return `<div class="prompt-footnote">${
+        prompts.map(([label, text]) => `
+          <details>
+            <summary>${escapeHtml(label)}</summary>
+            <pre>${escapeHtml(text)}</pre>
+          </details>
+        `).join("")
+      }</div>`;
     }
 
     async function fetchFirstCsvCandidate(inputPath) {

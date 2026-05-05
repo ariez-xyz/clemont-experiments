@@ -300,6 +300,7 @@ def build_output_frame(
         row: dict[str, Any] = {
             "example_id": f"amazon-{int(source['source_row'])}",
             "source_row": int(source["source_row"]),
+            "prompt": prompt,
             "prompt_hash": hashlib.sha256(prompt.encode("utf-8")).hexdigest(),
             "rating": source.get("Rating"),
             "rating_value": source.get("rating_value"),

@@ -324,6 +324,7 @@ def build_output_frame(
             "example_id": f"toxic-chat-{int(source['source_row'])}",
             "source_row": int(source["source_row"]),
             "conv_id": source.get("conv_id"),
+            "prompt": prompt,
             "prompt_hash": hashlib.sha256(prompt.encode("utf-8")).hexdigest(),
             "toxicity_label": int(source["toxicity"]),
             "jailbreaking_label": int(source["jailbreaking"]),
