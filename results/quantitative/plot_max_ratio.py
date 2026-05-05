@@ -83,11 +83,10 @@ def _shared_axis_limits(
     global_min = min(float(ratios.min()) for ratios in ratios_by_path)
     global_max = max(float(ratios.max()) for ratios in ratios_by_path)
     if global_min == global_max:
-        pad = abs(global_min) * 0.05 or 1.0
-        global_min -= pad
-        global_max += pad
+        global_min /= 1.05
+        global_max *= 1.05
 
-    bin_edges = np.linspace(global_min, global_max, bins)
+    bin_edges = _log_bins(global_min, global_max, bins)
     max_count = max(int(np.histogram(ratios, bins=bin_edges)[0].max()) for ratios in ratios_by_path)
     y_top = max(1.0, max_count * 1.15)
     return (global_min, global_max), (0.8, y_top), bin_edges
@@ -110,13 +109,18 @@ def _plot_histogram(
     if shared_limits is None:
         xlim = None
         ylim = None
-        bin_edges = np.linspace(ratios.min(), ratios.max(), bins)
+        min_ratio = float(ratios.min())
+        max_ratio = float(ratios.max())
+        if min_ratio == max_ratio:
+            min_ratio /= 1.05
+            max_ratio *= 1.05
+        bin_edges = _log_bins(min_ratio, max_ratio, bins)
     else:
         xlim, ylim, bin_edges = shared_limits
 
     plt.figure(figsize=DEFAULT_FIGSIZE)
     plt.hist(ratios, bins=bin_edges, edgecolor="black", alpha=0.75)
-    #plt.xscale("log")
+    plt.xscale("log")
     plt.yscale("log")
     plt.xlabel("Max ratio")
     plt.ylabel("Frequency")
@@ -159,6 +163,15 @@ def _plot_histogram(
     plt.savefig(final_output_path, dpi=DEFAULT_DPI, bbox_inches="tight")
     print(f"Saved ratio histogram to {final_output_path}")
     plt.close()
+
+
+def _log_bins(min_ratio: float, max_ratio: float, bins: int) -> np.ndarray:
+    """Return positive logarithmic bin edges for max-ratio histograms."""
+
+    if min_ratio <= 0 or max_ratio <= 0:
+        raise ValueError("log-scaled max-ratio histograms require positive ratios")
+    edge_count = max(2, int(bins))
+    return np.logspace(np.log10(min_ratio), np.log10(max_ratio), edge_count)
 
 
 if __name__ == "__main__":
