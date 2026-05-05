@@ -1014,8 +1014,8 @@
         .sort((a, b) => Number(a) - Number(b));
     }
 
-    function probability(row, label) {
-      const num = Number(row && row[`prob_${label}`]);
+    function probability(row, label, prefix = "prob_") {
+      const num = Number(row && row[`${prefix}${label}`]);
       return Number.isFinite(num) ? num : 0;
     }
 
@@ -1072,25 +1072,38 @@
     function labelDistribution(row) {
       const labels = state.probLabels.length ? state.probLabels : ["0", "1"];
       const total = labels.reduce((sum, label) => sum + probability(row, label), 0);
+      const hasBaseline = hasBaselineProbabilities(row, labels);
       return `
         <div class="distribution">
           <div class="distribution-title">
             <span>${state.metadata && state.metadata.output_transform === "argmax-normalized" ? "CSV probabilities" : "Output probabilities"}</span>
             <span>sum ${formatNum(total)}</span>
           </div>
+          ${hasBaseline ? `
+            <div class="prob-row">
+              <span>label</span>
+              <span>pre-revision</span>
+              <span>current</span>
+            </div>
+          ` : ""}
           ${labels.map(label => {
             const prob = clamp01(probability(row, label));
+            const baseline = hasBaseline ? probability(row, label, "baseline_prob_") : null;
             const active = label === predictedLabel(row) ? " *" : "";
             return `
               <div class="prob-row">
                 <span>${escapeHtml(label)}${active}</span>
-                <div class="prob-track"><div class="prob-fill" style="--p:${prob}"></div></div>
+                ${hasBaseline ? `<span>${formatProb(baseline)}</span>` : `<div class="prob-track"><div class="prob-fill" style="--p:${prob}"></div></div>`}
                 <span>${formatPercent(prob)}</span>
               </div>
             `;
           }).join("")}
         </div>
       `;
+    }
+
+    function hasBaselineProbabilities(row, labels) {
+      return labels.some(label => row[`baseline_prob_${label}`] !== undefined && row[`baseline_prob_${label}`] !== "");
     }
 
     function normalizedArgmax(row) {
@@ -1124,8 +1137,12 @@
     function formatPercent(input) {
       const num = Number(input);
       if (!Number.isFinite(num)) return "n/a";
-      if (num > 0 && num < 0.001) return "<0.1%";
-      return `${(num * 100).toFixed(num < 0.01 ? 2 : 1).replace(/\.?0+$/, "")}%`;
+      return `${(num * 100).toFixed(4)}%`;
+    }
+
+    function formatProb(input) {
+      const num = Number(input);
+      return Number.isFinite(num) ? num.toFixed(4) : "n/a";
     }
 
     function percentile(values, p) {
@@ -1153,8 +1170,7 @@
     function formatNum(input) {
       const num = Number(input);
       if (!Number.isFinite(num)) return "n/a";
-      if (Math.abs(num) >= 100 || (Math.abs(num) < 0.001 && num !== 0)) return num.toExponential(2);
-      return num.toFixed(4).replace(/\.?0+$/, "");
+      return num.toFixed(4);
     }
 
     function last(values) {
