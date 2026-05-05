@@ -307,7 +307,7 @@
       font: 0.74rem/1.45 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
     }
 
-    .logprob-table {
+    .prob-table {
       width: 100%;
       margin-top: 10px;
       border-collapse: collapse;
@@ -315,20 +315,30 @@
       font: 0.72rem/1.25 ui-sans-serif, "Avenir Next", "Segoe UI", sans-serif;
     }
 
-    .logprob-table th,
-    .logprob-table td {
+    .prob-table caption {
+      caption-side: top;
+      padding-bottom: 6px;
+      color: var(--ink);
+      font-weight: 900;
+      text-align: left;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+    }
+
+    .prob-table th,
+    .prob-table td {
       border-top: 1px solid rgba(205, 191, 170, 0.82);
       padding: 5px 4px;
       text-align: right;
       vertical-align: top;
     }
 
-    .logprob-table th:first-child,
-    .logprob-table td:first-child {
+    .prob-table th:first-child,
+    .prob-table td:first-child {
       text-align: left;
     }
 
-    .logprob-table th {
+    .prob-table th {
       color: var(--ink);
       font-weight: 900;
       text-transform: uppercase;
@@ -765,7 +775,7 @@
           </div>
           <div class="text">${escapeHtml(row.user_input || "")}</div>
           ${promptFootnotes(row)}
-          ${logprobTable(row)}
+          ${probabilityTable(row)}
         </div>
       `;
     }
@@ -971,30 +981,25 @@
       return Number.isFinite(num) ? num : 0;
     }
 
-    function logprob(row, label) {
-      const num = Number(row && row[`logprob_${label}`]);
-      return Number.isFinite(num) ? num : NaN;
-    }
-
-    function logprobTable(row) {
+    function probabilityTable(row) {
       const labels = state.probLabels.length ? state.probLabels : ["0", "1"];
+      const hasBaseline = labels.some(label => row[`baseline_prob_${label}`] !== undefined && row[`baseline_prob_${label}`] !== "");
       return `
-        <table class="logprob-table">
+        <table class="prob-table">
+          <caption>${hasBaseline ? "Scoring: revised vs pre-revision" : "Scoring"}</caption>
           <thead>
             <tr>
               <th>Label</th>
-              <th>Prob</th>
-              <th>Logprob</th>
-              <th>Source</th>
+              ${hasBaseline ? "<th>Pre-revision</th>" : ""}
+              <th>Current</th>
             </tr>
           </thead>
           <tbody>
             ${labels.map(label => `
               <tr>
                 <td>${escapeHtml(label)}${label === predictedLabel(row) ? " *" : ""}</td>
-                <td>${formatNum(probability(row, label))}</td>
-                <td>${formatNum(logprob(row, label))}</td>
-                <td>${escapeHtml(row[`logprob_${label}_source`] || "n/a")}</td>
+                ${hasBaseline ? `<td>${formatProb(row[`baseline_prob_${label}`])}</td>` : ""}
+                <td>${formatProb(row[`prob_${label}`])}</td>
               </tr>
             `).join("")}
           </tbody>
@@ -1065,8 +1070,12 @@
     function formatNum(input) {
       const num = Number(input);
       if (!Number.isFinite(num)) return "n/a";
-      if (Math.abs(num) >= 100 || (Math.abs(num) < 0.001 && num !== 0)) return num.toExponential(2);
-      return num.toFixed(4).replace(/\.?0+$/, "");
+      return num.toFixed(4);
+    }
+
+    function formatProb(input) {
+      const num = Number(input);
+      return Number.isFinite(num) ? num.toFixed(4) : "n/a";
     }
 
     function escapeHtml(value) {
