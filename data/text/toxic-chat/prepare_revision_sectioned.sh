@@ -23,4 +23,4 @@ PY
 }
 
 echo "[revision-prep] monitor: $MONITOR_JSON"
-python "$SCRIPT_DIR/revise_from_monitor.py" "$MONITOR_JSON" --max-workers 32 --prompt-format prior-judgement-v1 --revision-mode top-fraction --top-fraction 0.05
+python "$SCRIPT_DIR/revise_from_monitor.py" "$MONITOR_JSON" --max-workers 32

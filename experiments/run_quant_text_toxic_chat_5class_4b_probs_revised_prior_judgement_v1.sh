@@ -3,11 +3,13 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
-RESULTS_DIR="$PROJECT_ROOT/results/quantitative/text_toxic_chat/5class_4b_probs_revised_sectioned_v2"
-INPUT_CSV="$PROJECT_ROOT/data/text/toxic-chat/toxic-chat-judge-gemma-4-26b-a4b-it_embed-pplx-embed-v1-4b_temp-t0_5class_n5634_witness_revised_sectioned_v2_all.csv"
+RESULTS_DIR="$PROJECT_ROOT/results/quantitative/text_toxic_chat/5class_4b_probs_revised_prior_judgement_v1"
+INPUT_CSV="$PROJECT_ROOT/data/text/toxic-chat/toxic-chat-judge-gemma-4-26b-a4b-it_embed-pplx-embed-v1-4b_temp-t0_5class_n5634_witness_revised_prior_judgement_v1_all.csv"
 
 if [[ ! -f "$INPUT_CSV" ]]; then
   echo "Input CSV not found: $INPUT_CSV" >&2
+  echo "Create it with:" >&2
+  echo "  python $PROJECT_ROOT/data/text/toxic-chat/revise_from_monitor.py <baseline-monitor-json> --prompt-format prior-judgement-v1 --max-workers 32" >&2
   exit 1
 fi
 
