@@ -203,7 +203,10 @@ def infer_renamed_text_csv(
 def read_text_csv(path: Path) -> pd.DataFrame:
     header = list(pd.read_csv(path, nrows=0).columns)
     usecols = [col for col in header if not re.fullmatch(r"e\d+", col)]
-    return pd.read_csv(path, usecols=usecols)
+    # The C parser can fail while concatenating chunks for very wide CSVs even
+    # when most columns are dropped via usecols. The Python engine is slower but
+    # only used for report generation, and avoids that parser bug.
+    return pd.read_csv(path, usecols=usecols, engine="python")
 
 
 def load_json_if_exists(path: Path) -> dict[str, Any]:
