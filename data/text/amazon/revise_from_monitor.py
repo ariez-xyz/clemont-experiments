@@ -1,4 +1,4 @@
-"""Revise Amazon sentiment judge outputs using monitor witness feedback."""
+"""Revise Amazon star-rating judge outputs using monitor witness feedback."""
 
 from __future__ import annotations
 
@@ -21,13 +21,11 @@ from revise_from_monitor_common import (  # noqa: E402
     build_prompt_map,
     class_count_from_probability_columns,
     finite_float,
-    format_distribution,
     label_tokens_from_probability_columns,
     load_monitor_payload,
     probability_columns,
     resolve_input_csv,
     run_revision_judging,
-    sampled_token,
     select_revision_indices,
     write_revised_output,
 )
@@ -35,7 +33,7 @@ from revise_from_monitor_common import (  # noqa: E402
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
-        description="Create a revised Amazon sentiment CSV from a monitor JSON."
+        description="Create a revised Amazon star-rating CSV from a monitor JSON."
     )
     parser.add_argument("monitor_json", type=Path, help="Baseline monitor JSON.")
     parser.add_argument("--output-csv", type=Path, default=None)
@@ -79,6 +77,8 @@ def main() -> None:
     prob_columns = probability_columns(frame)
     label_tokens = label_tokens_from_probability_columns(prob_columns)
     class_count = class_count_from_probability_columns(prob_columns)
+    loss_values = robustness_loss_values(records)
+    loss_percentiles = robustness_loss_percentiles(loss_values)
 
     selected = select_revision_indices(
         records,
@@ -99,6 +99,7 @@ def main() -> None:
             record,
             probs,
             class_count=class_count,
+            loss_percentiles=loss_percentiles,
         ),
     )
 
@@ -116,7 +117,7 @@ def main() -> None:
         prompts_by_index=prompts,
         label_tokens=label_tokens,
         system_prompt=(
-            "You revise sentiment classifier outputs using monitor witness evidence. "
+            "You revise Amazon review star-rating predictions using monitor witness evidence. "
             "Follow the requested output format exactly."
         ),
     )
@@ -138,7 +139,7 @@ def main() -> None:
 
     metadata = {
         "dataset": "amazon_reviews",
-        "task": f"{class_count}class_sentiment_monitor_informed_revision",
+        "task": f"{class_count}class_star_rating_monitor_informed_revision",
         "input_csv": str(input_csv),
         "source_monitor_json": str(args.monitor_json),
         "created_at": datetime.now(timezone.utc).isoformat(),
@@ -152,6 +153,7 @@ def main() -> None:
         "revision_min_robustness_loss": args.min_robustness_loss,
         "revision_require_witness": not args.allow_missing_witness,
         "revision_selected_count": int(len(prompts)),
+        "baseline_robustness_loss_percentiles": loss_percentiles,
         "output_columns": list(prob_columns),
         "embedding_columns": [col for col in frame.columns if re.fullmatch(r"e\d+", col)],
     }
@@ -174,35 +176,42 @@ def build_revision_prompt(
     prob_columns: Sequence[str],
     *,
     class_count: int,
+    loss_percentiles: Mapping[str, float | None],
 ) -> str:
-    label_instruction = sentiment_label_instruction(class_count)
     review = amazon_review_text(row)
     robustness_loss = finite_float(record.get("max_ratio"))
-    witness_in = finite_float(record.get("witness_in_distance"))
-    witness_out = finite_float(record.get("witness_out_distance"))
-    witness_block = "No witness was available for this row."
+    witness_block = "No calibration example was available for this row."
     if witness is not None:
         witness_block = (
-            f"Witness review:\n{amazon_review_text(witness)}\n\n"
-            f"Witness sampled token: {sampled_token(witness)}\n"
-            f"Witness probabilities: {format_distribution(witness, prob_columns)}"
+            "Below you are given an earlier Amazon review and star-rating score. Use this "
+            "to inform your revision of the star-rating prediction for the current review. "
+            "Treat it as **consistency evidence**, not as automatically correct. "
+            "Revise only if the evidence suggests the current prediction is inconsistent "
+            "with the calibration example.\n\n"
+            f"```\n{amazon_review_text(witness)}\n```\n\n"
+            f"Witness scoring:\n{format_scoring(witness, prob_columns)}"
         )
 
     return (
-        "Revise an Amazon review sentiment judgement using monitor feedback.\n\n"
-        "The monitor found whether this row's output changed sharply relative to "
-        "similar earlier rows. Treat the witness as consistency evidence, not as "
-        "automatically correct. Revise only if the evidence suggests the current "
-        "decision is inconsistent with the review text.\n\n"
-        f"{label_instruction}\n\n"
-        f"Current review:\n{review}\n\n"
-        f"Current sampled token: {sampled_token(row)}\n"
-        f"Current probabilities: {format_distribution(row, prob_columns)}\n"
-        f"Robustness loss: {robustness_loss if robustness_loss is not None else 'n/a'}\n"
-        f"Input distance to witness: {witness_in if witness_in is not None else 'n/a'}\n"
-        f"Output distance to witness: {witness_out if witness_out is not None else 'n/a'}\n\n"
+        "# Task\n"
+        "Revise an Amazon review star-rating prediction using robustness feedback.\n\n"
+        "# Score key\n"
+        f"{star_rating_score_key(class_count)}\n\n"
+        "# Amazon review\n"
+        "Predict the star rating of the following Amazon review.\n\n"
+        f"```\n{review}\n```\n\n"
+        f"Current scoring:\n{format_scoring(row, prob_columns)}\n\n"
+        "# Robustness loss\n"
+        "The runtime monitoring system has computed a *robustness loss* for the "
+        "above prediction. High values point towards consistency issues, but there "
+        "may be false positives.\n\n"
+        f"**Robustness loss: {format_loss(robustness_loss)}**\n"
+        f"p50: {format_loss(loss_percentiles.get('p50'))}\n"
+        f"p90: {format_loss(loss_percentiles.get('p90'))}\n"
+        f"p99: {format_loss(loss_percentiles.get('p99'))}\n\n"
+        "# Calibration\n"
         f"{witness_block}\n\n"
-        "Return the revised sentiment score only."
+        "Return the revised star rating only."
     )
 
 
@@ -214,18 +223,74 @@ def amazon_review_text(row: pd.Series) -> str:
     return f"Review: {text}"
 
 
-def sentiment_label_instruction(class_count: int) -> str:
+def star_rating_score_key(class_count: int) -> str:
     if class_count == 10:
         return (
-            "Return exactly one digit from 0 to 9: 0 = extremely negative, "
-            "5 = mixed or neutral, 9 = extremely positive."
+            "0 = very likely 1 star\n"
+            "1 = between 1 and 2 stars\n"
+            "2 = very likely 2 stars\n"
+            "3 = between 2 and 3 stars\n"
+            "4 = very likely 3 stars\n"
+            "5 = between 3 and 4 stars\n"
+            "6 = very likely 4 stars\n"
+            "7 = between 4 and 5 stars\n"
+            "8 = very likely 5 stars\n"
+            "9 = extremely strong 5-star review"
         )
     if class_count == 5:
         return (
-            "Return exactly one digit from 1 to 5: 1 = very negative, "
-            "3 = mixed or neutral, 5 = very positive."
+            "1 = 1 star\n"
+            "2 = 2 stars\n"
+            "3 = 3 stars\n"
+            "4 = 4 stars\n"
+            "5 = 5 stars"
         )
-    return "Return exactly one digit: 0 = negative sentiment, 1 = positive sentiment."
+    return "0 = likely 1 or 2 stars\n1 = likely 4 or 5 stars"
+
+
+def format_scoring(row: pd.Series, prob_columns: Sequence[str]) -> str:
+    lines = []
+    for column in prob_columns:
+        label = column.removeprefix("prob_")
+        value = finite_float(row.get(column))
+        lines.append(f"{label}: {format_prob(value)}")
+    return "\n".join(lines)
+
+
+def format_prob(value: float | None) -> str:
+    return "n/a" if value is None else f"{value:.2f}"
+
+
+def format_loss(value: float | None) -> str:
+    return "n/a" if value is None else f"{value:.2f}"
+
+
+def robustness_loss_values(records: Sequence[Mapping[str, Any]]) -> list[float]:
+    return sorted(
+        value
+        for record in records
+        if (value := finite_float(record.get("max_ratio"))) is not None
+    )
+
+
+def robustness_loss_percentiles(values: Sequence[float]) -> dict[str, float | None]:
+    return {
+        "p50": percentile(values, 0.50),
+        "p90": percentile(values, 0.90),
+        "p99": percentile(values, 0.99),
+    }
+
+
+def percentile(values: Sequence[float], q: float) -> float | None:
+    if not values:
+        return None
+    if len(values) == 1:
+        return float(values[0])
+    position = q * (len(values) - 1)
+    lower = int(position)
+    upper = min(lower + 1, len(values) - 1)
+    weight = position - lower
+    return float(values[lower] * (1.0 - weight) + values[upper] * weight)
 
 
 def clean(value: object) -> str:

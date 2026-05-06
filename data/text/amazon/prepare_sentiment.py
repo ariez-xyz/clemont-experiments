@@ -1,7 +1,7 @@
-"""Prepare Amazon review sentiment data for Clemont monitoring.
+"""Prepare Amazon review star-rating data for Clemont monitoring.
 
-This script samples reviews, asks an OpenRouter-hosted LLM to judge sentiment,
-embeds the exact judge prompt, and writes a monitor-ready CSV plus a JSON
+This script samples reviews, asks an OpenRouter-hosted LLM to predict star
+ratings, embeds the exact judge prompt, and writes a monitor-ready CSV plus a JSON
 manifest.
 """
 
@@ -39,7 +39,7 @@ META_COLUMNS = [
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
-        description="Build monitor-ready OpenRouter sentiment outputs for Amazon reviews."
+        description="Build monitor-ready OpenRouter star-rating outputs for Amazon reviews."
     )
     parser.add_argument(
         "--output-json",
@@ -109,7 +109,7 @@ def parse_args() -> argparse.Namespace:
         type=int,
         choices=(2, 5, 10),
         default=2,
-        help="Number of sentiment classes: 2 uses 0/1, 5 uses 1-5, 10 uses 0-9. Default: 2.",
+        help="Number of rating classes: 2 uses 0/1, 5 uses 1-5, 10 uses 0-9. Default: 2.",
     )
     return parser.parse_args()
 
@@ -119,7 +119,7 @@ def main() -> None:
     if args.sample_size <= 0:
         raise ValueError("--sample-size must be positive")
     class_count = 10 if args.multiclass else args.classes
-    label_tokens = sentiment_label_tokens_for_classes(class_count)
+    label_tokens = rating_label_tokens_for_classes(class_count)
 
     run_timestamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
     output_json = args.output_json
@@ -134,7 +134,7 @@ def main() -> None:
     )
 
     prompts = [
-        build_sentiment_prompt(
+        build_rating_prompt(
             row,
             max_chars=args.max_review_chars,
             class_count=class_count,
@@ -170,14 +170,14 @@ def main() -> None:
         prompts,
         label_tokens=label_tokens,
         system_prompt=(
-            "You are a sentiment classifier. Follow the requested output format exactly."
+            "You predict Amazon review star ratings. Follow the requested output format exactly."
         ),
     )
 
     frame = build_output_frame(sampled, prompts, judge_results, embeddings)
     metadata: dict[str, Any] = {
         "dataset": "amazon_reviews",
-        "task": sentiment_task_name(class_count),
+        "task": rating_task_name(class_count),
         "input_csv": str(INPUT_CSV),
         "sample_size_requested": args.sample_size,
         "sample_size_actual": sample_size,
@@ -187,7 +187,7 @@ def main() -> None:
         "created_at": datetime.now(timezone.utc).isoformat(),
         "run_timestamp": run_timestamp,
         "class_count": class_count,
-        "label_tokens": sentiment_label_token_descriptions(class_count),
+        "label_tokens": rating_label_token_descriptions(class_count),
         "embedding_columns": embedding_columns(frame),
         "output_columns": probability_columns(label_tokens),
         "score_columns": logprob_columns(label_tokens),
@@ -236,35 +236,50 @@ def parse_rating(value: object) -> float | None:
     return float(match.group(1))
 
 
-def build_sentiment_prompt(row: pd.Series, *, max_chars: int, class_count: int) -> str:
+def build_rating_prompt(row: pd.Series, *, max_chars: int, class_count: int) -> str:
     review = build_embedding_text(row, max_chars=max_chars)
     if class_count == 10:
         return (
-            "Analyze the sentiment of this Amazon customer review.\n\n"
-            "Return exactly one digit from 0 to 9:\n"
-            "0 = extremely negative sentiment\n"
-            "5 = mixed or neutral sentiment\n"
-            "9 = extremely positive sentiment\n\n"
-            f"{review}\n\n"
-            "Answer with one digit from 0 to 9 only."
+            "# Task\n"
+            "Predict the Amazon review star rating.\n\n"
+            "# Score key\n"
+            "0 = very likely 1 star\n"
+            "1 = between 1 and 2 stars\n"
+            "2 = very likely 2 stars\n"
+            "3 = between 2 and 3 stars\n"
+            "4 = very likely 3 stars\n"
+            "5 = between 3 and 4 stars\n"
+            "6 = very likely 4 stars\n"
+            "7 = between 4 and 5 stars\n"
+            "8 = very likely 5 stars\n"
+            "9 = extremely strong 5-star review\n\n"
+            "# Amazon review\n"
+            f"```\n{review}\n```\n\n"
+            "Return the predicted rating score only."
         )
     if class_count == 5:
         return (
-            "Analyze the sentiment of this Amazon customer review.\n\n"
-            "Return exactly one digit from 1 to 5:\n"
-            "1 = very negative sentiment\n"
-            "3 = mixed or neutral sentiment\n"
-            "5 = very positive sentiment\n\n"
-            f"{review}\n\n"
-            "Answer with one digit from 1 to 5 only."
+            "# Task\n"
+            "Predict the Amazon review star rating.\n\n"
+            "# Score key\n"
+            "1 = 1 star\n"
+            "2 = 2 stars\n"
+            "3 = 3 stars\n"
+            "4 = 4 stars\n"
+            "5 = 5 stars\n\n"
+            "# Amazon review\n"
+            f"```\n{review}\n```\n\n"
+            "Return the predicted star rating only."
         )
     return (
-        "Analyze the sentiment of this Amazon customer review.\n\n"
-        "Return exactly one digit:\n"
-        "0 = negative sentiment\n"
-        "1 = positive sentiment\n\n"
-        f"{review}\n\n"
-        "Answer with 0 or 1 only."
+        "# Task\n"
+        "Predict whether this Amazon review is low-rated or high-rated.\n\n"
+        "# Score key\n"
+        "0 = likely 1 or 2 stars\n"
+        "1 = likely 4 or 5 stars\n\n"
+        "# Amazon review\n"
+        f"```\n{review}\n```\n\n"
+        "Return the predicted rating class only."
     )
 
 
@@ -340,7 +355,7 @@ def logprob_source_columns(label_tokens: tuple[str, ...]) -> list[str]:
     return [f"logprob_{label}_source" for label in label_tokens]
 
 
-def sentiment_label_tokens_for_classes(class_count: int) -> tuple[str, ...]:
+def rating_label_tokens_for_classes(class_count: int) -> tuple[str, ...]:
     if class_count == 2:
         return ("0", "1")
     if class_count == 5:
@@ -350,48 +365,39 @@ def sentiment_label_tokens_for_classes(class_count: int) -> tuple[str, ...]:
     raise ValueError(f"unsupported class count: {class_count}")
 
 
-def sentiment_task_name(class_count: int) -> str:
+def rating_task_name(class_count: int) -> str:
     if class_count == 2:
-        return "binary_sentiment"
+        return "binary_low_high_rating"
     if class_count == 5:
-        return "5class_sentiment_1_5"
+        return "5class_star_rating_1_5"
     if class_count == 10:
-        return "10class_sentiment_0_9"
+        return "10class_star_rating_0_9"
     raise ValueError(f"unsupported class count: {class_count}")
 
 
-def sentiment_label_token_descriptions(class_count: int) -> dict[str, str]:
+def rating_label_token_descriptions(class_count: int) -> dict[str, str]:
     if class_count == 2:
-        return {"0": "negative", "1": "positive"}
+        return {"0": "low_rating_1_or_2_stars", "1": "high_rating_4_or_5_stars"}
     if class_count == 5:
         return {
-            str(score): description
-            for score, description in zip(
-                range(1, 6),
-                [
-                    "very_negative",
-                    "negative",
-                    "mixed_or_neutral",
-                    "positive",
-                    "very_positive",
-                ],
-            )
+            str(score): f"{score}_star" if score == 1 else f"{score}_stars"
+            for score in range(1, 6)
         }
     if class_count == 10:
         return {
             str(score): description
             for score, description in enumerate(
                 [
-                    "extremely_negative",
-                    "very_negative",
-                    "negative",
-                    "somewhat_negative",
-                    "slightly_negative",
-                    "mixed_or_neutral",
-                    "slightly_positive",
-                    "somewhat_positive",
-                    "positive",
-                    "extremely_positive",
+                    "very_likely_1_star",
+                    "between_1_and_2_stars",
+                    "very_likely_2_stars",
+                    "between_2_and_3_stars",
+                    "very_likely_3_stars",
+                    "between_3_and_4_stars",
+                    "very_likely_4_stars",
+                    "between_4_and_5_stars",
+                    "very_likely_5_stars",
+                    "extremely_strong_5_star_review",
                 ]
             )
         }

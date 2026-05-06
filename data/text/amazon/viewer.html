@@ -503,6 +503,12 @@
             <input id="searchInput" type="search" placeholder="title, text, id">
           </label>
           <label>
+            Go to ID
+            <input id="idInput" type="search" placeholder="amazon-15569">
+          </label>
+        </div>
+        <div class="control-grid">
+          <label>
             Filter
             <select id="filterSelect">
               <option value="all">All rows</option>
@@ -513,6 +519,7 @@
               <option value="negative">Low / negative</option>
             </select>
           </label>
+          <button id="goToId">Select ID</button>
         </div>
         <div class="control-grid">
           <label>
@@ -548,6 +555,7 @@
 
     const fileInput = document.getElementById("fileInput");
     const searchInput = document.getElementById("searchInput");
+    const idInput = document.getElementById("idInput");
     const filterSelect = document.getElementById("filterSelect");
     const sortSelect = document.getElementById("sortSelect");
     const list = document.getElementById("list");
@@ -555,6 +563,10 @@
     const stats = document.getElementById("stats");
 
     document.getElementById("loadDefault").addEventListener("click", () => loadDefaultCsv());
+    document.getElementById("goToId").addEventListener("click", selectById);
+    idInput.addEventListener("keydown", event => {
+      if (event.key === "Enter") selectById();
+    });
     fileInput.addEventListener("change", async (event) => {
       const file = event.target.files[0];
       if (!file) return;
@@ -650,6 +662,36 @@
       renderStats();
       renderList();
       renderDetail();
+      scrollSelectedIntoView();
+    }
+
+    function selectById() {
+      const wanted = idInput.value.trim();
+      if (!wanted) return;
+      const row = state.rows.find(candidate => candidate.example_id === wanted);
+      if (!row) {
+        detail.innerHTML = `<div class="empty">No row with ID ${escapeHtml(wanted)}.</div>`;
+        return;
+      }
+      state.selected = row;
+
+      const visible = state.filtered.includes(row);
+      if (!visible) {
+        searchInput.value = wanted;
+        filterSelect.value = "all";
+        sortSelect.value = "source";
+      }
+      render();
+      scrollSelectedIntoView();
+    }
+
+    function scrollSelectedIntoView() {
+      if (!state.selected) return;
+      requestAnimationFrame(() => {
+        const escapedId = cssEscape(state.selected.example_id);
+        const node = list.querySelector(`.row[data-id="${escapedId}"]`);
+        if (node) node.scrollIntoView({ block: "center", behavior: "smooth" });
+      });
     }
 
     function renderStats() {
@@ -704,6 +746,13 @@
           renderDetail();
         });
       });
+    }
+
+    function cssEscape(value) {
+      if (window.CSS && typeof window.CSS.escape === "function") {
+        return window.CSS.escape(String(value));
+      }
+      return String(value).replace(/["\\]/g, "\\$&");
     }
 
     function renderDetail() {
