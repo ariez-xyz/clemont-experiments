@@ -54,7 +54,12 @@ def parse_args() -> argparse.Namespace:
         "--text-chars",
         type=int,
         default=4000,
-        help="Maximum characters to show for each point/witness text. Default: 220.",
+        help="Maximum characters to show for each point/witness text. Default: 4000.",
+    )
+    parser.add_argument(
+        "--latex",
+        action="store_true",
+        help="Emit LaTeX-formatted summaries instead of terminal tables.",
     )
     return parser.parse_args()
 
@@ -66,9 +71,9 @@ def main() -> None:
         raise SystemExit("No monitor JSONs found.")
 
     for idx, path in enumerate(paths):
-        if idx:
+        if idx and not args.latex:
             print("\n" + "=" * 100 + "\n")
-        summarize_run(path, top_k=args.top_k, text_chars=args.text_chars)
+        summarize_run(path, top_k=args.top_k, text_chars=args.text_chars, latex=args.latex)
 
 
 def discover_monitor_jsons(paths: Sequence[Path]) -> list[Path]:
@@ -84,12 +89,16 @@ def discover_monitor_jsons(paths: Sequence[Path]) -> list[Path]:
     return sorted({item.resolve() for item in found})
 
 
-def summarize_run(path: Path, *, top_k: int, text_chars: int) -> None:
+def summarize_run(path: Path, *, top_k: int, text_chars: int, latex: bool) -> None:
     payload = json.loads(path.read_text(encoding="utf-8"))
     records = normalize_records(payload.get("records", []))
     metadata = payload.get("metadata", {})
     if not records:
-        print(f"{short_path(path)}\nNo records.")
+        if latex:
+            print(f"\\subsubsection{{{latex_escape(short_path(path))}}}")
+            print("No records.\n")
+        else:
+            print(f"{short_path(path)}\nNo records.")
         return
 
     input_csv = resolve_input_csv(metadata.get("input_csv"), monitor_path=path, metadata=metadata, records=records)
@@ -97,14 +106,27 @@ def summarize_run(path: Path, *, top_k: int, text_chars: int) -> None:
     manifest = load_json_if_exists(input_csv.with_suffix(".json"))
     witness_records = exclude_duplicate_witness_text_pairs(frame, records)
 
-    print_run_metadata(path, input_csv, metadata, manifest, records)
-    print(f"duplicate point/witness pairs excluded from witness stats: {len(records) - len(witness_records):,} / {len(records):,}")
-    print()
-    print_accuracy(frame, records)
-    print()
-    print_robustness_table(witness_records)
-    print()
-    print_top_pairs(frame, witness_records, top_k=top_k, text_chars=text_chars)
+    if latex:
+        print_latex_summary(
+            monitor_path=path,
+            input_csv=input_csv,
+            metadata=metadata,
+            manifest=manifest,
+            records=records,
+            witness_records=witness_records,
+            frame=frame,
+            top_k=top_k,
+            text_chars=text_chars,
+        )
+    else:
+        print_run_metadata(path, input_csv, metadata, manifest, records)
+        print(f"duplicate point/witness pairs excluded from witness stats: {len(records) - len(witness_records):,} / {len(records):,}")
+        print()
+        print_accuracy(frame, records)
+        print()
+        print_robustness_table(witness_records)
+        print()
+        print_top_pairs(frame, witness_records, top_k=top_k, text_chars=text_chars)
 
 
 def normalize_records(records: Sequence[Mapping[str, Any]]) -> list[dict[str, Any]]:
@@ -253,11 +275,55 @@ def print_run_metadata(
     print_table(rows, headers=("metadata", "value"))
 
 
+def metadata_rows(
+    monitor_path: Path,
+    input_csv: Path,
+    metadata: Mapping[str, Any],
+    manifest: Mapping[str, Any],
+    records: Sequence[Mapping[str, Any]],
+) -> list[tuple[str, str]]:
+    openrouter = manifest.get("openrouter", {}) if isinstance(manifest, Mapping) else {}
+    output_transform = metadata.get("output_transform", "n/a")
+    output_transform_meta = metadata.get("output_transform_metadata") or {}
+    output_detail = ""
+    if isinstance(output_transform_meta, Mapping) and output_transform_meta.get("description"):
+        output_detail = f" ({output_transform_meta['description']})"
+
+    return [
+        ("monitor_json", short_path(monitor_path)),
+        ("input_csv", short_path(input_csv)),
+        ("records", f"{len(records):,}"),
+        ("timestamp", str(metadata.get("timestamp", "n/a"))),
+        ("judge_model", str(openrouter.get("chat_model", "n/a"))),
+        ("embedding_model", str(openrouter.get("embedding_model", "n/a"))),
+        ("temperature", str(openrouter.get("temperature", "n/a"))),
+        ("output_transform", f"{output_transform}{output_detail}"),
+        ("output_columns", ", ".join(map(str, metadata.get("output_columns", [])[:8])) or "n/a"),
+        ("out_metric", str(metadata.get("out_metric", "n/a"))),
+        ("frnn_metric", str(metadata.get("frnn_metric", "n/a"))),
+        ("max_k", str(metadata.get("max_k", "n/a"))),
+        ("batchsize", str(metadata.get("batchsize", "n/a"))),
+        ("walltime_seconds", fmt(metadata.get("walltime_seconds"))),
+    ]
+
+
 def print_accuracy(frame: pd.DataFrame, records: Sequence[Mapping[str, Any]]) -> None:
-    labels = probability_labels(frame.columns)
-    if not labels:
+    rows = accuracy_rows(frame, records)
+    if rows is None:
         print("Accuracy: n/a (no probability columns)")
         return
+
+    print("Accuracy")
+    print_table(rows, headers=("mapping", "accuracy"))
+
+
+def accuracy_rows(
+    frame: pd.DataFrame,
+    records: Sequence[Mapping[str, Any]],
+) -> list[tuple[str, str]] | None:
+    labels = probability_labels(frame.columns)
+    if not labels:
+        return None
 
     pairs: list[tuple[int, Mapping[str, Any]]] = []
     for record in records:
@@ -266,8 +332,7 @@ def print_accuracy(frame: pd.DataFrame, records: Sequence[Mapping[str, Any]]) ->
             pairs.append((idx, frame.iloc[idx]))
 
     if not pairs:
-        print("Accuracy: n/a (no records map to CSV rows)")
-        return
+        return [("n/a", "no records map to CSV rows")]
 
     dataset = dataset_kind(frame.columns)
     rows: list[tuple[str, str]] = []
@@ -293,11 +358,21 @@ def print_accuracy(frame: pd.DataFrame, records: Sequence[Mapping[str, Any]]) ->
             correct += str(true) == str(pred)
         rows.append(("exact class", accuracy_text(correct, total)))
 
-    print("Accuracy")
-    print_table(rows, headers=("mapping", "accuracy"))
+    return rows
 
 
 def print_robustness_table(records: Sequence[Mapping[str, Any]]) -> None:
+    columns, rows = robustness_table_rows(records)
+    print(
+        "Robustness loss for non-duplicate point/witness pairs after dropping records "
+        "where witness input or output distance is at or below threshold"
+    )
+    print_table(rows, headers=("stat", *columns))
+
+
+def robustness_table_rows(
+    records: Sequence[Mapping[str, Any]],
+) -> tuple[list[str], list[tuple[Any, ...]]]:
     columns = ["all", *[format_threshold(threshold) for threshold in DISTANCE_THRESHOLDS]]
     score_sets = [filtered_scores(records, None), *[filtered_scores(records, threshold) for threshold in DISTANCE_THRESHOLDS]]
     rows: list[tuple[Any, ...]] = []
@@ -318,11 +393,7 @@ def print_robustness_table(records: Sequence[Mapping[str, Any]]) -> None:
                 values.append(fmt(percentile(scores, percentile_value or 0)))
         rows.append((name, *values))
 
-    print(
-        "Robustness loss for non-duplicate point/witness pairs after dropping records "
-        "where witness input or output distance is at or below threshold"
-    )
-    print_table(rows, headers=("stat", *columns))
+    return columns, rows
 
 
 def filtered_scores(records: Sequence[Mapping[str, Any]], threshold: float | None) -> list[float]:
@@ -399,6 +470,147 @@ def print_top_pairs(
             print(f"   Diff:    {compact_diff(raw_dataset_text(point), raw_dataset_text(witness), text_chars)}")
         else:
             print("   Witness: none")
+
+
+def print_latex_summary(
+    *,
+    monitor_path: Path,
+    input_csv: Path,
+    metadata: Mapping[str, Any],
+    manifest: Mapping[str, Any],
+    records: Sequence[Mapping[str, Any]],
+    witness_records: Sequence[Mapping[str, Any]],
+    frame: pd.DataFrame,
+    top_k: int,
+    text_chars: int,
+) -> None:
+    title = latex_escape(short_path(monitor_path))
+    print(f"\\subsubsection{{{title}}}")
+    print()
+
+    duplicate_count = len(records) - len(witness_records)
+    meta_rows = metadata_rows(monitor_path, input_csv, metadata, manifest, records)
+    meta_rows.append(
+        (
+            "duplicate point/witness pairs excluded from witness stats",
+            f"{duplicate_count:,} / {len(records):,}",
+        )
+    )
+    print_latex_table(
+        headers=("metadata", "value"),
+        rows=meta_rows,
+        column_spec="ll",
+    )
+    print()
+
+    accuracy = accuracy_rows(frame, records)
+    if accuracy is not None:
+        print("\\paragraph{Accuracy}")
+        print_latex_table(headers=("mapping", "accuracy"), rows=accuracy, column_spec="ll")
+        print()
+
+    columns, robustness_rows = robustness_table_rows(witness_records)
+    print("\\paragraph{Robustness loss}")
+    print(
+        "Non-duplicate point/witness pairs; threshold columns drop records where "
+        "witness input or output distance is at or below the threshold."
+    )
+    print()
+    print_latex_table(
+        headers=("stat", *columns),
+        rows=robustness_rows,
+        column_spec="l" + "r" * len(columns),
+    )
+    print()
+
+    print(f"\\paragraph{{Top {top_k} highest robustness-loss pairs}}")
+    print_latex_top_pairs(frame, witness_records, top_k=top_k, text_chars=text_chars)
+    print()
+
+
+def print_latex_top_pairs(
+    frame: pd.DataFrame,
+    records: Sequence[Mapping[str, Any]],
+    *,
+    top_k: int,
+    text_chars: int,
+) -> None:
+    labels = probability_labels(frame.columns)
+    top_records = sorted(
+        [record for record in records if not math.isnan(float_value(record.get("max_ratio")))],
+        key=lambda record: float_value(record.get("max_ratio")),
+        reverse=True,
+    )[:top_k]
+    if not top_records:
+        print("No records.")
+        return
+
+    for rank, record in enumerate(top_records, start=1):
+        point_idx = int_value(record.get("index", record.get("point_id")), -1)
+        witness_idx = int_value(record.get("witness_id"), None)
+        point = row_at(frame, point_idx)
+        witness = row_at(frame, witness_idx)
+
+        metrics = (
+            f"point={point_idx}; "
+            f"witness={witness_idx if witness_idx is not None else 'none'}; "
+            f"loss={fmt(record.get('max_ratio'))}; "
+            f"in={fmt(record.get('witness_in_distance'))}; "
+            f"out={fmt(record.get('witness_out_distance'))}; "
+            f"k={last(record.get('k_progression')) or 'n/a'}"
+        )
+        print(f"\\paragraph{{{rank}. {latex_escape(metrics)}}}")
+        print()
+        print_latex_example_block(
+            "Point",
+            point,
+            labels,
+            text_chars=text_chars,
+        )
+        if witness:
+            print_latex_example_block(
+                "Witness",
+                witness,
+                labels,
+                text_chars=text_chars,
+            )
+            diff = compact_diff(raw_dataset_text(point), raw_dataset_text(witness), text_chars)
+            print("\\noindent\\textbf{Diff.}")
+            print("\\begin{quote}\\small")
+            print(latex_escape(diff))
+            print("\\end{quote}")
+            print()
+        else:
+            print("\\noindent\\textbf{Witness.} none")
+            print()
+
+
+def print_latex_example_block(
+    title: str,
+    row: Mapping[str, Any],
+    labels: Sequence[str],
+    *,
+    text_chars: int,
+) -> None:
+    print(f"\\noindent\\textbf{{{latex_escape(title)}.}} {latex_escape(describe_row(row, labels))}")
+    print("\\begin{quote}\\small")
+    print(latex_escape(compact_text(text_value(row), text_chars)))
+    print("\\end{quote}")
+    print()
+
+
+def print_latex_table(
+    *,
+    headers: Sequence[Any],
+    rows: Sequence[Sequence[Any]],
+    column_spec: str,
+) -> None:
+    print(f"\\begin{{tabular}}{{{column_spec}}}")
+    print(" & ".join(latex_escape(header) for header in headers) + r" \\")
+    print(r"\hline")
+    for row in rows:
+        print(" & ".join(latex_escape(cell) for cell in row) + r" \\")
+    print("\\end{tabular}")
 
 
 def probability_labels(columns: Iterable[str]) -> list[str]:
@@ -562,6 +774,23 @@ def print_table(rows: Sequence[Sequence[Any]], *, headers: Sequence[str]) -> Non
     print("  ".join("-" * widths[idx] for idx in range(len(headers))))
     for row in string_rows:
         print("  ".join(cell.ljust(widths[idx]) for idx, cell in enumerate(row)))
+
+
+def latex_escape(value: Any) -> str:
+    text = str(value)
+    replacements = {
+        "\\": r"\textbackslash{}",
+        "&": r"\&",
+        "%": r"\%",
+        "$": r"\$",
+        "#": r"\#",
+        "_": r"\_",
+        "{": r"\{",
+        "}": r"\}",
+        "~": r"\textasciitilde{}",
+        "^": r"\textasciicircum{}",
+    }
+    return "".join(replacements.get(char, char) for char in text)
 
 
 def short_path(path: Path) -> str:
