@@ -26,6 +26,9 @@ except ImportError:  # pragma: no cover - script-style execution
     )
 
 
+DEFAULT_MIN_RATIO = 1e-5
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(
         description="Plot a histogram of max ratios from a quantitative monitor run",
@@ -45,24 +48,30 @@ def main() -> None:
         help="Optional output image path (defaults to <json_path>_ratios.png)",
     )
     parser.add_argument("--bins", type=int, default=60, help="Number of histogram bins")
+    parser.add_argument(
+        "--min-ratio",
+        type=float,
+        default=DEFAULT_MIN_RATIO,
+        help="Drop ratios below this value before plotting. Default: 1e-5.",
+    )
     args = parser.parse_args()
 
     script_dir = Path(__file__).resolve().parent
     json_paths = resolve_json_paths(args.json_path, default_dir=script_dir)
 
-    shared_limits = _shared_axis_limits(json_paths, args.bins) if len(json_paths) > 1 else None
+    shared_limits = _shared_axis_limits(json_paths, args.bins, args.min_ratio) if len(json_paths) > 1 else None
 
     for json_path in json_paths:
-        _plot_histogram(json_path, args.output, args.bins, shared_limits)
+        _plot_histogram(json_path, args.output, args.bins, args.min_ratio, shared_limits)
 
 
-def _load_positive_finite_ratios(json_path: Path) -> Optional[np.ndarray]:
+def _load_positive_finite_ratios(json_path: Path, min_ratio: float) -> Optional[np.ndarray]:
     with json_path.open("r", encoding="utf-8") as fh:
         payload = json.load(fh)
 
     ratios = np.array([record["max_ratio"] for record in payload["records"]], dtype=float)
     finite_mask = np.isfinite(ratios)
-    ratios = ratios[finite_mask & (ratios > 0)]
+    ratios = ratios[finite_mask & (ratios >= min_ratio)]
     if ratios.size == 0:
         return None
     return ratios
@@ -71,11 +80,12 @@ def _load_positive_finite_ratios(json_path: Path) -> Optional[np.ndarray]:
 def _shared_axis_limits(
     json_paths: list[Path],
     bins: int,
+    min_ratio: float,
 ) -> Optional[tuple[tuple[float, float], tuple[float, float], np.ndarray]]:
     ratios_by_path = [
         ratios
         for json_path in json_paths
-        if (ratios := _load_positive_finite_ratios(json_path)) is not None
+        if (ratios := _load_positive_finite_ratios(json_path, min_ratio)) is not None
     ]
     if not ratios_by_path:
         return None
@@ -96,14 +106,15 @@ def _plot_histogram(
     json_path: Path,
     output_path: Optional[Path],
     bins: int,
+    min_ratio_cutoff: float,
     shared_limits: Optional[tuple[tuple[float, float], tuple[float, float], np.ndarray]] = None,
 ) -> None:
     with json_path.open("r", encoding="utf-8") as fh:
         payload = json.load(fh)
 
-    ratios = _load_positive_finite_ratios(json_path)
+    ratios = _load_positive_finite_ratios(json_path, min_ratio_cutoff)
     if ratios is None:
-        print(f"No positive finite ratios available to plot for {json_path}")
+        print(f"No finite ratios >= {min_ratio_cutoff:g} available to plot for {json_path}")
         return
 
     if shared_limits is None:

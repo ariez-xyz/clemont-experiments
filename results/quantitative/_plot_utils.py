@@ -16,8 +16,9 @@ def resolve_json_paths(candidate: Optional[Path], *, default_dir: Path, pattern:
     """Return a list of JSON paths to process.
 
     If *candidate* is a file, return it. If *candidate* is a directory, search
-    for files matching *pattern* inside it. When *candidate* is ``None`` use the
-    provided *default_dir* instead. Raises ``SystemExit`` if nothing is found.
+    recursively for files matching *pattern* inside it. When *candidate* is
+    ``None`` use the provided *default_dir* instead. Raises ``SystemExit`` if
+    nothing is found.
     """
 
     search_dir: Optional[Path]
@@ -34,7 +35,7 @@ def resolve_json_paths(candidate: Optional[Path], *, default_dir: Path, pattern:
             raise SystemExit(f"JSON file or directory not found: {candidate}")
 
     assert search_dir is not None
-    json_files = sorted(search_dir.glob(pattern))
+    json_files = sorted(search_dir.rglob(pattern))
     if not json_files:
         raise SystemExit(f"No {pattern} files found in {search_dir}")
     return json_files

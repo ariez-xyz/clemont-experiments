@@ -4,16 +4,22 @@ from __future__ import annotations
 
 import argparse
 import json
+import re
 from pathlib import Path
-from typing import Iterable, List, Optional, Tuple
+from typing import Any, Iterable, List, Mapping, Optional, Sequence, Tuple
 
 import matplotlib.pyplot as plt
 import numpy as np
+import pandas as pd
 
 try:
     from ._plot_utils import DEFAULT_DPI, DEFAULT_FIGSIZE, resolve_json_paths
 except ImportError:  # pragma: no cover - script-style execution
     from _plot_utils import DEFAULT_DPI, DEFAULT_FIGSIZE, resolve_json_paths
+
+
+REPO_ROOT = Path(__file__).resolve().parents[2]
+DEFAULT_MIN_RATIO = 1e-5
 
 
 def main() -> None:
@@ -33,6 +39,12 @@ def main() -> None:
         ),
     )
     parser.add_argument("--bins", type=int, default=60, help="Number of logarithmic bins to use")
+    parser.add_argument(
+        "--min-ratio",
+        type=float,
+        default=DEFAULT_MIN_RATIO,
+        help="Drop ratios below this value before plotting. Default: 1e-5.",
+    )
     parser.add_argument(
         "--alpha",
         type=float,
@@ -54,6 +66,12 @@ def main() -> None:
         "--no-title",
         action='store_true',
         dest='no_title'
+    )
+    parser.add_argument(
+        "--title",
+        type=str,
+        default="Max ratios histogram (combined)",
+        help="Plot title. Ignored when --no-title is passed.",
     )
     parser.add_argument(
         "--split-epsilon-flagged",
@@ -78,9 +96,9 @@ def main() -> None:
 
     datasets = []
     for json_path in json_paths:
-        ratios, kept_all = _load_ratios(json_path)
+        ratios, kept_all = _load_ratios(json_path, min_ratio=args.min_ratio)
         if ratios.size == 0:
-            print(f"Skipping {json_path} (no positive finite ratios)")
+            print(f"Skipping {json_path} (no finite ratios >= {args.min_ratio:g})")
             continue
         if args.split:
             assert kept_all, "split indices are offset by infinite or zero results!"
@@ -138,7 +156,8 @@ def main() -> None:
     plt.yscale("log")
     plt.xlabel("i.o.r score")
     plt.ylabel("Frequency")
-    if not args.no_title: plt.title("Max ratios histogram (combined)")
+    if not args.no_title:
+        plt.title(args.title)
     plt.grid(True, alpha=0.3)
     plt.legend()
     plt.tight_layout()
@@ -171,12 +190,105 @@ def _load_flags(json_path: Path) -> np.ndarray:
     flags = np.array([record.get("epsilon_monitor_flag") for record in payload.get("records", [])], dtype=bool)
     return flags
 
-def _load_ratios(json_path: Path) -> Tuple[np.ndarray, bool]:
+def _load_ratios(json_path: Path, *, min_ratio: float) -> Tuple[np.ndarray, bool]:
     with json_path.open("r", encoding="utf-8") as fh:
         payload = json.load(fh)
-    ratios = np.array([record.get("max_ratio") for record in payload.get("records", [])], dtype=float)
-    mask = np.isfinite(ratios) & (ratios > 0)
+    records = list(payload.get("records", []))
+    records, dropped_duplicates = _drop_text_duplicate_witness_pairs(json_path, payload, records)
+    if dropped_duplicates:
+        print(f"{json_path}: dropped {dropped_duplicates} exact duplicate point/witness pairs")
+    ratios = np.array([record.get("max_ratio") for record in records], dtype=float)
+    mask = np.isfinite(ratios) & (ratios >= min_ratio)
     return ratios[mask], all(mask[1:])
+
+
+def _drop_text_duplicate_witness_pairs(
+    json_path: Path,
+    payload: Mapping[str, Any],
+    records: List[Mapping[str, Any]],
+) -> tuple[List[Mapping[str, Any]], int]:
+    input_csv = _resolve_input_csv(json_path, payload)
+    if input_csv is None:
+        return records, 0
+    text_columns = _text_columns(input_csv)
+    if text_columns is None:
+        return records, 0
+
+    try:
+        frame = pd.read_csv(input_csv, usecols=list(text_columns), engine="python")
+    except Exception as exc:
+        print(f"Warning: could not read text columns from {input_csv}: {exc}")
+        return records, 0
+
+    kept: List[Mapping[str, Any]] = []
+    dropped = 0
+    for record in records:
+        point_idx = _int_value(record.get("index", record.get("point_id")), -1)
+        witness_idx = _int_value(record.get("witness_id"), None)
+        if witness_idx is None:
+            kept.append(record)
+            continue
+        if not (0 <= point_idx < len(frame) and 0 <= witness_idx < len(frame)):
+            kept.append(record)
+            continue
+        point_text = _raw_text(frame.iloc[point_idx], text_columns)
+        witness_text = _raw_text(frame.iloc[witness_idx], text_columns)
+        if point_text == witness_text:
+            dropped += 1
+            continue
+        kept.append(record)
+    return kept, dropped
+
+
+def _resolve_input_csv(json_path: Path, payload: Mapping[str, Any]) -> Optional[Path]:
+    metadata = payload.get("metadata") or {}
+    raw = metadata.get("input_csv") if isinstance(metadata, Mapping) else None
+    if not raw:
+        return None
+    path = Path(str(raw)).expanduser()
+    candidates: list[Path] = []
+    if path.is_absolute():
+        candidates.append(path)
+        parts = path.parts
+        if "data" in parts:
+            candidates.append(REPO_ROOT / Path(*parts[parts.index("data") :]))
+    else:
+        candidates.extend([REPO_ROOT / path, json_path.parent / path, Path.cwd() / path])
+    for candidate in candidates:
+        if candidate.exists():
+            return candidate.resolve()
+    return None
+
+
+def _text_columns(input_csv: Path) -> Optional[tuple[str, ...]]:
+    try:
+        header = set(pd.read_csv(input_csv, nrows=0).columns)
+    except Exception:
+        return None
+    if "user_input" in header:
+        return ("user_input",)
+    if "review_text" in header:
+        return ("review_title", "review_text") if "review_title" in header else ("review_text",)
+    return None
+
+
+def _raw_text(row: Mapping[str, Any], columns: Sequence[str]) -> str:
+    if columns == ("user_input",):
+        return str(row.get("user_input") or "")
+    if "review_text" in columns:
+        title = str(row.get("review_title") or "") if "review_title" in columns else ""
+        body = str(row.get("review_text") or "")
+        return f"{title}\n{body}" if title else body
+    return ""
+
+
+def _int_value(value: Any, default: Optional[int] = 0) -> Optional[int]:
+    try:
+        if value is None or (isinstance(value, float) and np.isnan(value)):
+            return default
+        return int(value)
+    except (TypeError, ValueError):
+        return default
 
 
 def _resolve_output_path(candidate: Optional[Path], input_paths: Iterable[Path], script_dir: Path) -> Path:
