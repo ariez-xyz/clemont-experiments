@@ -144,8 +144,10 @@ def apply_revisions(
         int(record.get("index", record.get("point_id", -1))): record for record in records
     }
     revised["revision_selected"] = False
+    revised["revision_applied"] = False
     revised["revision_prompt"] = None
     revised["revision_prompt_hash"] = None
+    revised["revision_error"] = None
     revised["baseline_robustness_loss"] = None
     revised["baseline_witness_id"] = None
     revised["baseline_witness_in_distance"] = None
@@ -169,9 +171,25 @@ def apply_revisions(
         if judge is None:
             continue
         columns = OpenRouterClient.judge_result_to_columns(judge)
+        revised.at[idx, "revision_selected"] = True
+        if not revision_is_monitorable(columns, label_tokens):
+            revised.at[idx, "revision_error"] = columns.get(
+                "judge_error",
+                "revision did not return monitorable label probabilities",
+            )
+            prompt = prompts_by_index.get(idx)
+            if prompt is not None:
+                import hashlib
+
+                revised.at[idx, "revision_prompt"] = prompt
+                revised.at[idx, "revision_prompt_hash"] = hashlib.sha256(
+                    prompt.encode("utf-8")
+                ).hexdigest()
+            continue
+
         for column, value in columns.items():
             revised.at[idx, column] = value
-        revised.at[idx, "revision_selected"] = True
+        revised.at[idx, "revision_applied"] = True
         prompt = prompts_by_index.get(idx)
         if prompt is not None:
             import hashlib
@@ -182,6 +200,15 @@ def apply_revisions(
             ).hexdigest()
 
     return revised
+
+
+def revision_is_monitorable(
+    columns: Mapping[str, Any],
+    label_tokens: Sequence[str],
+) -> bool:
+    return all(
+        finite_float(columns.get(f"prob_{label}")) is not None for label in label_tokens
+    )
 
 
 def run_revision_judging(
